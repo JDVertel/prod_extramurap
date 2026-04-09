@@ -57,6 +57,8 @@
                                         indicadorOrdenPendientes('edad') }}</th>
                                     <th @click="ordenarPendientes('eps')" role="button">EPS {{
                                         indicadorOrdenPendientes('eps') }}</th>
+                                    <th @click="ordenarPendientes('convenio')" role="button">Convenio {{
+                                        indicadorOrdenPendientes('convenio') }}</th>
                                     <th @click="ordenarPendientes('regimen')" role="button">Régimen {{
                                         indicadorOrdenPendientes('regimen') }}</th>
                                     <th @click="ordenarPendientes('direccion')" role="button">Dirección {{
@@ -99,6 +101,13 @@
                                         </select>
                                     </th>
                                     <th>
+                                        <select v-model="filtrosPendientes.convenio" class="form-select form-select-sm">
+                                            <option value="">Todos</option>
+                                            <option v-for="item in opcionesFiltroPendientes.convenio"
+                                                :key="`pend-convenio-${item}`" :value="item">{{ item }}</option>
+                                        </select>
+                                    </th>
+                                    <th>
                                         <select v-model="filtrosPendientes.regimen" class="form-select form-select-sm">
                                             <option value="">Todos</option>
                                             <option v-for="item in opcionesFiltroPendientes.regimen"
@@ -138,6 +147,7 @@
                                     <td>{{ paciente.fechaNac }}</td>
                                     <td>{{ calcularEdad(paciente.fechaNac) }}</td>
                                     <td>{{ paciente.eps }}</td>
+                                    <td>{{ paciente.convenio }}</td>
                                     <td>{{ paciente.regimen }}</td>
                                     <td>{{ paciente.direccion }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.barrio }}</td>
@@ -645,6 +655,7 @@ export default {
                 grupo: "",
                 sexo: "",
                 eps: "",
+                convenio: "",
                 regimen: "",
                 barrio: "",
                 comuna: "",
@@ -794,6 +805,7 @@ export default {
                 grupo: generarOpciones(p => p.grupo),
                 sexo: generarOpciones(p => p.sexo),
                 eps: generarOpciones(p => p.eps),
+                convenio: generarOpciones(p => p.convenio),
                 regimen: generarOpciones(p => p.regimen),
                 barrio: generarOpciones(p => p.barrioVeredacomuna?.barrio),
                 comuna: generarOpciones(p => p.barrioVeredacomuna?.comuna),
@@ -806,11 +818,12 @@ export default {
                 const cumpleGrupo = !this.filtrosPendientes.grupo || String(paciente.grupo || "").trim() === this.filtrosPendientes.grupo;
                 const cumpleSexo = !this.filtrosPendientes.sexo || String(paciente.sexo || "").trim() === this.filtrosPendientes.sexo;
                 const cumpleEps = !this.filtrosPendientes.eps || String(paciente.eps || "").trim() === this.filtrosPendientes.eps;
+                const cumpleConvenio = !this.filtrosPendientes.convenio || String(paciente.convenio || "").trim() === this.filtrosPendientes.convenio;
                 const cumpleRegimen = !this.filtrosPendientes.regimen || String(paciente.regimen || "").trim() === this.filtrosPendientes.regimen;
                 const cumpleBarrio = !this.filtrosPendientes.barrio || String(paciente.barrioVeredacomuna?.barrio || "").trim() === this.filtrosPendientes.barrio;
                 const cumpleComuna = !this.filtrosPendientes.comuna || String(paciente.barrioVeredacomuna?.comuna || "").trim() === this.filtrosPendientes.comuna;
 
-                return cumpleGrupo && cumpleSexo && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna;
+                return cumpleGrupo && cumpleSexo && cumpleEps && cumpleConvenio && cumpleRegimen && cumpleBarrio && cumpleComuna;
             });
 
             if (!this.ordenPendientes.campo) return filtradas;
@@ -997,6 +1010,7 @@ export default {
                 fechaNac: paciente.fechaNac,
                 edad: this.calcularEdad(paciente.fechaNac),
                 eps: paciente.eps,
+                convenio: paciente.convenio,
                 regimen: paciente.regimen,
                 direccion: paciente.direccion,
                 barrio: paciente.barrioVeredacomuna?.barrio,
@@ -1025,6 +1039,7 @@ export default {
                 grupo: "",
                 sexo: "",
                 eps: "",
+                convenio: "",
                 regimen: "",
                 barrio: "",
                 comuna: "",
