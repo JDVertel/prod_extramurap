@@ -38,6 +38,64 @@ function getNoCacheRequestConfig() {
   };
 }
 
+function normalizarFechaSoloDia(valor) {
+  if (valor === null || valor === undefined) {
+    return null;
+  }
+
+  const raw = String(valor).trim();
+  if (!raw) {
+    return null;
+  }
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  }
+
+  const latam = raw.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})/);
+  if (latam) {
+    return `${latam[3]}-${latam[2]}-${latam[1]}`;
+  }
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return null;
+}
+
+function toDateStart(yyyyMmDd) {
+  const parsed = new Date(`${yyyyMmDd}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+}
+
+function toDateEnd(yyyyMmDd) {
+  const parsed = new Date(`${yyyyMmDd}T23:59:59.999`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+}
+
+function estaFechaEnRango(valor, inicio, fin) {
+  const fechaNormalizada = normalizarFechaSoloDia(valor);
+  const inicioNormalizado = normalizarFechaSoloDia(inicio);
+  const finNormalizado = normalizarFechaSoloDia(fin);
+
+  if (!fechaNormalizada || !inicioNormalizado || !finNormalizado) {
+    return false;
+  }
+
+  const fechaTs = toDateStart(fechaNormalizada);
+  const inicioTs = toDateStart(inicioNormalizado);
+  const finTs = toDateEnd(finNormalizado);
+
+  if (fechaTs === null || inicioTs === null || finTs === null) {
+    return false;
+  }
+
+  return fechaTs >= inicioTs && fechaTs <= finTs;
+}
+
 // ============================================================================
 // STORE CONFIGURATION
 // ============================================================================
@@ -78,6 +136,7 @@ export default createStore({
     enfermerosByGrupo: [],
     psicologosByGrupo: [],
     tsocialesByGrupo: [],
+    nutricionistasByGrupo: [],
 
     // Parámetros
     comunasBarrios: [],
@@ -123,12 +182,14 @@ export default createStore({
           idEnfermeroAtiende,
           idPsicologoAtiende,
           idTsocialAtiende,
+          idNutricionistaAtiende,
           fechavisita,
           status_gest_aux,
           status_gest_medica,
           status_gest_enfermera,
           status_gest_psicologo,
           status_gest_tsocial,
+          status_gest_nutricionista,
           status_caracterizacion,
           status_visita,
           idEncuesta,
@@ -187,12 +248,14 @@ export default createStore({
           idEnfermeroAtiende,
           idPsicologoAtiende,
           idTsocialAtiende,
+          idNutricionistaAtiende,
           fechavisita,
           status_gest_aux,
           status_gest_medica,
           status_gest_enfermera,
           status_gest_psicologo,
           status_gest_tsocial,
+          status_gest_nutricionista,
           status_caracterizacion,
           status_visita,
           idEncuesta,
@@ -345,6 +408,10 @@ export default createStore({
         varStatus = "status_gest_tsocial";
         dateStatus = "fechagestTsocial";
         cargoTexto = "trabajador social";
+      } else if (cargo === "Nutricionista") {
+        varStatus = "status_gest_nutricionista";
+        dateStatus = "fechagestNutricionista";
+        cargoTexto = "nutricionista";
       } else {
         varStatus = "status_gest_aux";
         dateStatus = "fechagestAuxiliar";
@@ -516,6 +583,65 @@ export default createStore({
         return encuestasFiltradas;
       } catch (error) {
         console.error("Error en getEncuestasPendientesTsocial:", error);
+        throw error;
+      }
+    },
+
+    /**
+     * Obtiene registros pendientes para nutricionista
+     */
+    getEncuestasPendientesNutricionista: async ({ commit }, { idUsuario }) => {
+      console.log("Obteniendo encuestas pendientes para nutricionista:", idUsuario);
+      try {
+        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+
+        if (!data) {
+          commit("setEncuestas", []);
+          commit("setcantEncuestas", 0);
+          return [];
+        }
+
+        const encuestas = Object.entries(data).map(([key, value]) => ({
+          id: key,
+          ...value,
+        }));
+
+        const esAsignadaANutricionista = (encuesta) => {
+          const candidatos = [
+            encuesta.idNutricionistaAtiende,
+            encuesta.idNutriAtiende,
+            encuesta.idNutricionista,
+            encuesta.idNutricionAtiende,
+          ]
+            .map((valor) => String(valor || "").trim())
+            .filter(Boolean);
+
+          return candidatos.includes(String(idUsuario || "").trim());
+        };
+
+        const estaCerradaPorNutricionista = (encuesta) =>
+          encuesta.status_gest_nutricionista === true || encuesta.status_gest_nutri === true;
+
+        const encuestasFiltradas = encuestas.filter(
+          (encuesta) =>
+            esAsignadaANutricionista(encuesta) &&
+            encuesta.status_gest_aux === true &&
+            !estaCerradaPorNutricionista(encuesta)
+        );
+
+        const enProcesoCount = encuestas.filter(
+          (encuesta) =>
+            esAsignadaANutricionista(encuesta) &&
+            encuesta.status_gest_aux !== true
+        ).length;
+
+        commit("setEncuestas", encuestasFiltradas);
+        commit("setcantEncuestas", encuestasFiltradas.length);
+        commit("setCantEncuestasEnProceso", enProcesoCount);
+
+        return encuestasFiltradas;
+      } catch (error) {
+        console.error("Error en getEncuestasPendientesNutricionista:", error);
         throw error;
       }
     },
@@ -772,6 +898,7 @@ export default createStore({
         }));
 
         const documentoEmpleado = String(idempleado || "").trim();
+        const cargoNormalizado = String(cargo || "").trim().toLowerCase();
 
         const encuestasFiltradas = encuestas.filter((encuesta) => {
           const fecha = String(encuesta.fecha || "").trim();
@@ -783,12 +910,30 @@ export default createStore({
 
           if (
             documentoEmpleado &&
+            cargoNormalizado === "auxiliar de enfermeria" &&
             String(encuesta.idEncuestador || "").trim() !== documentoEmpleado
           ) {
             return false;
           }
 
-          // Solo incluir pacientes cerrados por el auxiliar (cierre de CUPS/paciente).
+          // Filtros por profesional para reutilizar la vista de informes en psicologia/tsocial.
+          if (cargoNormalizado === "psicologo" || cargoNormalizado === "psicólogo") {
+            if (documentoEmpleado && String(encuesta.idPsicologoAtiende || "").trim() !== documentoEmpleado) {
+              return false;
+            }
+            if (encuesta.status_gest_psicologo !== true) return false;
+            return true;
+          }
+
+          if (cargoNormalizado === "tsocial" || cargoNormalizado === "trabajador social") {
+            if (documentoEmpleado && String(encuesta.idTsocialAtiende || "").trim() !== documentoEmpleado) {
+              return false;
+            }
+            if (encuesta.status_gest_tsocial !== true) return false;
+            return true;
+          }
+
+          // Por defecto: incluir pacientes cerrados por el auxiliar (cierre de CUPS/paciente).
           if (encuesta.status_gest_aux !== true) return false;
 
           return true;
@@ -1690,6 +1835,27 @@ export default createStore({
         return tsocialesFiltrados;
       } catch (error) {
         console.error("Error en getAllTsocialesbyGrupo:", error);
+        throw error;
+      }
+    },
+
+    /**
+     * Obtiene nutricionistas por grupo y convenio
+     */
+    getAllNutricionistasbyGrupo: async ({ commit }, { grupo, convenio }) => {
+      console.log("datos que entran en getAllNutricionistasbyGrupo - grupo:", grupo, "convenio:", convenio);
+      try {
+        const usuarios = await getAllUsers();
+        const nutricionistasFiltrados = usuarios.filter(
+          (u) => String(u.grupo || "") === String(grupo || "") &&
+            String(u.convenio || "") === String(convenio || "") &&
+            String(u.cargo || "") === "Nutricionista"
+        );
+
+        commit("setNutricionistasByGrupo", nutricionistasFiltrados);
+        return nutricionistasFiltrados;
+      } catch (error) {
+        console.error("Error en getAllNutricionistasbyGrupo:", error);
         throw error;
       }
     },
@@ -2889,14 +3055,13 @@ export default createStore({
     GetRegistersbyRangeGeneral: async ({ commit }, parametros) => {
       try {
         const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
-        const encuestas = Object.entries(data).map(([key, value]) => ({
+        const encuestas = Object.entries(data || {}).map(([key, value]) => ({
           id: key,
           ...value,
         }));
 
         const encuestasFiltradas = encuestas.filter(
-          (encuesta) =>
-            encuesta.fecha >= parametros.finicial && encuesta.fecha <= parametros.ffinal
+          (encuesta) => estaFechaEnRango(encuesta.fecha, parametros.finicial, parametros.ffinal)
         );
 
         commit("setEncuestasAdmin", encuestasFiltradas);
@@ -2913,15 +3078,14 @@ export default createStore({
     GetRegistersbyRangeCerrados: async ({ commit }, parametros) => {
       try {
         const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
-        const encuestas = Object.entries(data).map(([key, value]) => ({
+        const encuestas = Object.entries(data || {}).map(([key, value]) => ({
           id: key,
           ...value,
         }));
 
         const encuestasFiltradas = encuestas.filter(
           (encuesta) =>
-            encuesta.fechagestEnfermera >= parametros.finicial &&
-            encuesta.fechagestEnfermera <= parametros.ffinal &&
+            estaFechaEnRango(encuesta.fechagestEnfermera, parametros.finicial, parametros.ffinal) &&
             encuesta.status_gest_enfermera === true
         );
 
@@ -3155,6 +3319,9 @@ export default createStore({
     },
     setTsocialesByGrupo(state, tsociales) {
       state.tsocialesByGrupo = tsociales;
+    },
+    setNutricionistasByGrupo(state, nutricionistas) {
+      state.nutricionistasByGrupo = nutricionistas;
     },
 
     // Pacientes

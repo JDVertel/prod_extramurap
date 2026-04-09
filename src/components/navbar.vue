@@ -64,6 +64,11 @@
                   <i class="bi bi-person-circle"></i> Trabajador Social
                 </router-link>
               </li>
+              <li class="nav-item" v-if="userData && userData.cargo === 'Nutricionista'">
+                <router-link class="nav-link" to="/sop_nutricionista" @click="onNavLinkClick">
+                  <i class="bi bi-person-circle"></i> Nutricionista
+                </router-link>
+              </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Enfermero'">
                 <router-link class="nav-link" to="/sop_enfermero" @click="onNavLinkClick">
                   <i class="bi bi-person-circle"></i> Enfermer@
@@ -80,6 +85,21 @@
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Auxiliar de enfermeria'">
+                <router-link class="nav-link" to="/aux_informes" @click="onNavLinkClick">
+                  <i class="bi bi-bar-chart-fill"></i> Informes
+                </router-link>
+              </li>
+              <li class="nav-item" v-if="userData && userData.cargo === 'Psicologo'">
+                <router-link class="nav-link" to="/aux_informes" @click="onNavLinkClick">
+                  <i class="bi bi-bar-chart-fill"></i> Informes
+                </router-link>
+              </li>
+              <li class="nav-item" v-if="userData && userData.cargo === 'Tsocial'">
+                <router-link class="nav-link" to="/aux_informes" @click="onNavLinkClick">
+                  <i class="bi bi-bar-chart-fill"></i> Informes
+                </router-link>
+              </li>
+              <li class="nav-item" v-if="userData && userData.cargo === 'Nutricionista'">
                 <router-link class="nav-link" to="/aux_informes" @click="onNavLinkClick">
                   <i class="bi bi-bar-chart-fill"></i> Informes
                 </router-link>

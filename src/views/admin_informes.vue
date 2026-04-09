@@ -405,6 +405,10 @@ export default {
             return String(valor || "").trim().toLowerCase();
         },
 
+        normalizarIdRelacion(valor) {
+            return String(valor ?? "").trim();
+        },
+
         filtrarEncuestasPorConvenio(encuestas = []) {
             const convenioSeleccionado = this.normalizarConvenio(this.convenioInforme);
             if (!convenioSeleccionado) return encuestas;
@@ -767,13 +771,23 @@ export default {
             const tipoActividad = actividadesEncuesta?.tipoActividad || actividadesEncuesta;
             if (!tipoActividad || typeof tipoActividad !== "object") return [];
 
-            return Object.values(tipoActividad)
-                .filter((actividad) => actividad && typeof actividad === "object")
-                .map((actividad) => ({
+            return Object.entries(tipoActividad)
+                .filter(([, actividad]) => actividad && typeof actividad === "object")
+                .map(([actividadId, actividad]) => {
+                    const sourceId = this.normalizarIdRelacion(actividadId);
+                    const actividadKey = this.normalizarIdRelacion(
+                        actividad.key ?? actividad.clave ?? actividad.actividadKey ?? actividad.actividadId
+                    );
+                    const referenciaActividad = actividadKey || sourceId;
+
+                    return ({
                     ...actividad,
-                    key: actividad.key !== undefined && actividad.key !== null ? String(actividad.key) : "",
-                    nombre: this.obtenerNombreActividadDesdeKey(actividad.key) || actividad.nombre || actividad.descripcion || actividad.key || "Actividad",
-                }));
+                    id: sourceId,
+                    sourceId,
+                    key: actividadKey,
+                    nombre: this.obtenerNombreActividadDesdeKey(referenciaActividad) || actividad.nombre || actividad.descripcion || referenciaActividad || "Actividad",
+                });
+                });
         },
 
         normalizarCupsAsignaciones(asignacionEncuesta) {
@@ -837,9 +851,11 @@ export default {
                 const actividadesExtraGlobal = respActividadesExtra.data || {};
                 const cupsGlobal = respCups.data || {};
 
-                this.actividadesExtraMap = Object.values(actividadesExtraGlobal).reduce((acc, item) => {
+                this.actividadesExtraMap = Object.entries(actividadesExtraGlobal).reduce((acc, [id, item]) => {
                     if (item && item.key !== undefined && item.key !== null) {
-                        acc[String(item.key)] = item.nombre || item.descripcion || String(item.key);
+                        const nombreActividad = item.nombre || item.descripcion || String(item.key);
+                        acc[String(item.key)] = nombreActividad;
+                        acc[String(id)] = nombreActividad;
                     }
                     return acc;
                 }, {});
@@ -857,11 +873,15 @@ export default {
                     const cupsAsignados = this.normalizarCupsAsignaciones(asignacionesGlobal[idEncuesta]);
 
                     const seguimientoActividades = actividades.map((actividad) => {
-                        const idActividad = String(actividad.key || "");
+                        const idsActividad = new Set(
+                            [actividad.key, actividad.id, actividad.sourceId]
+                                .map((valor) => this.normalizarIdRelacion(valor))
+                                .filter(Boolean)
+                        );
 
                         const asignaciones = cupsAsignados.filter((cup) => {
-                            const cupActividadId = String(cup?.actividadId ?? cup?.idActividad ?? "");
-                            return cupActividadId && idActividad && cupActividadId === idActividad;
+                            const cupActividadId = this.normalizarIdRelacion(cup?.actividadId ?? cup?.idActividad ?? "");
+                            return cupActividadId && idsActividad.has(cupActividadId);
                         });
 
                         return {

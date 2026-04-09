@@ -284,6 +284,9 @@ export default {
         async cargarActividadesPorEncuesta() {
             const mapa = {};
             const encuestas = this.encuestasFiltradas || [];
+            const cargoActual = this.normalizarTexto(this.userData?.cargo || "");
+            const nombreActual = this.normalizarTexto(this.userData?.nombre || "");
+            const documentoActual = String(this.userData?.numDocumento || "").trim();
 
             await Promise.all(
                 encuestas.map(async (encuesta) => {
@@ -300,8 +303,25 @@ export default {
                             ? Object.values(data.cups).filter(Boolean)
                             : [];
 
-                        // Solo se consideran actividades que realmente tienen registros en cups.
-                        const actividadIds = cups
+                        // Solo se marcan actividades con CUPS agregados por el usuario logueado.
+                        const cupsDelProfesional = cups.filter((cup) => {
+                            const cargoCup = this.normalizarTexto(cup?.key || "");
+                            if (!cargoActual || cargoCup !== cargoActual) return false;
+
+                            const documentoCup = String(cup?.idProf ?? cup?.idProfesional ?? "").trim();
+                            if (documentoActual && documentoCup) {
+                                return documentoCup === documentoActual;
+                            }
+
+                            const nombreCup = this.normalizarTexto(cup?.nombreProf || "");
+                            if (nombreActual && nombreCup) {
+                                return nombreCup === nombreActual;
+                            }
+
+                            return false;
+                        });
+
+                        const actividadIds = cupsDelProfesional
                             .map((cup) => cup?.actividadId ?? cup?.idActividad)
                             .filter(Boolean);
 
@@ -383,20 +403,20 @@ export default {
             const rango = 2; // Mostrar 2 páginas antes y después de la actual
             let inicio = Math.max(1, this.paginaActual - rango);
             let fin = Math.min(this.totalPaginas, this.paginaActual + rango);
-
-            // Ajustar si estamos cerca del inicio o fin
             if (this.paginaActual <= rango) {
                 fin = Math.min(this.totalPaginas, rango * 2 + 1);
             }
-            if (this.paginaActual >= this.totalPaginas - rango) {
+
+            if (this.paginaActual > this.totalPaginas - rango) {
                 inicio = Math.max(1, this.totalPaginas - rango * 2);
             }
 
             for (let i = inicio; i <= fin; i++) {
                 paginas.push(i);
             }
+
             return paginas;
-        }
+        },
     },
     watch: {
         itemsPorPagina() {

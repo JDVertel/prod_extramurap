@@ -76,6 +76,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/sop_nutricionista",
+    name: "sop_nutricionista",
+    component: () => import("../views/sop_nutricionista.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/sop_caracterizacion/:idEncuesta",
     name: "sop_caracterizacion",
     component: () => import("../views/sop_caracterizacion.vue"),

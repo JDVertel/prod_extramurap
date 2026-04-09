@@ -10,6 +10,7 @@
                 </div>
                 <div class="modal-body-custom">
                     <p>{{ message }}</p>
+                    <p v-if="messagePassword" class="mb-0"><strong>{{ messagePassword }}</strong></p>
                 </div>
                 <div class="modal-footer-custom">
                     <button class="btn-close-modal" @click="closeMessage">
@@ -159,7 +160,7 @@
                                                                         <i class="bi bi-pencil-fill"></i>
                                                                     </button>
                                                                     <button class="btn btn-sm btn-warning me-1"
-                                                                        @click="resetPassword(user.email)"
+                                                                        @click="resetPassword(user)"
                                                                         title="Restablecer contraseña">
                                                                         <i class="bi bi-key-fill"></i>
                                                                     </button>
@@ -197,6 +198,7 @@
                                         <select id="editConvenio" v-model="editConvenio" class="form-select">
                                             <option value="Extramural">Extramural</option>
                                             <option value="E Basicos">E Basicos</option>
+                                            <option value="PIC">PIC</option>
                                             <option value="sin-convenio">Usuarios Administrativos</option>
                                         </select>
                                     </div>
@@ -206,8 +208,9 @@
                                             <option value="Auxiliar de enfermeria">Auxiliar</option>
                                             <option value="Medico">Medico</option>
                                             <option value="Enfermero">Enfermero</option>
-                                            <option value="Psicologo">Psicologo</option>
-                                            <option value="Tsocial">Trabajador social</option>
+                                            <option v-if="editConvenio === 'E Basicos'" value="Psicologo">Psicologo</option>
+                                            <option v-if="editConvenio === 'E Basicos'" value="Tsocial">Trabajador social</option>
+                                            <option v-if="editConvenio === 'PIC'" value="Nutricionista">Nutricionista</option>
                                             <option value="Fact">Facturador</option>
                                             <option value="admin">--Administrador--</option>
                                         </select>
@@ -232,7 +235,8 @@
                                         editCargo === 'Enfermero' ||
                                         editCargo === 'Medico' ||
                                         editCargo === 'Psicologo' ||
-                                        editCargo === 'Tsocial'
+                                        editCargo === 'Tsocial' ||
+                                        editCargo === 'Nutricionista'
                                     ">
                                         <label for="editGrupo"># Grupo</label>
                                         <input type="text" id="editGrupo" v-model="editGrupo" class="form-control"
@@ -256,7 +260,7 @@
 
                 <div class="tab-pane fade" id="nav-profile" role="tabpanel" aria-labelledby="nav-profile-tab"
                     tabindex="0">
-                    <form @submit.prevent="createUserByAdmin" :class="['form-convenio-wrapper', convenio === 'Extramural' ? 'convenio-extramural' : convenio === 'E Basicos' ? 'convenio-ebasicos' : '']">
+                    <form @submit.prevent="createUserByAdmin" :class="['form-convenio-wrapper', convenio === 'Extramural' ? 'convenio-extramural' : convenio === 'E Basicos' ? 'convenio-ebasicos' : convenio === 'PIC' ? 'convenio-pic' : '']">
                     <h1 class="display-6 mb-3">Crear Usuario</h1>
 
                         <!-- Selector de IPS (solo visible para el superusuario) -->
@@ -296,6 +300,7 @@
                                     <option value="">Seleccione una opción</option>
                                     <option value="Extramural">Extramural</option>
                                     <option value="E Basicos">E Basicos</option>
+                                     <option value="PIC">PIC</option>
                                 </select>
                             </div>
                             <div class="col col-12 col-md-4 mb-3">
@@ -307,6 +312,7 @@
                                     <option value="Fact">Facturador</option>
                                     <option v-if="convenio === 'E Basicos'" value="Psicologo">Psicologo</option>
                                     <option v-if="convenio === 'E Basicos'" value="Tsocial">Trabajador social</option>
+                                    <option v-if="convenio === 'PIC'" value="Nutricionista">Nutricionista</option>
                                 </select>
                             </div>
                             <div class="col col-12 col-md-4 mb-3">
@@ -371,7 +377,8 @@
                                 cargo === 'Enfermero' ||
                                 cargo === 'Medico' ||
                                 cargo === 'Psicologo' ||
-                                cargo === 'Tsocial'
+                                cargo === 'Tsocial' ||
+                                cargo === 'Nutricionista'
                             ">
                                 <label for="grupo"># Grupo</label>
                                 <input type="text" id="grupo" v-model="grupo" placeholder="Ej: 1, 2, F" required />
@@ -406,9 +413,9 @@ import {
     documentExists,
     emailExists,
     getAllUsers,
+    updateUserPasswordById,
     updateUser,
 } from "@/api/usersApi";
-import { requestPasswordReset } from "@/api/authApi";
 import {
     mapActions
 } from "vuex";
@@ -438,6 +445,7 @@ export default {
             loading: false,
             message: "",
             messageType: "",
+            messagePassword: "",
             users: [],
             ips: null,
             convenioSeleccionado: "",
@@ -677,13 +685,18 @@ export default {
         }
     },
     methods: {
+        esCargoOculto(cargo) {
+            return String(cargo || '').trim().toLowerCase() === 'superusuario';
+        },
+
         cargoRequiereGrupo(cargo) {
             return [
                 'Auxiliar de enfermeria',
                 'Enfermero',
                 'Medico',
                 'Psicologo',
-                'Tsocial'
+                'Tsocial',
+                'Nutricionista'
             ].includes(String(cargo || '').trim());
         },
 
@@ -783,18 +796,38 @@ export default {
         },
 
         getCargoColorClass(cargo) {
+            const normalizado = String(cargo || "")
+                .trim()
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "");
+            const compacto = normalizado.replace(/[^a-z0-9]/g, "");
+
+            if (compacto.includes("psicolog")) {
+                return 'bg-fuchsia text-white';
+            }
+
+            if (
+                compacto.includes("tsocial") ||
+                compacto.includes("trabajadorsocial") ||
+                compacto.includes("trabajadorasocial") ||
+                compacto.includes("trabajosocial")
+            ) {
+                return 'bg-emerald-deep text-white';
+            }
+
             const cargoColors = {
-                'Auxiliar de enfermeria': 'bg-success text-white',
-                'Enfermero': 'bg-info text-white',
-                'Medico': 'bg-primary text-white',
-                'Fact': 'bg-warning text-dark',
+                'auxiliar de enfermeria': 'bg-success text-white',
+                'enfermero': 'bg-info text-white',
+                'medico': 'bg-primary text-white',
+                'fact': 'bg-warning text-dark',
                 'admin': 'bg-danger text-white',
-                'Psicologo': 'bg-purple text-white',
-                'Nutricionista': 'bg-orange text-white',
-                'Tsocial': 'bg-teal text-white'
+                'nutricionista': 'bg-orange text-white',
+                'psicologo': 'bg-fuchsia text-white',
+                'tsocial': 'bg-emerald-deep text-white'
             };
 
-            return cargoColors[cargo] || 'bg-secondary text-white';
+            return cargoColors[normalizado] || 'bg-secondary text-white';
         },
 
         getCargoShortName(cargo) {
@@ -840,6 +873,12 @@ Esta acción eliminará el usuario de la base de datos.`)) {
         },
 
         abrirModalEdicion(user) {
+            if (this.esCargoOculto(user?.cargo)) {
+                this.message = "El rol superusuario no se gestiona desde esta vista.";
+                this.messageType = "error";
+                return;
+            }
+
             this.usuarioEditando = user;
             this.editEmail = user.email;
             this.editNombre = user.nombre;
@@ -899,6 +938,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
         closeMessage() {
             this.message = "";
             this.messageType = "";
+            this.messagePassword = "";
         },
         //crear el usuario en la bd
         async createUserByAdmin() {
@@ -1010,16 +1050,38 @@ Esta acción eliminará el usuario de la base de datos.`)) {
                 this.loading = false;
             }
         },
-        /*  resetear pasword */
-        async resetPassword(email) {
+        generarPasswordTemporal(longitud = 10) {
+            const caracteres = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#$%";
+            return Array.from({ length: longitud }, () =>
+                caracteres[Math.floor(Math.random() * caracteres.length)]
+            ).join('');
+        },
+
+        /*  resetear password con clave temporal */
+        async resetPassword(user) {
+            const userId = user?.uid || user?.id;
+            if (!userId) {
+                this.message = "No se pudo identificar el usuario para restablecer la contraseña.";
+                this.messageType = "error";
+                this.messagePassword = "";
+                return;
+            }
+
+            const temporalPassword = this.generarPasswordTemporal(10);
+
             try {
-                await requestPasswordReset(email);
-                this.message = `Correo de restablecimiento enviado a ${email}.`;
+                this.loading = true;
+                await updateUserPasswordById(userId, temporalPassword, true);
+                this.message = `Contraseña temporal generada para ${user?.email || 'el usuario'}:`;
+                this.messagePassword = temporalPassword;
                 this.messageType = "success";
             } catch (error) {
-                this.message = `Error al enviar correo: ${error.message}`;
+                this.message = `Error al generar contraseña temporal: ${error.message}`;
                 this.messageType = "error";
+                this.messagePassword = "";
                 console.error(error);
+            } finally {
+                this.loading = false;
             }
         },
 
@@ -1027,10 +1089,12 @@ Esta acción eliminará el usuario de la base de datos.`)) {
         async fetchUsers() {
             try {
                 const users = await getAllUsers();
-                this.users = users.map((u) => ({
-                    uid: u.id,
-                    ...u,
-                }));
+                this.users = users
+                    .filter((u) => !this.esCargoOculto(u?.cargo))
+                    .map((u) => ({
+                        uid: u.id,
+                        ...u,
+                    }));
             } catch (error) {
                 this.message = `Error al cargar usuarios: ${error.message}`;
                 this.messageType = "error";
@@ -1039,7 +1103,13 @@ Esta acción eliminará el usuario de la base de datos.`)) {
         },
         onConvenioChange() {
             const soloEBasicos = ['Psicologo', 'Tsocial'];
+            const soloPIC = ['Nutricionista'];
+
             if (this.convenio !== 'E Basicos' && soloEBasicos.includes(this.cargo)) {
+                this.cargo = '';
+            }
+
+            if (this.convenio !== 'PIC' && soloPIC.includes(this.cargo)) {
                 this.cargo = '';
             }
         },
@@ -1102,6 +1172,16 @@ Esta acción eliminará el usuario de la base de datos.`)) {
 .form-convenio-wrapper.convenio-ebasicos h1,
 .form-convenio-wrapper.convenio-ebasicos label {
     color: #14532d;
+}
+
+.form-convenio-wrapper.convenio-pic {
+    background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+    border-color: #ea580c;
+}
+
+.form-convenio-wrapper.convenio-pic h1,
+.form-convenio-wrapper.convenio-pic label {
+    color: #9a3412;
 }
 
 /* Sección de Convenio */
@@ -2132,16 +2212,16 @@ Esta acción eliminará el usuario de la base de datos.`)) {
 }
 
 /* Colores personalizados para cargos adicionales */
-.bg-purple {
-    background-color: #6f42c1 !important;
+.bg-fuchsia {
+    background-color: #c2185b !important;
 }
 
 .bg-orange {
     background-color: #fd7e14 !important;
 }
 
-.bg-teal {
-    background-color: #20c997 !important;
+.bg-emerald-deep {
+    background-color: #0f766e !important;
 }
 
 /* Estilos para validación de documento */

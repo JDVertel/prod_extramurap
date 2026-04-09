@@ -328,7 +328,7 @@
             <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @click="$refs.csvActividades.click()">
               <i class="bi bi-upload"></i> Importar CSV
             </button>
-            <small class="text-muted ms-2">Columnas: <code>clave, nombre, profesionales</code> &nbsp;| Profesionales múltiples con <code>|</code> (Ej: <code>Auxiliar de enfermeria|Enfermero</code>) | Valores permitidos: Auxiliar de enfermeria, Enfermero, Medico, Psicologo, Tsocial.</small>
+            <small class="text-muted ms-2">Columnas: <code>clave, nombre, profesionales</code> &nbsp;| Profesionales múltiples con <code>|</code> (Ej: <code>Auxiliar de enfermeria|Enfermero</code>) | Valores permitidos: Auxiliar de enfermeria, Enfermero, Medico, Psicologo, Tsocial, Nutricionista.</small>
           </div>
 
           <div style="max-height: 420px; overflow-y: auto">
@@ -644,6 +644,7 @@ export default {
         "Medico",
         "Psicologo",
         "Tsocial",
+        "Nutricionista",
       ],
 
       // ===== CUPS =====
@@ -1090,6 +1091,7 @@ export default {
         { key: "Medico", match: ["medico"] },
         { key: "Psicologo", match: ["psicologo"] },
         { key: "Tsocial", match: ["tsocial", "trabajo social", "social"] },
+        { key: "Nutricionista", match: ["nutricion"] },
       ];
 
       const partes = String(valor || "")

@@ -156,6 +156,34 @@ export default {
         },
     },
     methods: {
+        normalizarFechaSoloDia(valor) {
+            if (valor === null || valor === undefined) return null;
+
+            const raw = String(valor).trim();
+            if (!raw) return null;
+
+            const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (iso) {
+                return `${iso[1]}-${iso[2]}-${iso[3]}`;
+            }
+
+            const latam = raw.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})/);
+            if (latam) {
+                return `${latam[3]}-${latam[2]}-${latam[1]}`;
+            }
+
+            const parsed = new Date(raw);
+            if (!Number.isNaN(parsed.getTime())) {
+                return parsed.toISOString().slice(0, 10);
+            }
+
+            return null;
+        },
+
+        normalizarConvenio(valor) {
+            return String(valor || "").trim().toLowerCase();
+        },
+
         formatearClave(clave) {
             return String(clave || "")
                 .replace(/([A-Z])/g, " $1")
@@ -185,25 +213,36 @@ export default {
             return (
                 caracterizacion?.fechaCaracterizacion ||
                 caracterizacion?.fecha ||
+                caracterizacion?.created_at ||
+                caracterizacion?.createdAt ||
                 encuesta?.fecha ||
                 ""
             );
         },
 
         coincideRango(fecha) {
-            if (!fecha || !this.fechaInicio || !this.fechaFin) return false;
-            return fecha >= this.fechaInicio && fecha <= this.fechaFin;
+            const fechaNormalizada = this.normalizarFechaSoloDia(fecha);
+            const inicio = this.normalizarFechaSoloDia(this.fechaInicio);
+            const fin = this.normalizarFechaSoloDia(this.fechaFin);
+
+            if (!fechaNormalizada || !inicio || !fin) return false;
+            return fechaNormalizada >= inicio && fechaNormalizada <= fin;
         },
 
         coincideConvenio(caracterizacion, encuesta) {
             if (!this.convenioInforme) return true;
-            const convenio = String(caracterizacion?.convenio || encuesta?.convenio || "").trim();
-            return convenio === this.convenioInforme;
+            const convenio = this.normalizarConvenio(caracterizacion?.convenio || encuesta?.convenio || "");
+            return convenio === this.normalizarConvenio(this.convenioInforme);
         },
 
         async generarInforme() {
             if (!this.fechaInicio || !this.fechaFin) {
                 alert("Debe seleccionar fecha de inicio y fecha fin.");
+                return;
+            }
+
+            if (this.fechaInicio > this.fechaFin) {
+                alert("La fecha de inicio no puede ser mayor que la fecha fin.");
                 return;
             }
 
@@ -227,7 +266,10 @@ export default {
                 const registros = Object.entries(caracterizaciones)
                     .map(([id, value]) => {
                         const caracterizacion = value || {};
-                        const encuesta = encuestasMap[String(caracterizacion.idEncuesta)] || {};
+                        const encuestaId = String(
+                            caracterizacion.idEncuesta ?? caracterizacion.encuestaId ?? caracterizacion.encuesta_id ?? ""
+                        );
+                        const encuesta = encuestasMap[encuestaId] || {};
                         const fecha = this.obtenerFechaRegistro(caracterizacion, encuesta);
                         const convenio = caracterizacion.convenio || encuesta.convenio || "";
 
@@ -235,6 +277,7 @@ export default {
                             id,
                             fecha,
                             convenio,
+                            encuestaId,
                             caracterizacion,
                             encuesta,
                         };

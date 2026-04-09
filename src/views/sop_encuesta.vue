@@ -287,6 +287,17 @@
                             </select>
                         </div>
 
+                        <div v-if="esConvenioEBasicos" class="col-6 col-md-3 mb-3">
+                            <label for="nutricionista" class="form-label">Nutricionista</label>
+                            <select id="nutricionista" v-model="nutricionista" class="form-select">
+                                <option value="">---Seleccione---</option>
+                                <option v-for="nutricionistaUser in nutricionistasByGrupo" :key="nutricionistaUser.numDocumento"
+                                    :value="nutricionistaUser.numDocumento">
+                                    {{ nutricionistaUser.nombre }}
+                                </option>
+                            </select>
+                        </div>
+
                         <!-- BOTÓN SUBMIT -->
                         <div class="col-12 mb-4">
                             <button type="submit" class="btn btn-primary" v-if="userData" :disabled="enviando">
@@ -332,6 +343,7 @@ export default {
         enfermero: "",
         psicologo: "",
         trabajadorSocial: "",
+        nutricionista: "",
         enviando: false,
         estadoConsulta: null, // 'encuestado', 'disponible' o null
         pacienteEncontrado: null,
@@ -424,13 +436,16 @@ export default {
                 let mensajeAdvertencia = "";
                 const faltaPsicologo = !this.psicologo;
                 const faltaTSocial = !this.trabajadorSocial;
+                const faltaNutricionista = !this.nutricionista;
 
-                if (faltaPsicologo && faltaTSocial) {
-                    mensajeAdvertencia = "No ha seleccionado Psicólogo ni Trabajador Social.";
+                if (faltaPsicologo && faltaTSocial && faltaNutricionista) {
+                    mensajeAdvertencia = "No ha seleccionado Psicólogo, Trabajador Social ni Nutricionista.";
                 } else if (faltaPsicologo) {
                     mensajeAdvertencia = "No ha seleccionado Psicólogo.";
                 } else if (faltaTSocial) {
                     mensajeAdvertencia = "No ha seleccionado Trabajador Social.";
+                } else if (faltaNutricionista) {
+                    mensajeAdvertencia = "No ha seleccionado Nutricionista.";
                 }
 
                 if (mensajeAdvertencia) {
@@ -455,11 +470,15 @@ export default {
                 ...(requiereProfesionalesExtra && this.trabajadorSocial
                     ? { idTsocialAtiende: this.trabajadorSocial }
                     : {}),
+                ...(requiereProfesionalesExtra && this.nutricionista
+                    ? { idNutricionistaAtiende: this.nutricionista }
+                    : {}),
                 status_gest_aux: false,
                 status_gest_medica: false,
                 status_gest_enfermera: false,
                 status_gest_psicologo: false,
                 status_gest_tsocial: false,
+                status_gest_nutricionista: false,
                 status_caracterizacion: false,
                 status_visita: false,
                 idEncuesta: 1,
@@ -526,6 +545,7 @@ export default {
             "getAllEnfermerosbyGrupo",
             "getAllPsicologosbyGrupo",
             "getAllTsocialesbyGrupo",
+            "getAllNutricionistasbyGrupo",
             "getAllEps",
             "getAllContratos",
             "getAllActividadesExtra",
@@ -713,6 +733,9 @@ export default {
                 if (!this.trabajadorSocial) {
                     this.trabajadorSocial = this.primerDocumentoDisponible(this.tsocialesByGrupo);
                 }
+                if (!this.nutricionista) {
+                    this.nutricionista = this.primerDocumentoDisponible(this.nutricionistasByGrupo);
+                }
             }
         },
         cargarActividadesPorDefecto() {
@@ -777,6 +800,7 @@ export default {
             this.medico = "";
             this.psicologo = "";
             this.trabajadorSocial = "";
+            this.nutricionista = "";
             this.estadoConsulta = null;
             this.pacienteEncontrado = null;
             this.nombreEncuestador = "";
@@ -800,6 +824,7 @@ export default {
             "enfermerosByGrupo",
             "psicologosByGrupo",
             "tsocialesByGrupo",
+            "nutricionistasByGrupo",
             "epss",
             "contratos",
             "actividadesExtra",
@@ -864,6 +889,9 @@ export default {
         tsocialesByGrupo() {
             this.aplicarProfesionalesPorDefecto();
         },
+        nutricionistasByGrupo() {
+            this.aplicarProfesionalesPorDefecto();
+        },
         actividadesExtra() {
             this.cargarActividadesPorDefecto();
         },
@@ -887,6 +915,10 @@ export default {
                 convenio: this.userData.convenio,
             });
             await this.getAllTsocialesbyGrupo({
+                grupo: this.userData.grupo,
+                convenio: this.userData.convenio,
+            });
+            await this.getAllNutricionistasbyGrupo({
                 grupo: this.userData.grupo,
                 convenio: this.userData.convenio,
             });
