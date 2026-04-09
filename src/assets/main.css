@@ -1,0 +1,117 @@
+@import "./base.css";
+
+#app {
+  margin: 0 auto;
+  padding: 8px;
+  font-weight: normal;
+  padding-top: 3.5rem;
+  max-width: 1400px;
+}
+
+a,
+.green {
+  text-decoration: none;
+  color: #2563eb;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+@media (hover: hover) {
+  a:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+  }
+}
+
+.contenedor-cards {
+  display: flex;
+  flex-wrap: wrap; /* Para que las tarjetas se envuelvan en varias filas */
+  flex-direction: row;
+}
+
+.cardpqrs {
+  flex-grow: 1;
+  flex-basis: 100%;
+  margin: 10px;
+  min-height: 10rem;
+  max-height: 15rem;
+  font-size: 13px;
+  padding: 12px !important;
+  border-radius: 8px;
+  background-color: #fff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.cardpqrs:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card-body {
+  padding: 8px !important;
+  line-height: 1.6;
+}
+hr {
+  margin: 1.5rem 0;
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  opacity: 1;
+}
+.contenedor-centrado {
+  display: flex;
+  justify-content: center; /* Centra horizontalmente los elementos hijos */
+  align-items: center; /* Centra verticalmente los elementos hijos (opcional, si el contenedor tiene altura) */
+}
+.linea-vertical {
+  width: 2px;
+  height: 100px;
+  background-color: #030303;
+}
+/* Bootstrap >=5 ya trae border-end-md, pero personalizamos color/grosor */
+.border-end-md {
+  @media (min-width: 768px) {
+    border-right: 2px solid #0d6efd !important; /* azul institucional, cámbialo si deseas */
+  }
+}
+
+/* ========== ADMIN PARAMETROS STYLES ========== */
+
+/* Tabla con scroll vertical */
+.table-scroll-container {
+  max-height: 600px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+/* Tabla con scroll horizontal */
+.table-horizontal-scroll {
+  overflow-x: auto;
+  width: 100%;
+  min-width: 900px;
+}
+
+/* Contenedor de celda para texto largo */
+.cell-content {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+
+/* Espaciado para tablas generales */
+.table-spacing {
+  margin-bottom: 1rem;
+}
+
+/* Spinner personalizado */
+.spinner-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* Tab content */
+.tab-content-padded {
+  padding: 2rem 1rem;
+}

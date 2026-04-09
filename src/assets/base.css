@@ -1,0 +1,451 @@
+:root {
+  --morado-principal: #7c3aed;
+  --morado-oscuro: #5b21b6;
+  --morado-claro: #c4b5fd;
+  --blanco: #ffffff;
+  --gris-claro: #ffffff;
+  --gris: #e5e7eb;
+}
+
+.center {
+  align-content: center;
+  text-align: center;
+}
+
+.centerB {
+  display: flex;
+  align-items: center;
+  align-content: center;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.centerA {
+  display: flex;
+  align-items: center;
+  align-content: center;
+  flex-direction: row;
+  justify-content: center;
+}
+
+.formulario {
+  background-color: rgb(255, 255, 255);
+  border-radius: 10px;
+  padding: 2px;
+  margin: 2px;
+}
+
+form {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+@media (max-width: 768px) {
+  form {
+    border-radius: 12px;
+    padding: 0.85rem;
+  }
+}
+
+.comb_A {
+  background-color: rgb(140, 242, 111);
+}
+
+.comb_B {
+  background-color: rgb(234, 186, 123);
+}
+
+body {
+  background: var(--gris-claro);
+  font-family: "Instrument Sans", sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: 0.3px;
+  margin: 0;
+  padding: 0;
+  color: #2c3e50;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Encabezados profesionales */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.5px;
+  color: #1a202c;
+  margin-bottom: 0.75rem;
+  margin-top: 0;
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+h5 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+h6 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* Párrafos y texto */
+p {
+  margin-bottom: 1rem;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+a {
+  color: #2563eb;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+/* Label y formularios */
+label {
+  font-weight: 500;
+  font-size: 13px;
+  color: #374151;
+  margin-bottom: 0.35rem;
+  display: block;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button {
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  transition: all 0.2s ease;
+}
+
+/* Tablas profesionales */
+table {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+th {
+  font-weight: 600;
+  color: #2c3e50;
+  background-color: #f3f4f6;
+}
+
+/* Código y snippets */
+code,
+pre {
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+}
+
+h1 {
+  color: #1a202c;
+  margin-bottom: 1rem;
+  font-size: 2rem;
+}
+
+h4 {
+  color: #2c3e50;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+p {
+  color: #4a5568;
+  margin-bottom: 1rem;
+  font-size: 14px;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+textarea,
+select {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  margin: 0.5rem 0;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 14px;
+  color: #2c3e50;
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="date"]:focus,
+textarea:focus,
+select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.buttonLogin {
+  width: 95%;
+  padding: 0.8rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+  letter-spacing: 0.3px;
+}
+
+.buttonLogin:hover {
+  background: #1d4ed8;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.buttonLogin:active {
+  transform: translateY(1px);
+}
+
+.app {
+  padding: 8px !important;
+  margin: 0 !important;
+}
+
+.navbar {
+  background: linear-gradient(
+    to top,
+    var(--morado-principal),
+    var(--morado-oscuro)
+  ) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.offcanvas {
+  width: 160px !important;
+  background: linear-gradient(
+    to top,
+    var(--gris),
+    var(--morado-oscuro)
+  ) !important;
+  color: #fff !important;
+}
+
+.navbar .nav-link:hover,
+.navbar .navbar-brand:hover {
+  color: #e0e0e0 !important;
+  transition: color 0.2s ease;
+}
+
+.loginc {
+  max-width: 200px;
+  margin: 0 auto;
+}
+
+.loginform {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 80vh;
+}
+
+.buttonLogin {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 0.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.textRed {
+  color: red;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+footer {
+  position: fixed;
+  /* Fija el footer en la parte inferior de la ventana */
+  bottom: 0;
+  /* Posición en la parte inferior */
+  left: 0;
+  /* Alineado al borde izquierdo */
+  width: 100%;
+  /* Ocupa todo el ancho de la pantalla */
+  background-color: #e9dede;
+  /* Color de fondo (puedes cambiarlo) */
+  color: white;
+  /* Color del texto */
+  padding: 3px 0;
+  /* Espaciado interno */
+  text-align: center;
+  /* Centrar contenido */
+  z-index: 1000;
+  /* Para que esté encima de otros elementos */
+  box-sizing: border-box;
+  /* Para que el padding no aumente el ancho */
+}
+/* Ajuste para que los elementos ocupen todo el ancho y tengan padding uniforme */
+.offcanvas-body ul.navbar-nav {
+  width: 100%;
+  padding-left: 0;
+}
+
+.offcanvas-body ul.navbar-nav > li.nav-item {
+  width: 100%;
+}
+
+/* Estilo común para enlaces y botón logout */
+.offcanvas-body ul.navbar-nav > li.nav-item > a.nav-link,
+.offcanvas-body ul.navbar-nav > li.nav-item > button.logout-btn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #212529;
+  /* Color texto nav-link */
+  text-decoration: none;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+  text-align: left;
+}
+
+/* Hover para enlaces y botón */
+.offcanvas-body ul.navbar-nav > li.nav-item > a.nav-link:hover,
+.offcanvas-body ul.navbar-nav > li.nav-item > button.logout-btn:hover {
+  background-color: #e9ecef;
+  color: #0d6efd;
+}
+
+/* Opcional: que el botón logout no tenga outline al hacer foco */
+.logout-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.blanco {
+  color: #e9ecef !important;
+}
+.form-floating label {
+  position: absolute;
+  top: -2px;
+  left: 0.5rem;
+  pointer-events: none;
+  transition: all 0.2s ease-in-out;
+  font-size: 0.8rem !important;
+  max-width: 100%;
+  /* overflow: clip; */ /* Puedes eliminar o cambiar esta línea */
+  white-space: normal; /* Permite que el texto pase a otro renglón */
+  /* text-overflow: ellipsis; */ /* Elimina esta línea */
+}
+.horizontal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ok {
+  color: rgb(6, 114, 255);
+  text-shadow: 1px 0 0 1px rgba(2, 2, 2, 0.5);
+  font-size: small;
+}
+.pendiente {
+  color: rgb(241, 11, 45);
+  text-shadow: 1px 0 0 1px rgba(2, 2, 2, 0.5);
+  font-size: small;
+}
+
+.horizontal {
+  display: flex;
+  flex-direction: row;
+  gap: 10px; /* Espacio opcional entre elementos */
+}
+
+/*  */
+
+.fila-con-columnas > div {
+  border-left: 1px solid #4e4e4e; /* Línea izquierda para separar columnas */
+  padding: 10px;
+}
+
+.fila-con-columnas > div:first-child {
+  border-left: none; /* Quita línea a la primera columna */
+}
+
+.fila-con-columnas:hover {
+  background-color: #e4dede; /* Cambia color de fondo al pasar el mouse */
+}
+.Riesgos {
+  background-color: #a5c5e8;
+}
+.Actividades {
+  background-color: #5cf0f5;
+}
+.cupsAsignados {
+  background-color: #f6f2b1;
+}
+.profesionales {
+  background-color: #b6ddfd;
+}
+.paciente {
+  background-color: #69c350;
+  margin-bottom: 4px;
+  color: white;
+}
+/*  */
