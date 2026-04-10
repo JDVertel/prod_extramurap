@@ -215,37 +215,61 @@
                                     <div class="row">
                                         <div class="mb-3">
                                             <br />
-                                            <select v-model="CupsSeleccionadoId" class="form-select" id="cupSelect">
-                                                <option value="">Seleccione un CUPS</option>
-                                                <option v-for="cup in cupsDisponiblesFiltradas" :key="cup.id"
-                                                    :value="cup.id">
-                                                    [{{ cup.codigo }}] {{ cup.DescripcionCUP }} - {{ formatProfesionales(cup.profesional) }}
-                                                </option>
-                                            </select>
-                                            <small v-if="cupsDisponiblesFiltradas.length === 0"
+                                            <input
+                                                v-model.trim="filtroTextoCups"
+                                                type="text"
+                                                class="form-control form-control-sm mb-2"
+                                                placeholder="Buscar CUPS por código, nombre o profesional (mínimo 3 caracteres)"
+                                            />
+                                            <div class="cups-resultados-lista" id="cupSelect">
+                                                <label
+                                                    v-for="cup in cupsDisponiblesFiltradasTexto"
+                                                    :key="cup.id"
+                                                    class="cups-resultado-item"
+                                                    :class="{ active: String(CupsSeleccionadoId) === String(cup.id) }"
+                                                >
+                                                    <input
+                                                        v-model="CupsSeleccionadoId"
+                                                        class="form-check-input me-2"
+                                                        type="radio"
+                                                        name="cupsResultado"
+                                                        :value="String(cup.id)"
+                                                    />
+                                                    <div>
+                                                        <div class="fw-semibold">[{{ cup.codigo }}] {{ cup.DescripcionCUP }}</div>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                            <small v-if="filtroTextoCups && filtroTextoCups.length > 0 && filtroTextoCups.length < 3"
+                                                class="text-muted d-block mt-1">
+                                                Escriba al menos 3 caracteres para filtrar el listado.
+                                            </small>
+                                            <small v-if="cupsDisponiblesFiltradasTexto.length === 0"
                                                 class="text-muted d-block mt-1">
                                                 No hay CUPS disponibles para esta actividad, EPS y profesional.
                                             </small>
-                                            <div class="row mt-2">
-                                                <div class="col-2">
+                                            <div class="row mt-2 align-items-center">
+                                                <div class="col-3 col-md-2 col-lg-1">
                                                     Cantidad
                                                     <input type="number" id="cupCantidad" name="cupCantidad"
                                                         class="form-control" aria-label="Cantidad" v-model="cantidad" />
                                                 </div>
-                                                <div class="col-10">
-                                                    <div class="input-group input-group-sm mb-3">
+                                                <div class="col-9 col-md-7 col-lg-8">
+                                                    <div class="input-group input-group-sm mb-0">
                                                         <span class="input-group-text">Detalle</span>
                                                         <textarea id="cupDetalle" name="cupDetalle" class="form-control"
                                                             aria-label="With textarea" v-model="detalle"></textarea>
                                                     </div>
                                                 </div>
+                                                <div class="col-12 col-md-3 d-grid align-self-center">
+                                                    <button v-if="cupsDisponiblesFiltradasTexto.length > 0"
+                                                        class="btn btn-warning rounded-pill mt-1 mt-md-0"
+                                                        @click="addCups(CupsSeleccionadoId, cantidad, detalle)"
+                                                        :disabled="!CupsSeleccionadoId || cantidad < 1 || !detalle.trim()">
+                                                        <i class="bi bi-plus-circle-dotted"></i> Agregar al listado
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <button v-if="cupsDisponiblesFiltradas.length > 0"
-                                                class="btn btn-warning rounded-pill mt-2"
-                                                @click="addCups(this.CupsSeleccionadoId, this.cantidad, this.detalle)"
-                                                :disabled="!CupsSeleccionadoId || cantidad < 1 || !detalle.trim()">
-                                                <i class="bi bi-plus-circle-dotted"></i> Agregar al listado
-                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -340,6 +364,7 @@ export default {
             actividadSeleccionadaNombre: "",
             modalEl: null,
             modalShownHandler: null,
+            modalHideHandler: null,
             modalHiddenHandler: null,
             modalScrollRescueTimeout: null,
             caracterizacionEncuesta: {},
@@ -347,6 +372,7 @@ export default {
             cargandoCaracterizacion: false,
             caracterizacionCargada: false,
             isComponentActive: true, // Bandera para cancelar operaciones al desmontar
+            filtroTextoCups: "",
 
             /*  */
             tipoActividadExtramural: [{
@@ -623,6 +649,27 @@ export default {
             }
 
             return disponibles.filter((cup) => !idsBloqueados.has(String(cup.id)));
+        },
+
+        cupsDisponiblesFiltradasTexto() {
+            const disponibles = this.cupsDisponiblesFiltradas || [];
+            const texto = this.normalizarTextoComparacion(this.filtroTextoCups);
+
+            if (!texto || texto.length < 3) {
+                return disponibles;
+            }
+
+            return disponibles.filter((cup) => {
+                const codigo = this.normalizarTextoComparacion(cup?.codigo);
+                const descripcion = this.normalizarTextoComparacion(cup?.DescripcionCUP);
+                const profesionales = this.normalizarTextoComparacion(this.formatProfesionales(cup?.profesional));
+
+                return (
+                    codigo.includes(texto) ||
+                    descripcion.includes(texto) ||
+                    profesionales.includes(texto)
+                );
+            });
         },
     },
     /* ----------------------------------------------------------------------------------------------- */
@@ -992,6 +1039,11 @@ export default {
             });
         },
 
+        onModalHide() {
+            // Respaldo cuando hidden.bs.modal no se dispara por cierres abruptos.
+            this.programarRescateScroll();
+        },
+
         registrarEventosModal() {
             if (!this.modalEl) {
                 const modal = document.getElementById('staticBackdrop');
@@ -1005,9 +1057,13 @@ export default {
             if (!this.modalHiddenHandler) {
                 this.modalHiddenHandler = this.onModalHidden.bind(this);
             }
+            if (!this.modalHideHandler) {
+                this.modalHideHandler = this.onModalHide.bind(this);
+            }
 
             // Vincular con métodos de la instancia para poder removerlos después
             this.modalEl.addEventListener('shown.bs.modal', this.modalShownHandler);
+            this.modalEl.addEventListener('hide.bs.modal', this.modalHideHandler);
             this.modalEl.addEventListener('hidden.bs.modal', this.modalHiddenHandler);
         },
 
@@ -1030,6 +1086,9 @@ export default {
             if (this.modalEl && this.modalHiddenHandler) {
                 this.modalEl.removeEventListener('hidden.bs.modal', this.modalHiddenHandler);
             }
+            if (this.modalEl && this.modalHideHandler) {
+                this.modalEl.removeEventListener('hide.bs.modal', this.modalHideHandler);
+            }
 
             this.restablecerEstadoModalScroll(true);
 
@@ -1040,6 +1099,7 @@ export default {
 
             this.modalEl = null;
             this.modalShownHandler = null;
+            this.modalHideHandler = null;
             this.modalHiddenHandler = null;
         },
 
@@ -1149,6 +1209,7 @@ export default {
             this.cantidad = 1;
             this.detalle = "";
             this.cupsArray = [];
+            this.filtroTextoCups = "";
         },
         //elimina un cup del listado por indice
         eliminarDelListado(index, cup = null) {
@@ -1766,7 +1827,14 @@ export default {
             this.cargandoCaracterizacion = false;
             this.mostrarCaracterizacion = false;
             this.recargar();
-        }
+        },
+
+        InfoEncuestasById() {
+            // El modal vive dentro de un v-if, así que puede aparecer después de mounted.
+            this.$nextTick(() => {
+                this.registrarEventosModal();
+            });
+        },
     },
 
     /* ----------------------------------------------------------------------------------------------- */
@@ -1800,7 +1868,9 @@ export default {
             this.cargandoDatos = false;
         }
 
-        this.registrarEventosModal();
+        this.$nextTick(() => {
+            this.registrarEventosModal();
+        });
     },
 
     beforeUnmount() {
@@ -2087,6 +2157,50 @@ select {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+#cupSelect {
+    width: 100%;
+}
+
+.cups-resultados-lista {
+    width: 100%;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+}
+
+.cups-resultados-lista .list-group-item {
+    border: 0;
+    border-bottom: 1px solid #e9ecef;
+    text-align: left;
+}
+
+.cups-resultados-lista .list-group-item:last-child {
+    border-bottom: 0;
+}
+
+.cups-resultado-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid #e9ecef;
+    cursor: pointer;
+    background: #fff;
+}
+
+.cups-resultado-item:last-child {
+    border-bottom: 0;
+}
+
+.cups-resultado-item.active {
+    background: #e9f3ff;
+}
+
+#cupCantidad {
+    max-width: 72px;
 }
 
 .cabecera {
