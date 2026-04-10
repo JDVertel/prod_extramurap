@@ -164,6 +164,12 @@ const routes = [
     component: () => import("../views/admin_caracterizacion.vue"),
     meta: { requiresAuth: true },
   },
+  {
+    path: "/admin_estado_profesional",
+    name: "admin_estado_profesional",
+    component: () => import("../views/admin_estado_profesional.vue"),
+    meta: { requiresAuth: true },
+  },
 
 
 
@@ -264,6 +270,23 @@ router.beforeEach((to, from, next) => {
           return next("/");
         }
       }
+
+      if (to.matched.some((record) => record.meta.requiresAdmin)) {
+        try {
+          const raw = localStorage.getItem("userData");
+          const userData = raw ? JSON.parse(raw) : {};
+          const cargo = String(userData?.cargo || "").trim().toLowerCase();
+          const isAdmin = cargo === "admin" || cargo === "administrador";
+
+          if (!isAdmin) {
+            console.warn(`[Router] Acceso denegado a ${to.name}: requiere admin`);
+            return next("/");
+          }
+        } catch (_) {
+          return next("/");
+        }
+      }
+
       // Token existe, permitir navegación
       console.log(`[Router] Autenticado - permitiendo acceso a ${to.name}`);
       next();

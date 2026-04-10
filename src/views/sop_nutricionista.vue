@@ -18,7 +18,10 @@
             <button class="btn btn-primary" @click="cargarEncuestas">Reintentar</button>
         </div>
         <div v-else>
-            <h1 class="display-6 center">{{ userData.cargo }}</h1>
+            <h1 class="display-6 center">{{ cargoMostrado }}</h1>
+            <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
+                Visualizando estado de: <strong>{{ nombreProfesionalSeleccionado }}</strong>
+            </p>
 
             <h4>
                 Detalle de Actividades ({{ cantEncuestasFiltradasPorConvenio }}) <small>Pendientes</small>
@@ -121,8 +124,18 @@ export default {
         },
 
         mostrarBotonCups() {
-            const cargo = (this.userData?.cargo || "").toString().trim().toLowerCase();
+            const cargo = (this.cargoMostrado || "").toString().trim().toLowerCase();
             return cargo === "nutricionista";
+        },
+
+        getDocumentoObjetivo() {
+            if (this.esEstadoView) {
+                const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
+                if (docSeleccionado) {
+                    return docSeleccionado;
+                }
+            }
+            return String(this.userData?.numDocumento || "").trim();
         },
 
         async cargarEncuestas() {
@@ -136,13 +149,14 @@ export default {
                     intentos++;
                 }
 
-                if (!this.userData?.numDocumento) {
+                const documentoObjetivo = this.getDocumentoObjetivo();
+                if (!documentoObjetivo) {
                     throw new Error('Usuario no disponible después de esperar');
                 }
 
                 await Promise.race([
                     this.getEncuestasPendientesNutricionista({
-                        idUsuario: this.userData.numDocumento,
+                        idUsuario: documentoObjetivo,
                     }),
                     new Promise((_, reject) =>
                         setTimeout(() => reject(new Error('Timeout - tardó más de 10 segundos')), 10000)
@@ -161,14 +175,41 @@ export default {
 
     computed: {
         ...mapState(["encuestas", "userData", "cantEncuestas", "cantEncuestasEnProceso"]),
+        esEstadoView() {
+            if (String(this.$route?.query?.estadoView || "") !== "1") return false;
+            const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
+            if (!docSeleccionado) return false;
+
+            const cargoActual = String(this.userData?.cargo || "").trim().toLowerCase();
+            const esAdmin = cargoActual === "admin" || cargoActual === "administrador";
+            if (esAdmin) return true;
+
+            const accesos = Array.isArray(this.userData?.accesosProfesionales)
+                ? this.userData.accesosProfesionales
+                : [];
+            return accesos.map((item) => String(item || "").trim()).includes(docSeleccionado);
+        },
+        cargoMostrado() {
+            if (this.esEstadoView) {
+                return String(this.$route?.query?.profesionalCargo || "").trim() || "Profesional";
+            }
+            return this.userData?.cargo || "";
+        },
+        nombreProfesionalSeleccionado() {
+            return String(this.$route?.query?.profesionalNombre || "").trim();
+        },
         encuestasFiltradasPorConvenio() {
             if (!this.encuestas || this.encuestas.length === 0) return [];
-            if (!this.userData || !this.userData.convenio) {
+            const convenioObjetivo = this.esEstadoView
+                ? String(this.$route?.query?.profesionalConvenio || "").trim()
+                : String(this.userData?.convenio || "").trim();
+
+            if (!convenioObjetivo) {
                 return this.encuestas.filter(encuesta => encuesta.status_gest_aux === true);
             }
 
             return this.encuestas.filter(encuesta =>
-                encuesta.convenio === this.userData.convenio &&
+                String(encuesta.convenio || "").trim() === convenioObjetivo &&
                 encuesta.status_gest_aux === true
             );
         },

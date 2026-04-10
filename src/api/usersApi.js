@@ -22,6 +22,11 @@ export async function getAllUsers() {
   return Array.isArray(data) ? data : [];
 }
 
+export async function getDelegatedProfessionals() {
+  const { data } = await http.get("/users/profesionales-delegados");
+  return Array.isArray(data) ? data : [];
+}
+
 export async function createUser(payload) {
   const { data } = await http.post("/users", payload);
   return data;

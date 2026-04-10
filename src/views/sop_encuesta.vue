@@ -265,7 +265,7 @@
                             </select>
                         </div>
 
-                        <div v-if="esConvenioEBasicos" class="col-6 col-md-3 mb-3">
+                        <div v-if="mostrarPsicoTs" class="col-6 col-md-3 mb-3">
                             <label for="psicologo" class="form-label">Psicologo</label>
                             <select id="psicologo" v-model="psicologo" class="form-select">
                                 <option value="">---Seleccione---</option>
@@ -276,7 +276,7 @@
                             </select>
                         </div>
 
-                        <div v-if="esConvenioEBasicos" class="col-6 col-md-3 mb-3">
+                        <div v-if="mostrarPsicoTs" class="col-6 col-md-3 mb-3">
                             <label for="trabajadorSocial" class="form-label">T social </label>
                             <select id="trabajadorSocial" v-model="trabajadorSocial" class="form-select">
                                 <option value="">---Seleccione---</option>
@@ -287,7 +287,7 @@
                             </select>
                         </div>
 
-                        <div v-if="esConvenioEBasicos" class="col-6 col-md-3 mb-3">
+                        <div v-if="requiereNutricionista" class="col-6 col-md-3 mb-3">
                             <label for="nutricionista" class="form-label">Nutricionista</label>
                             <select id="nutricionista" v-model="nutricionista" class="form-select">
                                 <option value="">---Seleccione---</option>
@@ -404,7 +404,8 @@ export default {
                 return;
             }
 
-            const requiereProfesionalesExtra = this.esConvenioEBasicos;
+            const requierePsicoTs = this.mostrarPsicoTs;
+            const requiereNutricionista = this.requiereNutricionista;
 
             // Validación de campos obligatorios
             if (
@@ -432,19 +433,19 @@ export default {
             }
 
             // Validación especial para Psicólogo y Trabajador Social en E Basicos
-            if (requiereProfesionalesExtra) {
+            if (requierePsicoTs || requiereNutricionista) {
                 let mensajeAdvertencia = "";
                 const faltaPsicologo = !this.psicologo;
                 const faltaTSocial = !this.trabajadorSocial;
                 const faltaNutricionista = !this.nutricionista;
 
-                if (faltaPsicologo && faltaTSocial && faltaNutricionista) {
+                if (requierePsicoTs && requiereNutricionista && faltaPsicologo && faltaTSocial && faltaNutricionista) {
                     mensajeAdvertencia = "No ha seleccionado Psicólogo, Trabajador Social ni Nutricionista.";
-                } else if (faltaPsicologo) {
+                } else if (requierePsicoTs && faltaPsicologo) {
                     mensajeAdvertencia = "No ha seleccionado Psicólogo.";
-                } else if (faltaTSocial) {
+                } else if (requierePsicoTs && faltaTSocial) {
                     mensajeAdvertencia = "No ha seleccionado Trabajador Social.";
-                } else if (faltaNutricionista) {
+                } else if (requiereNutricionista && faltaNutricionista) {
                     mensajeAdvertencia = "No ha seleccionado Nutricionista.";
                 }
 
@@ -464,13 +465,13 @@ export default {
                 fechavisita: "",
                 idMedicoAtiende: this.medico,
                 idEnfermeroAtiende: this.enfermero,
-                ...(requiereProfesionalesExtra && this.psicologo
+                ...(requierePsicoTs && this.psicologo
                     ? { idPsicologoAtiende: this.psicologo }
                     : {}),
-                ...(requiereProfesionalesExtra && this.trabajadorSocial
+                ...(requierePsicoTs && this.trabajadorSocial
                     ? { idTsocialAtiende: this.trabajadorSocial }
                     : {}),
-                ...(requiereProfesionalesExtra && this.nutricionista
+                ...(requiereNutricionista && this.nutricionista
                     ? { idNutricionistaAtiende: this.nutricionista }
                     : {}),
                 status_gest_aux: false,
@@ -726,13 +727,16 @@ export default {
                 this.enfermero = this.primerDocumentoDisponible(this.enfermerosByGrupo);
             }
 
-            if (this.esConvenioEBasicos) {
+            if (this.mostrarPsicoTs) {
                 if (!this.psicologo) {
                     this.psicologo = this.primerDocumentoDisponible(this.psicologosByGrupo);
                 }
                 if (!this.trabajadorSocial) {
                     this.trabajadorSocial = this.primerDocumentoDisponible(this.tsocialesByGrupo);
                 }
+            }
+
+            if (this.requiereNutricionista) {
                 if (!this.nutricionista) {
                     this.nutricionista = this.primerDocumentoDisponible(this.nutricionistasByGrupo);
                 }
@@ -833,6 +837,16 @@ export default {
             const convenioUsuario = String(this.userData?.convenio ?? "").trim();
             return convenioUsuario === "E Basicos";
         },
+        esConvenioPIC() {
+            const convenioUsuario = String(this.userData?.convenio ?? "").trim();
+            return convenioUsuario === "PIC";
+        },
+        mostrarPsicoTs() {
+            return this.esConvenioEBasicos || this.esConvenioPIC;
+        },
+        requiereNutricionista() {
+            return this.esConvenioPIC;
+        },
         epssConContrato() {
             if (!this.epss) return [];
 
@@ -868,10 +882,18 @@ export default {
             this.pacienteEncontrado = null;
             this.nombreEncuestador = "";
         },
-        esConvenioEBasicos(valor) {
+        mostrarPsicoTs(valor) {
             if (!valor) {
                 this.psicologo = "";
                 this.trabajadorSocial = "";
+                return;
+            }
+
+            this.aplicarProfesionalesPorDefecto();
+        },
+        requiereNutricionista(valor) {
+            if (!valor) {
+                this.nutricionista = "";
                 return;
             }
 
@@ -909,7 +931,7 @@ export default {
             grupo: this.userData.grupo,
             convenio: this.userData.convenio,
         });
-        if (this.esConvenioEBasicos) {
+        if (this.mostrarPsicoTs) {
             await this.getAllPsicologosbyGrupo({
                 grupo: this.userData.grupo,
                 convenio: this.userData.convenio,
@@ -918,6 +940,8 @@ export default {
                 grupo: this.userData.grupo,
                 convenio: this.userData.convenio,
             });
+        }
+        if (this.requiereNutricionista) {
             await this.getAllNutricionistasbyGrupo({
                 grupo: this.userData.grupo,
                 convenio: this.userData.convenio,

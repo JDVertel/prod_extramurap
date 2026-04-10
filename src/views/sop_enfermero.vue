@@ -11,8 +11,11 @@
             <div class="text-muted small">Por favor espere, cargando información...</div>
         </div>
     </div>
-    <div v-if="!cargando">
-        <h1 class="display-6 center">{{ userData.cargo }}</h1>
+    <div v-if="!cargando" :class="['convenio-theme', convenioThemeClass]">
+        <h1 class="display-6 center">{{ cargoMostrado }}</h1>
+        <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
+            Visualizando como admin: {{ nombreProfesionalSeleccionado }}
+        </p>
         <nav>
             <div class="nav nav-tabs" id="nav-tab" role="tablist">
                 <button class="nav-link active" id="nav-home-tab" data-bs-toggle="tab" data-bs-target="#nav-home"
@@ -292,6 +295,21 @@ export default {
             if (!id) return "Sin asignar";
             return this.auxiliaresPorDocumento[id] || id;
         },
+        getDocumentoObjetivo() {
+            if (this.esEstadoView) {
+                const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
+                if (docSeleccionado) {
+                    return docSeleccionado;
+                }
+            }
+            return String(this.userData?.numDocumento || "").trim();
+        },
+        getConvenioObjetivo() {
+            if (this.esEstadoView) {
+                return String(this.$route?.query?.profesionalConvenio || "").trim();
+            }
+            return String(this.userData?.convenio || "").trim();
+        },
 
         construirEstadosGestion(encuesta) {
             const estados = [];
@@ -472,6 +490,54 @@ export default {
 
     computed: {
         ...mapState(["encuestas", "userData", "cantEncuestas"]),
+        esEstadoView() {
+            if (String(this.$route?.query?.estadoView || "") !== "1") {
+                return false;
+            }
+
+            const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
+            if (!docSeleccionado) {
+                return false;
+            }
+
+            const cargoActual = String(this.userData?.cargo || "").trim().toLowerCase();
+            const esAdmin = cargoActual === "admin" || cargoActual === "administrador";
+            if (esAdmin) {
+                return true;
+            }
+
+            const accesos = Array.isArray(this.userData?.accesosProfesionales)
+                ? this.userData.accesosProfesionales
+                : [];
+            return accesos.map((item) => String(item || "").trim()).includes(docSeleccionado);
+        },
+        cargoMostrado() {
+            if (this.esEstadoView) {
+                const cargo = String(this.$route?.query?.profesionalCargo || "").trim();
+                return cargo || "Profesional";
+            }
+            return this.userData?.cargo || "";
+        },
+        nombreProfesionalSeleccionado() {
+            return String(this.$route?.query?.profesionalNombre || "").trim();
+        },
+        convenioThemeClass() {
+            const convenio = String(this.getConvenioObjetivo() || "").trim().toLowerCase();
+
+            if (convenio === "pic") {
+                return "convenio-pic";
+            }
+
+            if (convenio === "e basicos") {
+                return "convenio-ebasicos";
+            }
+
+            if (convenio === "extramural") {
+                return "convenio-extramural";
+            }
+
+            return "convenio-extramural";
+        },
         estadoGestionMedica() {
             return (encuesta) => {
                 return encuesta?.status_gest_medica === true;
@@ -479,28 +545,31 @@ export default {
         },
         encuestasPendientesBase() {
             if (!this.encuestas || this.encuestas.length === 0) return [];
-            if (!this.userData || !this.userData.convenio) return this.encuestas;
+            const convenioObjetivo = this.getConvenioObjetivo();
+            if (!convenioObjetivo) return this.encuestas;
 
             return this.encuestas.filter(encuesta =>
-                encuesta.convenio === this.userData.convenio
+                String(encuesta.convenio || "").trim() === convenioObjetivo
             );
         },
         encuestasEnProcesoBase() {
             if (!this.encuestas || this.encuestas.length === 0) return [];
-            if (!this.userData || !this.userData.convenio) return this.encuestas;
+            const convenioObjetivo = this.getConvenioObjetivo();
+            if (!convenioObjetivo) return this.encuestas;
 
             return this.encuestas.filter(encuesta =>
-                encuesta.convenio === this.userData.convenio
+                String(encuesta.convenio || "").trim() === convenioObjetivo
             );
         },
         encuestasPendientes() {
             if (!this.encuestasPendientesBase || this.encuestasPendientesBase.length === 0) return [];
 
-            const documento = this.userData?.numDocumento;
+            const documento = this.getDocumentoObjetivo();
             if (!documento) return [];
 
-            const esExtramural = this.userData?.convenio === 'Extramural';
-            const esEBasicos = this.userData?.convenio === 'E Basicos';
+            const convenio = this.getConvenioObjetivo();
+            const esExtramural = convenio === 'Extramural';
+            const esEBasicos = convenio === 'E Basicos';
 
             return this.encuestasPendientesBase.filter((encuesta) => {
                 if (encuesta.idEnfermeroAtiende !== documento) return false;
@@ -538,11 +607,12 @@ export default {
         encuestasEnProceso() {
             if (!this.encuestasEnProcesoBase || this.encuestasEnProcesoBase.length === 0) return [];
 
-            const documento = this.userData?.numDocumento;
+            const documento = this.getDocumentoObjetivo();
             if (!documento) return [];
 
-            const esExtramural = this.userData?.convenio === 'Extramural';
-            const esEBasicos = this.userData?.convenio === 'E Basicos';
+            const convenio = this.getConvenioObjetivo();
+            const esExtramural = convenio === 'Extramural';
+            const esEBasicos = convenio === 'E Basicos';
 
             return this.encuestasEnProcesoBase.filter((encuesta) => {
                 if (encuesta.idEnfermeroAtiende !== documento) return false;
@@ -629,7 +699,7 @@ export default {
                 .sort((a, b) => a.nombre.localeCompare(b.nombre));
         },
         documento() {
-            return this.userData.numDocumento;
+            return this.getDocumentoObjetivo();
         },
 
         totalRegisters() {
@@ -639,11 +709,18 @@ export default {
     async mounted() {
         this.fechaActual = moment().format("YYYY-MM-DD");
         try {
+            const documentoObjetivo = this.getDocumentoObjetivo();
+            const convenioObjetivo = this.getConvenioObjetivo();
+
+            if (!documentoObjetivo) {
+                throw new Error("No se encontro el documento del profesional a consultar");
+            }
+
             // Obtener encuestas asignadas al enfermero; filtros por pestaña se aplican en computed
             await Promise.all([
                 this.getAllRegistersByIduserEnfer({
-                idUsuario: this.userData.numDocumento,
-                convenio: this.userData.convenio,
+                idUsuario: documentoObjetivo,
+                convenio: convenioObjetivo,
                 }),
                 this.cargarAuxiliares(),
             ]);
@@ -658,6 +735,34 @@ export default {
 </script>
 
 <style>
+.convenio-theme {
+    --convenio-color-1: #0f766e;
+    --convenio-color-2: #0d9488;
+    --convenio-color-3: #14b8a6;
+    --convenio-text-soft: #e6fffa;
+}
+
+.convenio-theme.convenio-extramural {
+    --convenio-color-1: #0f766e;
+    --convenio-color-2: #0d9488;
+    --convenio-color-3: #14b8a6;
+    --convenio-text-soft: #e6fffa;
+}
+
+.convenio-theme.convenio-ebasicos {
+    --convenio-color-1: #166534;
+    --convenio-color-2: #15803d;
+    --convenio-color-3: #22c55e;
+    --convenio-text-soft: #ecfdf5;
+}
+
+.convenio-theme.convenio-pic {
+    --convenio-color-1: #9a3412;
+    --convenio-color-2: #c2410c;
+    --convenio-color-3: #f97316;
+    --convenio-text-soft: #fff7ed;
+}
+
 .spinner-overlay {
     position: fixed;
     top: 0;
@@ -818,17 +923,17 @@ export default {
 
 /* ===== TEMA VERDE TURQUESA (estilo navbar) ===== */
 h1.display-6 {
-    color: #0f766e;
+    color: var(--convenio-color-1);
 }
 
 .row.paciente {
     background: linear-gradient(
         90deg,
-        #0f766e 0%,
-        #0d9488 30%,
-        #14b8a6 60%,
-        #0d9488 80%,
-        #0f766e 100%
+        var(--convenio-color-1) 0%,
+        var(--convenio-color-2) 30%,
+        var(--convenio-color-3) 60%,
+        var(--convenio-color-2) 80%,
+        var(--convenio-color-1) 100%
     );
     border-radius: 10px;
     padding: 8px 10px;
@@ -839,7 +944,7 @@ h1.display-6 {
 
 .row.paciente small {
     display: block;
-    color: #e6fffa;
+    color: var(--convenio-text-soft);
     line-height: 1.4;
 }
 
@@ -849,7 +954,7 @@ h1.display-6 {
 }
 
 .tabla-proceso thead th {
-    background: #0f766e !important;
+    background: var(--convenio-color-1) !important;
     color: #ffffff !important;
     font-size: 0.78rem;
     white-space: nowrap;
@@ -857,7 +962,7 @@ h1.display-6 {
 }
 
 .progreso-indeterminado {
-    background-color: #14b8a6 !important;
+    background-color: var(--convenio-color-3) !important;
     width: 100%;
 }
 </style>

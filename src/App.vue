@@ -12,10 +12,16 @@ export default {
         };
     },
     computed: {
-        ...mapState(["userData"])
+        ...mapState(["userData"]),
+        enSesionDelegada() {
+            return String(this.$route?.query?.estadoView || "") === "1";
+        },
+        profesionalDelegadoNombre() {
+            return String(this.$route?.query?.profesionalNombre || "").trim();
+        }
     },
     methods: {
-        ...mapActions(["getdataips"]),
+        ...mapActions(["getdataips", "fetchUserDataByUid"]),
         logout() {
             localStorage.removeItem("token");
             this.isLoggedIn = false;
@@ -47,21 +53,58 @@ export default {
             } catch (e) {
                 console.error("Error al sincronizar IPS global:", e);
             }
+        },
+        getRutaPropiaPorCargo() {
+            const cargo = String(this.userData?.cargo || "").trim();
+            const mapa = {
+                Medico: "/sop_profesional",
+                Enfermero: "/sop_enfermero",
+                Psicologo: "/sop_psicologo",
+                Tsocial: "/sop_tsocial",
+                Nutricionista: "/sop_nutricionista",
+                Fact: "/sop_facturacion",
+                "Auxiliar de enfermeria": "/sop_aux",
+            };
+            return mapa[cargo] || "/homeviews";
+        },
+        cerrarSesionDelegada() {
+            const retornoGuardado = sessionStorage.getItem("estadoViewReturnTo");
+            sessionStorage.removeItem("estadoViewReturnTo");
+            const destino = retornoGuardado || this.getRutaPropiaPorCargo();
+            this.$router.push(destino);
         }
     },
     watch: {
         '$route'() {
             // Sincronizar userData cada vez que cambia la ruta
-            this.$nextTick(() => {
+            this.$nextTick(async () => {
                 this.syncUserDataFromStorage();
                 this.syncIpsFromDb();
+                const uid = localStorage.getItem("uid");
+                const token = localStorage.getItem("token");
+                if (uid && token) {
+                    try {
+                        await this.fetchUserDataByUid(uid);
+                    } catch (e) {
+                        console.warn("No se pudo refrescar userData en cambio de ruta:", e);
+                    }
+                }
             });
         }
     },
-    mounted() {
+    async mounted() {
         console.log('App.vue mounted');
         this.syncUserDataFromStorage();
         this.syncIpsFromDb();
+        const uid = localStorage.getItem("uid");
+        const token = localStorage.getItem("token");
+        if (uid && token) {
+            try {
+                await this.fetchUserDataByUid(uid);
+            } catch (e) {
+                console.warn("No se pudo refrescar userData desde la API:", e);
+            }
+        }
     },
     created() {
         // Sincronizar también en created para que sea más rápido
@@ -76,6 +119,15 @@ export default {
         <Navbar v-if="!$route.meta.hideNavbar" />
         <router-view :key="$route.path">
         </router-view>
+        <div v-if="enSesionDelegada" class="delegated-session-footer">
+            <div class="delegated-session-footer-text">
+                Visualizando bandeja delegada
+                <strong v-if="profesionalDelegadoNombre">: {{ profesionalDelegadoNombre }}</strong>
+            </div>
+            <button type="button" class="btn btn-sm btn-warning" @click="cerrarSesionDelegada">
+                Cerrar sesión delegada
+            </button>
+        </div>
     </div>
 </template>
 
@@ -98,6 +150,27 @@ body {
     width: 100%;
     min-height: 100vh;
     position: relative;
+}
+
+.delegated-session-footer {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 1055;
+    background: rgba(23, 23, 23, 0.9);
+    color: #fff;
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.delegated-session-footer-text {
+    font-size: 0.86rem;
 }
 
 /* Transiciones para cambio de rutas */
@@ -177,6 +250,11 @@ body {
     .container-fluid {
         padding-left: 15px;
         padding-right: 15px;
+    }
+
+    .delegated-session-footer {
+        flex-direction: column;
+        align-items: stretch;
     }
 }
 .container,

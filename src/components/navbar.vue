@@ -1,5 +1,5 @@
 <template>
-  <div class="app" :class="{ 'tema-ebasicos': userData && userData.convenio === 'E Basicos' }">
+  <div class="app" :class="convenioThemeClass">
     <nav class="navbar bg-body-tertiary fixed-top">
       <div class="container-fluid">
         <!-- Botón toggler a la izquierda -->
@@ -161,6 +161,12 @@
                 </li>
               </template>
 
+              <li class="nav-item" v-if="canViewEstadoProfesional">
+                <router-link class="nav-link" to="/admin_estado_profesional" @click="onNavLinkClick">
+                  <i class="bi bi-person-badge-fill"></i> Profesionales delegados
+                </router-link>
+              </li>
+
               <li class="nav-item">
                 <router-link class="nav-link" to="/homeviews" @click="onNavLinkClick">
                   <i class="bi bi-house-door-fill"></i> Home
@@ -246,6 +252,20 @@ export default {
   },
   computed: {
     ...mapState(["uid", "userData"]),
+    convenioThemeClass() {
+      const convenio = String(this.userData?.convenio || "").trim().toLowerCase();
+
+      if (convenio === "e basicos") return "tema-ebasicos";
+      if (convenio === "pic") return "tema-pic";
+      return "";
+    },
+    isAdminUser() {
+      const cargo = String(this.userData?.cargo || "").trim().toLowerCase();
+      return cargo === "admin" || cargo === "administrador";
+    },
+    canViewEstadoProfesional() {
+      return Boolean(this.userData && this.userData.numDocumento);
+    },
   },
 };
 </script>
@@ -277,6 +297,19 @@ export default {
     #14b8a6 66%,
     #0d9488 82%,
     #0f766e 100%
+  ) !important;
+}
+
+.tema-pic .navbar.bg-body-tertiary {
+  background: linear-gradient(
+    90deg,
+    #9a3412 0%,
+    #c2410c 18%,
+    #f97316 34%,
+    #fff7ed 50%,
+    #f97316 66%,
+    #c2410c 82%,
+    #9a3412 100%
   ) !important;
 }
 
@@ -321,6 +354,18 @@ export default {
     #14b8a6 48%,
     #99f6e4 72%,
     #e6fffa 88%,
+    #ffffff 100%
+  ) !important;
+}
+
+.tema-pic .offcanvas {
+  background: linear-gradient(
+    180deg,
+    #9a3412 0%,
+    #c2410c 24%,
+    #f97316 48%,
+    #fdba74 72%,
+    #ffedd5 88%,
     #ffffff 100%
   ) !important;
 }

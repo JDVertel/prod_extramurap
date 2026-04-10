@@ -85,13 +85,21 @@
                     </div>
 
                     <div class="usuarios-container">
+                        <!-- Spinner de carga -->
+                        <div v-if="loadingUsers" class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                            <p class="text-muted mt-2">Cargando usuarios...</p>
+                        </div>
+
                         <!-- Mostrar mensaje si no hay usuarios -->
-                        <div v-if="!users || users.length === 0" class="alert alert-warning">
+                        <div v-else-if="!users || users.length === 0" class="alert alert-warning">
                             No hay usuarios registrados en el sistema.
                         </div>
 
                         <!-- Tabla compacta agrupada por convenio y luego por grupo -->
-                        <div v-else>
+                        <div v-else-if="!loadingUsers">
                             <div v-if="Object.keys(usuariosAgrupadosPorConvenioYGrupoFiltrado).length === 0"
                                 class="alert alert-info">
                                 No se encontraron usuarios con el correo o documento ingresado.
@@ -125,8 +133,7 @@
                                             </button>
                                         </h2>
                                         <div :id="'collapse-' + sanitizeId(convenio) + '-' + grupo"
-                                            class="accordion-collapse collapse"
-                                            :data-bs-parent="'#accordion-' + sanitizeId(convenio)">
+                                            class="accordion-collapse collapse">
                                             <div class="accordion-body p-0">
                                                 <div class="tabla-usuarios">
                                                     <table class="table table-sm table-hover mb-0">
@@ -136,6 +143,7 @@
                                                                 <th>Cargo</th>
                                                                 <th>Email</th>
                                                                 <th>Documento</th>
+                                                                <th title="Tiene profesionales delegados">Delegados</th>
                                                                 <th>Acciones</th>
                                                             </tr>
                                                         </thead>
@@ -152,6 +160,16 @@
                                                                 <td class="small">{{ user.email }}</td>
                                                                 <td class="small text-muted">{{ user.numDocumento ||
                                                                     'N/A' }}
+                                                                </td>
+                                                                <td class="text-center">
+                                                                    <span
+                                                                        v-if="Array.isArray(user.accesosProfesionales) && user.accesosProfesionales.length > 0"
+                                                                        class="badge bg-success"
+                                                                        :title="user.accesosProfesionales.length + ' profesional(es) delegado(s)'"
+                                                                    >
+                                                                        <i class="bi bi-people-fill me-1"></i>{{ user.accesosProfesionales.length }}
+                                                                    </span>
+                                                                    <span v-else class="text-muted small">—</span>
                                                                 </td>
                                                                 <td>
                                                                     <button class="btn btn-sm btn-primary me-1"
@@ -241,6 +259,110 @@
                                         <label for="editGrupo"># Grupo</label>
                                         <input type="text" id="editGrupo" v-model="editGrupo" class="form-control"
                                             placeholder="Ej: 1, 2, F" />
+                                    </div>
+                                    <hr v-if="isAdmin">
+                                    <div v-if="isAdmin" class="col col-12 mb-3">
+                                        <label class="form-label mb-2"><h4>Profesionales Delegados</h4></label>
+                                        <div class="row g-2 mb-2">
+                                            <div class="col-12 col-md-4">
+                                                <label class="form-label mb-1">Convenio aplicado</label>
+                                                <input
+                                                    type="text"
+                                                    class="form-control form-control-sm"
+                                                    :value="editConvenio || 'Sin convenio'"
+                                                    disabled
+                                                    readonly
+                                                />
+                                            </div>
+                                            <div class="col-12 col-md-4">
+                                                <label class="form-label mb-1">Filtrar por cargo</label>
+                                                <select v-model="filtroAccesoCargo" class="form-select form-select-sm">
+                                                    <option value="">Todos los cargos</option>
+                                                    <option v-for="cargo in cargosDisponiblesAcceso" :key="`cargo-acceso-${cargo}`" :value="cargo">
+                                                        {{ cargo }}
+                                                    </option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12 col-md-4">
+                                                <label class="form-label mb-1">Buscar</label>
+                                                <input
+                                                    v-model="filtroAccesoTexto"
+                                                    type="text"
+                                                    class="form-control form-control-sm"
+                                                    placeholder="Nombre o documento"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2 mb-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" @click="seleccionarTodosAccesosFiltrados">
+                                                Seleccionar filtrados
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" @click="limpiarSeleccionAccesosFiltrados">
+                                                Quitar filtrados
+                                            </button>
+                                            <span class="small text-muted align-self-center">
+                                                {{ profesionalesDisponiblesParaAccesoFiltrados.length }} visibles / {{ profesionalesDisponiblesParaAcceso.length }} totales
+                                            </span>
+                                        </div>
+                                        <ul class="list-group" style="max-height: 280px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem;">
+                                            <li
+                                                v-if="profesionalesDisponiblesParaAccesoFiltrados.length === 0"
+                                                class="list-group-item text-muted small text-center py-3"
+                                            >
+                                                Sin profesionales para mostrar
+                                            </li>
+                                            <li
+                                                v-for="prof in profesionalesDisponiblesParaAccesoFiltrados"
+                                                :key="`prof-acceso-${prof.id}`"
+                                                class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2 px-3"
+                                                style="cursor: pointer;"
+                                                :class="{ 'list-group-item-primary': editAccesosProfesionales.includes(String(prof.numDocumento || '').trim()) }"
+                                                @click="toggleAccesoProfesional(String(prof.numDocumento || '').trim())"
+                                            >
+                                                <div>
+                                                    <span class="fw-semibold">{{ prof.nombre }}</span>
+                                                    <small class="text-muted ms-2">{{ prof.numDocumento }}</small>
+                                                </div>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="badge bg-secondary">{{ prof.cargo }}</span>
+                                                    <i
+                                                        class="bi"
+                                                        :class="editAccesosProfesionales.includes(String(prof.numDocumento || '').trim()) ? 'bi-check-circle-fill text-primary' : 'bi-circle text-muted'"
+                                                    ></i>
+                                                </div>
+                                            </li>
+                                        </ul>
+                                        <div class="mt-3">
+                                            <label class="form-label mb-1">Profesionales asignados actualmente</label>
+                                            <ul class="list-group" style="max-height: 180px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem;">
+                                                <li
+                                                    v-if="profesionalesAsignadosAcceso.length === 0"
+                                                    class="list-group-item text-muted small text-center py-2"
+                                                >
+                                                    No hay profesionales asignados
+                                                </li>
+                                                <li
+                                                    v-for="prof in profesionalesAsignadosAcceso"
+                                                    :key="`prof-asignado-${prof.id}`"
+                                                    class="list-group-item d-flex justify-content-between align-items-center py-2"
+                                                >
+                                                    <div>
+                                                        <span class="fw-semibold">{{ prof.nombre }}</span>
+                                                        <small class="text-muted ms-2">{{ prof.numDocumento }} - {{ prof.cargo }}</small>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        @click="quitarAccesoProfesional(String(prof.numDocumento || '').trim())"
+                                                    >
+                                                        Eliminar
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            Este usuario solo podrá ver el estado de los profesionales marcados.
+                                        </small>
                                     </div>
                                 </div>
                                 <div class="alert alert-info mt-3">
@@ -440,9 +562,13 @@ export default {
             editGrupo: "",
             editCargo: "",
             editConvenio: "",
+            editAccesosProfesionales: [],
+            filtroAccesoCargo: "",
+            filtroAccesoTexto: "",
 
             /*  */
             loading: false,
+            loadingUsers: false,
             message: "",
             messageType: "",
             messagePassword: "",
@@ -658,6 +784,72 @@ export default {
             if (!this.filtroIpsId) return '';
             const found = this.ipsList.find((ips) => ips.id === this.filtroIpsId);
             return found ? (found.nombre || found.name || found.id) : this.filtroIpsId;
+        },
+        cargosDisponiblesAcceso() {
+            const cargos = new Set((this.profesionalesDisponiblesParaAcceso || []).map((u) => String(u?.cargo || '').trim()).filter(Boolean));
+            return Array.from(cargos).sort((a, b) => a.localeCompare(b));
+        },
+        profesionalesDisponiblesParaAcceso() {
+            const cargos = new Set(['Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista']);
+            const idEditando = this.usuarioEditando?.uid;
+            const convenioObjetivo = String(this.editConvenio || '').trim().toLowerCase();
+
+            const mapaPorDocumento = new Map();
+
+            (this.users || [])
+                .forEach((u) => {
+                    const cargo = String(u?.cargo || '').trim();
+                    const documento = String(u?.numDocumento || '').trim();
+                    const convenio = String(u?.convenio || '').trim().toLowerCase();
+
+                    if (!cargos.has(cargo) || !documento) return;
+                    if (idEditando && u.uid === idEditando) return;
+                    if (convenioObjetivo && convenio !== convenioObjetivo) return;
+
+                    if (!mapaPorDocumento.has(documento)) {
+                        mapaPorDocumento.set(documento, u);
+                    }
+                });
+
+            return Array.from(mapaPorDocumento.values())
+                .sort((a, b) => String(a?.nombre || '').localeCompare(String(b?.nombre || '')));
+        },
+        profesionalesDisponiblesParaAccesoFiltrados() {
+            const cargoFiltro = String(this.filtroAccesoCargo || '').trim();
+            const texto = String(this.filtroAccesoTexto || '').trim().toLowerCase();
+
+            return (this.profesionalesDisponiblesParaAcceso || [])
+                .filter((u) => {
+                    const documento = String(u?.numDocumento || '').trim();
+                    const nombre = String(u?.nombre || '').trim().toLowerCase();
+                    const cargo = String(u?.cargo || '').trim();
+
+                    const cumpleCargo = !cargoFiltro || cargo === cargoFiltro;
+                    const cumpleTexto = !texto || nombre.includes(texto) || documento.toLowerCase().includes(texto);
+
+                    return cumpleCargo && cumpleTexto;
+                });
+        },
+        profesionalesAsignadosAcceso() {
+            const docsAsignados = new Set(
+                (this.editAccesosProfesionales || []).map((doc) => String(doc || '').trim()).filter(Boolean)
+            );
+
+            if (docsAsignados.size === 0) return [];
+
+            const cargos = new Set(['Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista']);
+            const idEditando = this.usuarioEditando?.uid;
+
+            return (this.users || [])
+                .filter((u) => {
+                    const doc = String(u?.numDocumento || '').trim();
+                    const cargo = String(u?.cargo || '').trim();
+                    if (!doc || !docsAsignados.has(doc)) return false;
+                    if (!cargos.has(cargo)) return false;
+                    if (idEditando && u.uid === idEditando) return false;
+                    return true;
+                })
+                .sort((a, b) => String(a?.nombre || '').localeCompare(String(b?.nombre || '')));
         },
     },
     watch: {
@@ -886,12 +1078,50 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             this.editGrupo = user.grupo || '';
             this.editCargo = user.cargo;
             this.editConvenio = user.convenio || '';
+            this.editAccesosProfesionales = Array.isArray(user.accesosProfesionales)
+                ? [...user.accesosProfesionales]
+                : [];
+            this.filtroAccesoCargo = "";
+            this.filtroAccesoTexto = "";
             this.mostrarModalEdicion = true;
         },
 
         cerrarModalEdicion() {
             this.mostrarModalEdicion = false;
             this.usuarioEditando = null;
+            this.editAccesosProfesionales = [];
+            this.filtroAccesoCargo = "";
+            this.filtroAccesoTexto = "";
+        },
+
+        toggleAccesoProfesional(doc) {
+            if (!doc) return;
+            const idx = this.editAccesosProfesionales.indexOf(doc);
+            if (idx === -1) {
+                this.editAccesosProfesionales = [...this.editAccesosProfesionales, doc];
+            } else {
+                this.editAccesosProfesionales = this.editAccesosProfesionales.filter((d) => d !== doc);
+            }
+        },
+
+        quitarAccesoProfesional(doc) {
+            if (!doc) return;
+            this.editAccesosProfesionales = (this.editAccesosProfesionales || [])
+                .filter((d) => String(d || '').trim() !== doc);
+        },
+
+        seleccionarTodosAccesosFiltrados() {
+            const actuales = new Set((this.editAccesosProfesionales || []).map((d) => String(d || '').trim()).filter(Boolean));
+            (this.profesionalesDisponiblesParaAccesoFiltrados || []).forEach((prof) => {
+                const doc = String(prof?.numDocumento || '').trim();
+                if (doc) actuales.add(doc);
+            });
+            this.editAccesosProfesionales = Array.from(actuales);
+        },
+
+        limpiarSeleccionAccesosFiltrados() {
+            const quitar = new Set((this.profesionalesDisponiblesParaAccesoFiltrados || []).map((prof) => String(prof?.numDocumento || '').trim()).filter(Boolean));
+            this.editAccesosProfesionales = (this.editAccesosProfesionales || []).filter((doc) => !quitar.has(String(doc || '').trim()));
         },
 
         async guardarCambiosUsuario() {
@@ -900,6 +1130,14 @@ Esta acción eliminará el usuario de la base de datos.`)) {
                 this.messageType = "error";
                 return;
             }
+
+            const accesosNormalizados = Array.from(
+                new Set(
+                    (this.editAccesosProfesionales || [])
+                        .map((doc) => String(doc || '').trim())
+                        .filter(Boolean)
+                )
+            );
 
             this.loading = true;
             this.message = "";
@@ -912,7 +1150,19 @@ Esta acción eliminará el usuario de la base de datos.`)) {
                     cargo: this.editCargo,
                     ipsId: this.ips || null,
                     convenio: this.editConvenio,
+                    accesosProfesionales: accesosNormalizados,
                 });
+
+                // Si el usuario editado es el usuario logueado, reflejar de inmediato los accesos en la sesión.
+                const uidLogueado = String(this.$store?.state?.uid || '').trim();
+                const uidEditado = String(this.usuarioEditando?.uid || '').trim();
+                if (uidLogueado && uidEditado && uidLogueado === uidEditado) {
+                    const userDataActual = this.$store?.state?.userData || {};
+                    this.$store.commit('setUserData', {
+                        ...userDataActual,
+                        accesosProfesionales: accesosNormalizados,
+                    });
+                }
 
                 this.message = `Usuario actualizado exitosamente.`;
                 this.messageType = "success";
@@ -1087,6 +1337,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
 
         //consultar los datos del usuario
         async fetchUsers() {
+            this.loadingUsers = true;
             try {
                 const users = await getAllUsers();
                 this.users = users
@@ -1099,6 +1350,8 @@ Esta acción eliminará el usuario de la base de datos.`)) {
                 this.message = `Error al cargar usuarios: ${error.message}`;
                 this.messageType = "error";
                 console.error("Error fetchUsers:", error);
+            } finally {
+                this.loadingUsers = false;
             }
         },
         onConvenioChange() {
@@ -1130,7 +1383,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             const ipsValue = parsed?.ipsId ?? parsed?.idips ?? parsed?.ips;
             this.ips = String(ipsValue || "").trim() || null;
             this.isSuperUser = parsed?.cargo === 'superusuario';
-            this.isAdmin = this.isSuperUser;
+            this.isAdmin = parsed?.cargo === 'admin';
         } catch (_) {
             this.ips = null;
             this.isSuperUser = false;
@@ -1413,27 +1666,33 @@ Esta acción eliminará el usuario de la base de datos.`)) {
 /* Anchos de columnas */
 .tabla-usuarios th:nth-child(1),
 .tabla-usuarios td:nth-child(1) {
-    width: 33%;
+    width: 28%;
 }
 
 .tabla-usuarios th:nth-child(2),
 .tabla-usuarios td:nth-child(2) {
-    width: 12%;
+    width: 10%;
 }
 
 .tabla-usuarios th:nth-child(3),
 .tabla-usuarios td:nth-child(3) {
-    width: 28%;
+    width: 26%;
 }
 
 .tabla-usuarios th:nth-child(4),
 .tabla-usuarios td:nth-child(4) {
-    width: 15%;
+    width: 13%;
 }
 
 .tabla-usuarios th:nth-child(5),
 .tabla-usuarios td:nth-child(5) {
-    width: 12%;
+    width: 9%;
+    text-align: center;
+}
+
+.tabla-usuarios th:nth-child(6),
+.tabla-usuarios td:nth-child(6) {
+    width: 14%;
 }
 
 .tabla-usuarios thead {

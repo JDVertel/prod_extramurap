@@ -12,7 +12,10 @@
         </div>
     </div>
     <div v-if="!cargando">
-        <h1 class="display-6 center">{{ userData.cargo }}</h1>
+        <h1 class="display-6 center">{{ cargoMostrado }}</h1>
+        <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
+            Visualizando como admin: {{ nombreProfesionalSeleccionado }}
+        </p>
 
 
         <div class="container-fluid">
@@ -168,34 +171,81 @@ export default {
 
             return texto;
         },
+        getDocumentoObjetivo() {
+            if (this.esEstadoView) {
+                const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
+                if (docSeleccionado) {
+                    return docSeleccionado;
+                }
+            }
+            return String(this.userData?.numDocumento || "").trim();
+        },
     },
 
     computed: {
         ...mapState(["encuestas", "userData", "cantEncuestas", "cantEncuestasEnProceso"]),
+        esEstadoView() {
+            if (String(this.$route?.query?.estadoView || "") !== "1") {
+                return false;
+            }
+
+            const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
+            if (!docSeleccionado) {
+                return false;
+            }
+
+            const cargoActual = String(this.userData?.cargo || "").trim().toLowerCase();
+            const esAdmin = cargoActual === "admin" || cargoActual === "administrador";
+            if (esAdmin) {
+                return true;
+            }
+
+            const accesos = Array.isArray(this.userData?.accesosProfesionales)
+                ? this.userData.accesosProfesionales
+                : [];
+            return accesos.map((item) => String(item || "").trim()).includes(docSeleccionado);
+        },
+        cargoMostrado() {
+            if (this.esEstadoView) {
+                const cargo = String(this.$route?.query?.profesionalCargo || "").trim();
+                return cargo || "Profesional";
+            }
+            return this.userData?.cargo || "";
+        },
+        nombreProfesionalSeleccionado() {
+            return String(this.$route?.query?.profesionalNombre || "").trim();
+        },
         encuestasFiltradasPorConvenio() {
             if (!this.encuestas || this.encuestas.length === 0) return [];
-            if (!this.userData || !this.userData.convenio) {
+            const convenioObjetivo = this.esEstadoView
+                ? String(this.$route?.query?.profesionalConvenio || "").trim()
+                : String(this.userData?.convenio || "").trim();
+
+            if (!convenioObjetivo) {
                 return this.encuestas.filter(encuesta => encuesta.status_gest_aux === true);
             }
 
             // Filtrar encuestas donde el convenio coincida con userData.convenio
             return this.encuestas.filter(encuesta =>
-                encuesta.convenio === this.userData.convenio &&
+                String(encuesta.convenio || "").trim() === convenioObjetivo &&
                 encuesta.status_gest_aux === true
             );
         },
         encuestasConCupsActivo() {
+            const cargo = this.esEstadoView
+                ? String(this.$route?.query?.profesionalCargo || "").trim()
+                : String(this.userData?.cargo || "").trim();
+
             return this.encuestasFiltradasPorConvenio.filter(
                 (encuesta) =>
-                    (this.userData?.cargo === "Auxiliar de enfermeria" ||
-                        this.userData?.cargo === "Medico")
+                    (cargo === "Auxiliar de enfermeria" || cargo === "Medico")
             );
         },
         cantEncuestasConCupsActivo() {
             return this.encuestasConCupsActivo.length;
         },
         documento() {
-            return this.userData.numDocumento;
+            return this.getDocumentoObjetivo();
         },
 
         totalRegisters() {
@@ -205,9 +255,14 @@ export default {
     async mounted() {
         this.fechaActual = moment().format("YYYY-MM-DD");
         try {
+            const documentoObjetivo = this.getDocumentoObjetivo();
+            if (!documentoObjetivo) {
+                throw new Error("No se encontro el documento del profesional a consultar");
+            }
+
             // Obtener encuestas con status_gest_aux = true para médico y sus actividades
             const encuestasConActividades = await this.getEncuestasConActividadesMedico({
-                idUsuario: this.userData.numDocumento,
+                idUsuario: documentoObjetivo,
             });
 
             // Actualizar el store manualmente porque la nueva función no lo hace
