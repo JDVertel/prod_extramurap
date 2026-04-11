@@ -112,7 +112,7 @@
                     </div>
                 </div>
                 <div class="col-6">
-                    <p>Servicios Publicos</p>
+                    <h4>Servicios Públicos</h4>
                     <div class="form-check" v-for="opcion in opcionesServPublicos" :key="opcion.id">
                         <input class="form-check-input" type="checkbox" :id="'check-' + opcion.id" :value="opcion.valor"
                             v-model="seleccionadosServPublic" />
@@ -130,8 +130,8 @@
             <div class="row">
                 <hr />
                 <h4>Factores de Riesgo</h4>
-                <div class="col-6">
-                    <p>Entorno</p>
+                <div class="col-6 riesgo-col-left">
+                    <h4>Entorno</h4>
                     <div class="form-check" v-for="opcionr in factoresRiesgo" :key="opcionr.id">
                         <input class="form-check-input" type="checkbox" :id="'check-' + opcionr.id"
                             :value="opcionr.valor" v-model="seleccionadosFactoresRiesgo" />
@@ -141,8 +141,9 @@
                     </div>
                     <!-- {{ seleccionadosFactoresRiesgo }} -->
                 </div>
-                <div class="col-6">
-                    <p>Presencia de Animales</p>
+                
+                <div class="col-6 riesgo-col-right">
+                    <h4>Presencia de Animales</h4>
                     <div class="form-check" v-for="opcion in OpcionesPresenciaAnimales" :key="opcion.id">
                         <input class="form-check-input" type="checkbox" :id="'check-' + opcion.id" :value="opcion.valor"
                             v-model="seleccionadosPresenciaAnimales" />
@@ -1165,6 +1166,38 @@ export default {
     font-size: 0.82rem;
     margin-bottom: 0.25rem;
     font-weight: 500;
+}
+
+/* Barra vertical entre Entorno y Presencia de Animales */
+.riesgo-col-left {
+    position: relative;
+    padding-right: 0.9rem;
+}
+
+.riesgo-col-right {
+    padding-left: 0.9rem;
+}
+
+.riesgo-col-left::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: #cfd8dc;
+}
+
+@media (max-width: 767.98px) {
+    .riesgo-col-left::after {
+        display: none;
+    }
+
+    .riesgo-col-left,
+    .riesgo-col-right {
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
 }
 
 /* Espaciado entre bloques — reemplaza los <br /> */

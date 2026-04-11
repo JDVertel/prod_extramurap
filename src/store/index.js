@@ -38,6 +38,18 @@ function getNoCacheRequestConfig() {
   };
 }
 
+function userBelongsToGroup(userGroupValue, targetGroup) {
+  const target = String(targetGroup || "").trim();
+  if (!target) return false;
+
+  const groups = String(userGroupValue || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return groups.includes(target);
+}
+
 function normalizarFechaSoloDia(valor) {
   if (valor === null || valor === undefined) {
     return null;
@@ -418,13 +430,26 @@ export default createStore({
         cargoTexto = "auxiliar";
       }
 
-      alert(`La visita ha sido cerrada exitosamente por ${cargoTexto}.`);
-
       try {
+        const { data: encuestaActual } = await realtime_api.get(`/Encuesta/${id}.json`);
+        const estadoActualRaw = encuestaActual?.[varStatus];
+        const estadoActual = Number(estadoActualRaw);
+        const fechaActual = String(encuestaActual?.[dateStatus] || "").trim();
+        const tieneCierrePrevio = !!fechaActual;
+
+        // Flujo solicitado:
+        // - primer cierre: status 1
+        // - si fue devuelto a 0 para corrección y vuelve a cerrar: status 2
+        const nuevoEstado = Number.isFinite(estadoActual) && estadoActual === 0 && tieneCierrePrevio
+          ? 2
+          : (tieneCierrePrevio && estadoActual >= 1 ? 2 : 1);
+
         const { data } = await realtime_api.patch(`/Encuesta/${id}.json`, {
-          [varStatus]: true,
+          [varStatus]: nuevoEstado,
           [dateStatus]: moment(fecha).format("YYYY-MM-DD HH:mm:ss"),
         });
+
+        alert(`La visita ha sido cerrada exitosamente por ${cargoTexto}.`);
         return data;
       } catch (error) {
         console.error("Error al cerrar encuesta:", error);
@@ -479,12 +504,14 @@ export default createStore({
           ...value,
         }));
 
-        const encuestasFiltradas = encuestas.filter(
-          (encuesta) =>
-            encuesta.idEncuestador === idUsuario &&
-            encuesta.status_gest_aux === false &&
-            encuesta.status_visita === false
-        );
+        const encuestasFiltradas = encuestas.filter((encuesta) => {
+          if (encuesta.idEncuestador !== idUsuario) return false;
+          if (encuesta.status_gest_aux !== false) return false;
+
+          const yaHabiaCierreAuxiliar = Boolean(String(encuesta.fechagestAuxiliar || "").trim());
+
+          return encuesta.status_visita === false || yaHabiaCierreAuxiliar;
+        });
 
         const cantidad = encuestasFiltradas.length;
         commit("setEncuestas", encuestasFiltradas);
@@ -619,20 +646,32 @@ export default createStore({
           return candidatos.includes(String(idUsuario || "").trim());
         };
 
+        const estadoCerrado = (valor) => {
+          if (valor === true || valor === 1) return true;
+          if (typeof valor === "string") {
+            const limpio = valor.trim().toLowerCase();
+            return limpio === "true" || limpio === "1" || limpio === "2";
+          }
+          if (typeof valor === "number") {
+            return valor >= 1;
+          }
+          return false;
+        };
+
         const estaCerradaPorNutricionista = (encuesta) =>
-          encuesta.status_gest_nutricionista === true || encuesta.status_gest_nutri === true;
+          estadoCerrado(encuesta.status_gest_nutricionista) || estadoCerrado(encuesta.status_gest_nutri);
 
         const encuestasFiltradas = encuestas.filter(
           (encuesta) =>
             esAsignadaANutricionista(encuesta) &&
-            encuesta.status_gest_aux === true &&
+            estadoCerrado(encuesta.status_gest_aux) &&
             !estaCerradaPorNutricionista(encuesta)
         );
 
         const enProcesoCount = encuestas.filter(
           (encuesta) =>
             esAsignadaANutricionista(encuesta) &&
-            encuesta.status_gest_aux !== true
+            !estadoCerrado(encuesta.status_gest_aux)
         ).length;
 
         commit("setEncuestas", encuestasFiltradas);
@@ -1763,7 +1802,7 @@ export default createStore({
       try {
         const usuarios = await getAllUsers();
         const encuestasFiltradas = usuarios.filter(
-          (u) => String(u.grupo || "") === String(grupo || "") &&
+          (u) => userBelongsToGroup(u.grupo, grupo) &&
             String(u.convenio || "") === String(convenio || "") &&
             String(u.cargo || "") === "Medico"
         );
@@ -1784,7 +1823,7 @@ export default createStore({
       try {
         const usuarios = await getAllUsers();
         const encuestasFiltradas = usuarios.filter(
-          (u) => String(u.grupo || "") === String(grupo || "") &&
+          (u) => userBelongsToGroup(u.grupo, grupo) &&
             String(u.convenio || "") === String(convenio || "") &&
             String(u.cargo || "") === "Enfermero"
         );
@@ -1805,7 +1844,7 @@ export default createStore({
       try {
         const usuarios = await getAllUsers();
         const psicologosFiltrados = usuarios.filter(
-          (u) => String(u.grupo || "") === String(grupo || "") &&
+          (u) => userBelongsToGroup(u.grupo, grupo) &&
             String(u.convenio || "") === String(convenio || "") &&
             String(u.cargo || "") === "Psicologo"
         );
@@ -1826,7 +1865,7 @@ export default createStore({
       try {
         const usuarios = await getAllUsers();
         const tsocialesFiltrados = usuarios.filter(
-          (u) => String(u.grupo || "") === String(grupo || "") &&
+          (u) => userBelongsToGroup(u.grupo, grupo) &&
             String(u.convenio || "") === String(convenio || "") &&
             String(u.cargo || "") === "Tsocial"
         );
@@ -1847,7 +1886,7 @@ export default createStore({
       try {
         const usuarios = await getAllUsers();
         const nutricionistasFiltrados = usuarios.filter(
-          (u) => String(u.grupo || "") === String(grupo || "") &&
+          (u) => userBelongsToGroup(u.grupo, grupo) &&
             String(u.convenio || "") === String(convenio || "") &&
             String(u.cargo || "") === "Nutricionista"
         );
@@ -2739,7 +2778,7 @@ export default createStore({
       } = datafact;
 
       const hoy = new Date();
-      const fechaFacturacion = hoy.toISOString().split('T')[0];
+      const fechaFacturacion = hoy.toISOString();
 
       const payloadCup = {
         ...(cup && typeof cup === "object" ? cup : {}),
@@ -2747,6 +2786,7 @@ export default createStore({
         FactProf: idFacturador,
         facturado: facturado || true,
         fechaFacturacion: fechaFacturacion,
+        fechaAsignacionFactura: fechaFacturacion,
       };
 
       await realtime_api.patch(

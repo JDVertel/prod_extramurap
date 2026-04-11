@@ -23,8 +23,13 @@
                 Detalle de Actividades ({{ cantEncuestasConCupsActivo }}) <small>Pendientes</small>
                 <span v-if="cantEncuestasEnProceso > 0"
                     class="badge bg-warning text-dark ms-2"
+                    style="cursor: pointer;"
+                    @click="abrirModalEnProceso"
                     title="Encuestas asignadas pero pendientes de cierre por el auxiliar">
                     <i class="bi bi-hourglass-split"></i> {{ cantEncuestasEnProceso }} en proceso
+                </span>
+                <span v-if="cantCerradosHoy > 0" class="badge bg-success ms-2">
+                    <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
                 </span>
             </h4>
 
@@ -61,7 +66,7 @@
 
                                     <!-- CUPS (Auxiliar de enfermeria y Medico) -->
                                     <div
-                                        v-if="userData.cargo === 'Auxiliar de enfermeria' || userData.cargo === 'Medico'">
+                                        v-if="cargoMostrado === 'Auxiliar de enfermeria' || cargoMostrado === 'Medico'">
                                         <button type="button" class="btn btn-danger  agendar-btn"
                                             @click="cupsGestion(encuesta.id)">
                                             <i class="bi bi-calendar2-heart-fill"></i>
@@ -74,6 +79,37 @@
                     </div>
                 </div>
             </div>
+
+            <div v-if="mostrarModalEnProceso" class="enproceso-modal-overlay" @click="cerrarModalEnProceso">
+                <div class="enproceso-modal-content" @click.stop>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">Registros en proceso ({{ registrosEnProcesoModal.length }})</h5>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @click="cerrarModalEnProceso">Cerrar</button>
+                    </div>
+                    <div v-if="cargandoEnProcesoModal" class="text-muted py-2">Cargando registros...</div>
+                    <div v-else-if="registrosEnProcesoModal.length === 0" class="alert alert-info mb-0">
+                        No hay registros en proceso para este profesional.
+                    </div>
+                    <div v-else class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+                        <table class="table table-sm table-striped table-bordered align-middle mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Paciente</th>
+                                    <th>Convenio</th>
+                                    <th>EPS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="item in registrosEnProcesoModal" :key="item.id">
+                                    <td>{{ item.paciente }}</td>
+                                    <td>{{ item.convenio }}</td>
+                                    <td>{{ item.eps }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -81,11 +117,15 @@
 <script>
 import { mapActions, mapState } from "vuex";
 import moment from "moment";
+import realtime_api from "@/api/realtimeApi";
 export default {
     data() {
         return {
             cargando: true,
             fechaActual: "",
+            mostrarModalEnProceso: false,
+            cargandoEnProcesoModal: false,
+            registrosEnProcesoModal: [],
         };
     },
     methods: {
@@ -129,11 +169,21 @@ export default {
 
         cupsGestion(id) {
             sessionStorage.setItem("rutaAnterior", "/sop_profesional");
+            const query = String(this.$route?.query?.estadoView || "") === "1"
+                ? {
+                    estadoView: "1",
+                    profesionalDoc: String(this.$route?.query?.profesionalDoc || this.getDocumentoObjetivo() || "").trim(),
+                    profesionalCargo: String(this.$route?.query?.profesionalCargo || this.cargoMostrado || this.userData?.cargo || "").trim(),
+                    profesionalConvenio: String(this.$route?.query?.profesionalConvenio || this.getConvenioObjetivo() || "").trim(),
+                    profesionalNombre: String(this.$route?.query?.profesionalNombre || this.userData?.nombre || "").trim(),
+                }
+                : {};
             this.$router.push({
                 name: "sop_cups",
                 params: {
                     idEncuesta: id,
                 },
+                query,
             });
         },
 
@@ -179,6 +229,47 @@ export default {
                 }
             }
             return String(this.userData?.numDocumento || "").trim();
+        },
+
+        getConvenioObjetivo() {
+            if (this.esEstadoView) {
+                return String(this.$route?.query?.profesionalConvenio || "").trim();
+            }
+            return String(this.userData?.convenio || "").trim();
+        },
+
+        cerrarModalEnProceso() {
+            this.mostrarModalEnProceso = false;
+        },
+
+        async abrirModalEnProceso() {
+            this.mostrarModalEnProceso = true;
+            this.cargandoEnProcesoModal = true;
+            this.registrosEnProcesoModal = [];
+
+            try {
+                const documentoObjetivo = this.getDocumentoObjetivo();
+                const { data } = await realtime_api.get("/Encuesta.json");
+                const lista = Object.entries(data || {}).map(([id, value]) => ({ id, ...value }));
+
+                this.registrosEnProcesoModal = lista
+                    .filter((e) => {
+                        if (String(e.idMedicoAtiende || "").trim() !== String(documentoObjetivo || "").trim()) return false;
+                        if (e.status_gest_aux === true) return false;
+                        return true;
+                    })
+                    .map((e) => ({
+                        id: e.id,
+                        paciente: `${e.nombre1 || ""} ${e.apellido1 || ""}`.trim() || "Sin nombre",
+                        convenio: String(e.convenio || "Sin convenio").trim() || "Sin convenio",
+                        eps: e.eps || "",
+                    }))
+                    .sort((a, b) => String(a.paciente || "").localeCompare(String(b.paciente || "")));
+            } catch (error) {
+                console.error("Error cargando modal de en proceso:", error);
+            } finally {
+                this.cargandoEnProcesoModal = false;
+            }
         },
     },
 
@@ -251,6 +342,15 @@ export default {
         totalRegisters() {
             return this.encuestas.length;
         },
+        cantCerradosHoy() {
+            if (!this.encuestas || !this.fechaActual) return 0;
+            const doc = this.getDocumentoObjetivo();
+            return this.encuestas.filter(e =>
+                String(e.idMedicoAtiende || "").trim() === doc &&
+                e.status_gest_medica === true &&
+                String(e.fechagestMedica || "").startsWith(this.fechaActual)
+            ).length;
+        },
     },
     async mounted() {
         this.fechaActual = moment().format("YYYY-MM-DD");
@@ -305,6 +405,24 @@ export default {
 
 .progreso-indeterminado {
     width: 100%;
+}
+
+.enproceso-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.enproceso-modal-content {
+    width: min(820px, 96vw);
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px;
 }
 
 .acciones-col {

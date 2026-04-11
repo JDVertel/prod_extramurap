@@ -180,6 +180,38 @@ function toBooleanStatus(value) {
     return Boolean(value);
 }
 
+function normalizeStatusGestionLevel(value) {
+    if (value === null || value === undefined || value === '') {
+        return 0;
+    }
+
+    if (typeof value === 'boolean') {
+        return value ? 1 : 0;
+    }
+
+    const raw = String(value).trim().toLowerCase();
+    if (!raw) {
+        return 0;
+    }
+
+    if (['true', 'si', 'sí', 'yes'].includes(raw)) {
+        return 1;
+    }
+
+    if (['false', 'no'].includes(raw)) {
+        return 0;
+    }
+
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) {
+        if (parsed >= 2) return 2;
+        if (parsed >= 1) return 1;
+        return 0;
+    }
+
+    return Boolean(value) ? 1 : 0;
+}
+
 function buildEncuestasMap(rows = []) {
     const out = {};
     rows.forEach((row) => {
@@ -192,6 +224,7 @@ function buildEncuestasMap(rows = []) {
                 idEnfermeroAtiende: row.id_enfermero_atiende ?? row.idEnfermeroAtiende,
                 idPsicologoAtiende: row.id_psicologo_atiende ?? row.idPsicologoAtiende,
                 idTsocialAtiende: row.id_tsocial_atiende ?? row.idTsocialAtiende,
+                idNutricionistaAtiende: row.id_nutricionista_atiende ?? row.idNutricionistaAtiende ?? row.idNutriAtiende,
                 idEncuesta: row.id_encuesta ?? row.idEncuesta,
                 fechaNac: row.fecha_nac ?? row.fechaNac,
                 barrioVeredacomuna: barrioVeredaComuna,
@@ -202,13 +235,23 @@ function buildEncuestasMap(rows = []) {
                 fechagestMedica: row.fecha_gest_medica ?? row.fechagestMedica,
                 fechagestPsicologo: row.fecha_gest_psicologo ?? row.fechagestPsicologo,
                 fechagestTsocial: row.fecha_gest_tsocial ?? row.fechagestTsocial,
+                fechagestNutricionista: row.fecha_gest_nutricionista ?? row.fechagestNutricionista,
                 fechagestAuxiliar: row.fecha_gest_auxiliar ?? row.fechagestAuxiliar,
+                FechaFacturacion: row.fecha_facturacion ?? row.fechaFacturacion ?? row.FechaFacturacion,
+                fechaFacturacion: row.fecha_facturacion ?? row.fechaFacturacion ?? row.FechaFacturacion,
                 asigfact: row.asig_fact ?? row.asigfact,
                 status_gest_aux: toBooleanStatus(row.status_gest_aux),
                 status_gest_medica: toBooleanStatus(row.status_gest_medica),
                 status_gest_enfermera: toBooleanStatus(row.status_gest_enfermera),
                 status_gest_psicologo: toBooleanStatus(row.status_gest_psicologo),
                 status_gest_tsocial: toBooleanStatus(row.status_gest_tsocial),
+                status_gest_nutricionista: toBooleanStatus(row.status_gest_nutricionista ?? row.status_gest_nutri),
+                status_gest_aux_valor: normalizeStatusGestionLevel(row.status_gest_aux),
+                status_gest_medica_valor: normalizeStatusGestionLevel(row.status_gest_medica),
+                status_gest_enfermera_valor: normalizeStatusGestionLevel(row.status_gest_enfermera),
+                status_gest_psicologo_valor: normalizeStatusGestionLevel(row.status_gest_psicologo),
+                status_gest_tsocial_valor: normalizeStatusGestionLevel(row.status_gest_tsocial),
+                status_gest_nutricionista_valor: normalizeStatusGestionLevel(row.status_gest_nutricionista ?? row.status_gest_nutri),
                 status_visita: toBooleanStatus(row.status_visita),
                 status_caracterizacion: toBooleanStatus(row.status_caracterizacion),
                 status_facturacion: toBooleanStatus(row.status_facturacion),
@@ -500,6 +543,38 @@ function toBit(value) {
     return undefined;
 }
 
+function toStatusGestValue(value) {
+    if (value === undefined || value === null || value === '') {
+        return undefined;
+    }
+
+    if (typeof value === 'boolean') {
+        return value ? 1 : 0;
+    }
+
+    const raw = String(value).trim().toLowerCase();
+    if (!raw) {
+        return undefined;
+    }
+
+    if (['true', 'si', 'sí', 'yes'].includes(raw)) {
+        return 1;
+    }
+
+    if (['false', 'no'].includes(raw)) {
+        return 0;
+    }
+
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) {
+        if (parsed >= 2) return 2;
+        if (parsed >= 1) return 1;
+        return 0;
+    }
+
+    return undefined;
+}
+
 function cleanObject(payload = {}) {
     const out = {};
     Object.entries(payload || {}).forEach(([key, value]) => {
@@ -575,6 +650,7 @@ function toApiEncuesta(payload = {}) {
         idEnfermeroAtiende: payload.idEnfermeroAtiende ?? payload.id_enfermero_atiende,
         idPsicologoAtiende: payload.idPsicologoAtiende ?? payload.id_psicologo_atiende,
         idTsocialAtiende: payload.idTsocialAtiende ?? payload.id_tsocial_atiende,
+        idNutricionistaAtiende: payload.idNutricionistaAtiende ?? payload.idNutriAtiende ?? payload.id_nutricionista_atiende,
         convenio: payload.convenio,
         eps: payload.eps,
         regimen: payload.regimen,
@@ -596,11 +672,12 @@ function toApiEncuesta(payload = {}) {
         requiereRemision: payload.requiereRemision ?? payload.requiere_remision,
         fecha: normalizeDateValue(payload.fecha),
         fechavisita: normalizeDateValue(payload.fechavisita ?? payload.fecha_visita),
-        status_gest_aux: toBit(payload.status_gest_aux),
-        status_gest_medica: toBit(payload.status_gest_medica),
-        status_gest_enfermera: toBit(payload.status_gest_enfermera),
-        status_gest_psicologo: toBit(payload.status_gest_psicologo),
-        status_gest_tsocial: toBit(payload.status_gest_tsocial),
+        status_gest_aux: toStatusGestValue(payload.status_gest_aux),
+        status_gest_medica: toStatusGestValue(payload.status_gest_medica),
+        status_gest_enfermera: toStatusGestValue(payload.status_gest_enfermera),
+        status_gest_psicologo: toStatusGestValue(payload.status_gest_psicologo),
+        status_gest_tsocial: toStatusGestValue(payload.status_gest_tsocial),
+        status_gest_nutricionista: toStatusGestValue(payload.status_gest_nutricionista ?? payload.status_gest_nutri),
         status_visita: toBit(payload.status_visita),
         status_caracterizacion: toBit(payload.status_caracterizacion),
         status_facturacion: toBit(payload.status_facturacion),
@@ -608,6 +685,7 @@ function toApiEncuesta(payload = {}) {
         fechagestMedica: normalizeDateTimeValue(payload.fechagestMedica ?? payload.fecha_gest_medica),
         fechagestPsicologo: normalizeDateTimeValue(payload.fechagestPsicologo ?? payload.fecha_gest_psicologo),
         fechagestTsocial: normalizeDateTimeValue(payload.fechagestTsocial ?? payload.fecha_gest_tsocial),
+        fechagestNutricionista: normalizeDateTimeValue(payload.fechagestNutricionista ?? payload.fecha_gest_nutricionista),
         fechagestAuxiliar: normalizeDateTimeValue(payload.fechagestAuxiliar ?? payload.fecha_gest_auxiliar),
         fechaFacturacion: normalizeDateTimeValue(payload.fechaFacturacion ?? payload.FechaFacturacion ?? payload.fecha_facturacion),
         asig_fact: payload.asig_fact ?? payload.asigfact,

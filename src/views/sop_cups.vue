@@ -188,7 +188,7 @@
                     </div><!-- /cups-main-scroll -->
                 </div>
                 <div class="footer footer-cerrar-visita">
-                    <button class="btn btn-secondary rounded-pill" @click="redirigirPostCierre(userData && userData.cargo)">
+                    <button class="btn btn-secondary rounded-pill" @click="redirigirPostCierre(cargoMostrado)">
                         <i class="bi bi-arrow-left-circle"></i> Volver al listado
                     </button>
                     <button class="btn btn-success rounded-pill" @click="cerrarVisita()"
@@ -447,6 +447,53 @@ export default {
             "actividadesExtra",
         ]),
 
+        esEstadoView() {
+            if (String(this.$route?.query?.estadoView || "") !== "1") return false;
+            const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
+            if (!docSeleccionado) return false;
+
+            const cargoActual = String(this.userData?.cargo || "").trim().toLowerCase();
+            const esAdmin = cargoActual === "admin" || cargoActual === "administrador";
+            if (esAdmin) return true;
+
+            const accesos = Array.isArray(this.userData?.accesosProfesionales)
+                ? this.userData.accesosProfesionales
+                : [];
+            return accesos.map((item) => String(item || "").trim()).includes(docSeleccionado);
+        },
+
+        cargoMostrado() {
+            if (this.esEstadoView) {
+                const cargo = String(this.$route?.query?.profesionalCargo || "").trim();
+                if (cargo) return cargo;
+            }
+            return String(this.userData?.cargo || "").trim();
+        },
+
+        documentoObjetivo() {
+            if (this.esEstadoView) {
+                const doc = String(this.$route?.query?.profesionalDoc || "").trim();
+                if (doc) return doc;
+            }
+            return String(this.userData?.numDocumento || "").trim();
+        },
+
+        convenioObjetivo() {
+            if (this.esEstadoView) {
+                const convenio = String(this.$route?.query?.profesionalConvenio || "").trim();
+                if (convenio) return convenio;
+            }
+            return String(this.userData?.convenio || "").trim();
+        },
+
+        nombreProfesionalObjetivo() {
+            if (this.esEstadoView) {
+                const nombre = String(this.$route?.query?.profesionalNombre || "").trim();
+                if (nombre) return nombre;
+            }
+            return String(this.userData?.nombre || "").trim();
+        },
+
         //logica para obtener los cups filtrados por EPS y profesional
         dataencuesta() {
             return this.InfoEncuestasById.length > 0 ? this.InfoEncuestasById[0] : null;
@@ -610,7 +657,7 @@ export default {
 
         // CUPS disponibles filtrados por contrato según profesional, EPS y actividad
         cupsDisponiblesPorContrato() {
-            if (!this.userEncuesta || !this.contratos || !this.userData || !this.idItem || !Array.isArray(this.cups)) {
+            if (!this.userEncuesta || !this.contratos || !this.cargoMostrado || !this.idItem || !Array.isArray(this.cups)) {
                 return [];
             }
 
@@ -809,7 +856,7 @@ export default {
                 return new Set();
             }
 
-            const cargoUsuario = this.userData?.cargo;
+            const cargoUsuario = this.cargoMostrado;
             const nombreActividadSeleccionada = this.obtenerNombreActividadDelContrato(actividadId);
             const idsPermitidos = new Set();
 
@@ -854,7 +901,7 @@ export default {
         },
 
         tieneCupsDisponiblesActividad(actividadId) {
-            if (!this.userEncuesta || !this.contratos || !this.userData || !actividadId || !Array.isArray(this.cups)) {
+            if (!this.userEncuesta || !this.contratos || !this.cargoMostrado || !actividadId || !Array.isArray(this.cups)) {
                 return false;
             }
             const idsPermitidos = this.obtenerIdsCupsPermitidosPorActividad(actividadId);
@@ -1262,10 +1309,10 @@ export default {
                     cantidad: cant,
                     detalle: detalle,
                     actividadId: this.idItem,
-                    key: this.userData?.cargo || "",
-                    nombreProf: this.userData?.nombre || "",
-                    idProf: this.userData?.numDocumento || "",
-                    idProfesional: this.userData?.numDocumento || "",
+                    key: this.cargoMostrado || "",
+                    nombreProf: this.nombreProfesionalObjetivo || "",
+                    idProf: this.documentoObjetivo || "",
+                    idProfesional: this.documentoObjetivo || "",
                     localDraft: true,
                 });
                 this.CupsSeleccionadoId = "";
@@ -1287,8 +1334,8 @@ export default {
             // Luego limpiar el resto
             this.clear();
 
-            if (this.userData && this.userData.cargo) {
-                this.keyActividad = this.userData.cargo;
+            if (this.cargoMostrado) {
+                this.keyActividad = this.cargoMostrado;
             } else {
                 this.keyActividad = "";
             }
@@ -1412,8 +1459,8 @@ export default {
                 const datosActualizados = {
                     ...this.asignaciones,
                     cups: cupsActualizados,
-                    key: this.userData.cargo,
-                    nombreProf: this.userData.nombre,
+                    key: this.cargoMostrado,
+                    nombreProf: this.nombreProfesionalObjetivo,
                 };
 
                 await realtime_api.put(`/Asignaciones/${this.idEncuesta}.json`, datosActualizados);
@@ -1447,10 +1494,10 @@ export default {
                     cupsId: cupId,
                     actividadId: this.idItem,
                     key: this.keyActividad,
-                    nombreProf: this.userData.nombre,
-                    idProf: this.userData?.numDocumento || "",
-                    idProfesional: this.userData?.numDocumento || "",
-                    convenio: this.userData?.convenio || "",
+                    nombreProf: this.nombreProfesionalObjetivo,
+                    idProf: this.documentoObjetivo || "",
+                    idProfesional: this.documentoObjetivo || "",
+                    convenio: this.convenioObjetivo || "",
                     localDraft: undefined,
                 };
             });
@@ -1459,10 +1506,10 @@ export default {
                 key: this.keyActividad,
                 cups: cupsConActividad,
                 idEncuesta: this.idEncuesta,
-                nombreProf: this.userData.nombre,
-                idProf: this.userData?.numDocumento || "",
-                idProfesional: this.userData?.numDocumento || "",
-                convenio: this.userData?.convenio || "",
+                nombreProf: this.nombreProfesionalObjetivo,
+                idProf: this.documentoObjetivo || "",
+                idProfesional: this.documentoObjetivo || "",
+                convenio: this.convenioObjetivo || "",
             };
 
             try {
@@ -1476,10 +1523,10 @@ export default {
         },
 
         actividadesConMedico(tipoActividad) {
-            if (!tipoActividad || !this.userData || !this.userData.cargo) return [];
+            if (!tipoActividad || !this.cargoMostrado) return [];
             return Object.values(tipoActividad).filter(
                 (actividad) =>
-                    actividad.Profesional && actividad.Profesional.includes(this.userData.cargo)
+                    actividad.Profesional && actividad.Profesional.includes(this.cargoMostrado)
             );
         },
 
@@ -1602,7 +1649,7 @@ export default {
                     ? actividad.Profesional
                     : this.obtenerProfesionalesActividad(key);
 
-            const cargo = this.userData && this.userData.cargo ? this.userData.cargo : "";
+            const cargo = this.cargoMostrado || "";
 
             return Array.isArray(profesionales) && profesionales.includes(cargo);
         },
@@ -1663,19 +1710,19 @@ export default {
         },
 
         esAutorDelCup(cup) {
-            if (!this.userData || !cup) return false;
+            if (!cup) return false;
 
-            const cargoActual = String(this.userData.cargo || "").trim();
+            const cargoActual = String(this.cargoMostrado || "").trim();
             const cargoCup = String(cup.key || "").trim();
             if (!cargoActual || cargoCup !== cargoActual) return false;
 
-            const idActual = String(this.userData.numDocumento || "").trim();
+            const idActual = String(this.documentoObjetivo || "").trim();
             const idCup = this.obtenerIdAutorCup(cup);
             if (idActual && idCup) {
                 return idActual === idCup;
             }
 
-            const nombreActual = this.normalizarNombreProfesional(this.userData.nombre);
+            const nombreActual = this.normalizarNombreProfesional(this.nombreProfesionalObjetivo);
             const nombreCup = this.normalizarNombreProfesional(cup.nombreProf);
             if (nombreActual && nombreCup) {
                 return nombreActual === nombreCup;
@@ -1743,7 +1790,21 @@ export default {
             const rutaDestino = this.resolverRutaDestino(cargo);
             sessionStorage.removeItem("rutaAnterior");
 
+            const queryDestino = this.esEstadoView
+                ? {
+                    estadoView: "1",
+                    profesionalDoc: this.documentoObjetivo,
+                    profesionalCargo: this.cargoMostrado,
+                    profesionalConvenio: this.convenioObjetivo,
+                    profesionalNombre: this.nombreProfesionalObjetivo,
+                }
+                : null;
+
             await this.$nextTick();
+            if (queryDestino) {
+                await this.$router.replace({ path: rutaDestino, query: queryDestino });
+                return;
+            }
             await this.$router.replace(rutaDestino);
         },
 
@@ -1757,7 +1818,7 @@ export default {
                     return;
                 }
 
-                const cargo = this.userData.cargo;
+                const cargo = this.cargoMostrado;
 
                 try {
 
@@ -1917,6 +1978,11 @@ export default {
     box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
 }
 
+/* En sesión delegada, elevar el footer de cerrar visita para que no choque con el footer global. */
+#app.is-delegated-session .footer-cerrar-visita {
+    bottom: 86px;
+}
+
 /* Scroll forzado del contenido principal de actividades */
 .cups-main-scroll {
     width: 100%;
@@ -1925,6 +1991,20 @@ export default {
     -webkit-overflow-scrolling: touch;
     scrollbar-gutter: stable;
     padding-bottom: 70px;
+}
+
+#app.is-delegated-session .cups-main-scroll {
+    padding-bottom: 156px;
+}
+
+@media (max-width: 768px) {
+    #app.is-delegated-session .footer-cerrar-visita {
+        bottom: 124px;
+    }
+
+    #app.is-delegated-session .cups-main-scroll {
+        padding-bottom: 210px;
+    }
 }
 
 /* Forzar que las barras de scroll siempre sean visibles (Webkit) */

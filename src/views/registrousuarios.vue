@@ -177,10 +177,13 @@
                                                                         title="Editar usuario">
                                                                         <i class="bi bi-pencil-fill"></i>
                                                                     </button>
-                                                                    <button class="btn btn-sm btn-warning me-1"
+                                                                    <button
+                                                                        v-if="isAdmin || isSuperUser"
+                                                                        :class="['btn btn-sm me-1', estaUsuarioBloqueado(user) ? 'btn-danger' : 'btn-success']"
                                                                         @click="resetPassword(user)"
-                                                                        title="Restablecer contraseña">
-                                                                        <i class="bi bi-key-fill"></i>
+                                                                        :title="estaUsuarioBloqueado(user) ? 'Desbloquear y generar contraseña temporal' : 'Generar contraseña temporal'"
+                                                                    >
+                                                                        <i :class="estaUsuarioBloqueado(user) ? 'bi bi-lock-fill' : 'bi bi-unlock-fill'"></i>
                                                                     </button>
                                                                     <button class="btn btn-sm btn-danger"
                                                                         @click="deleteUser(user)"
@@ -256,23 +259,22 @@
                                         editCargo === 'Tsocial' ||
                                         editCargo === 'Nutricionista'
                                     ">
-                                        <label for="editGrupo"># Grupo</label>
+                                        <label for="editGrupo"># Grupo(s)</label>
                                         <input type="text" id="editGrupo" v-model="editGrupo" class="form-control"
-                                            placeholder="Ej: 1, 2, F" />
+                                            placeholder="Ej: 1,2,F" />
                                     </div>
                                     <hr v-if="isAdmin">
                                     <div v-if="isAdmin" class="col col-12 mb-3">
                                         <label class="form-label mb-2"><h4>Profesionales Delegados</h4></label>
                                         <div class="row g-2 mb-2">
                                             <div class="col-12 col-md-4">
-                                                <label class="form-label mb-1">Convenio aplicado</label>
-                                                <input
-                                                    type="text"
-                                                    class="form-control form-control-sm"
-                                                    :value="editConvenio || 'Sin convenio'"
-                                                    disabled
-                                                    readonly
-                                                />
+                                                <label class="form-label mb-1">Filtrar por convenio</label>
+                                                <select v-model="filtroAccesoConvenio" class="form-select form-select-sm">
+                                                    <option value="">Todos los convenios</option>
+                                                    <option v-for="conv in conveniosDisponiblesAcceso" :key="`conv-acceso-${conv}`" :value="conv">
+                                                        {{ conv }}
+                                                    </option>
+                                                </select>
                                             </div>
                                             <div class="col-12 col-md-4">
                                                 <label class="form-label mb-1">Filtrar por cargo</label>
@@ -502,8 +504,8 @@
                                 cargo === 'Tsocial' ||
                                 cargo === 'Nutricionista'
                             ">
-                                <label for="grupo"># Grupo</label>
-                                <input type="text" id="grupo" v-model="grupo" placeholder="Ej: 1, 2, F" required />
+                                <label for="grupo"># Grupo(s)</label>
+                                <input type="text" id="grupo" v-model="grupo" placeholder="Ej: 1,2,F" required />
                             </div>
                         </div>
 
@@ -535,6 +537,7 @@ import {
     documentExists,
     emailExists,
     getAllUsers,
+    unlockUserById,
     updateUserPasswordById,
     updateUser,
 } from "@/api/usersApi";
@@ -563,6 +566,7 @@ export default {
             editCargo: "",
             editConvenio: "",
             editAccesosProfesionales: [],
+            filtroAccesoConvenio: "",
             filtroAccesoCargo: "",
             filtroAccesoTexto: "",
 
@@ -621,12 +625,13 @@ export default {
             const grupos = {};
 
             this.users.forEach(user => {
-                const grupoKey = user.grupo || 'sin-grupo';
-
-                if (!grupos[grupoKey]) {
-                    grupos[grupoKey] = [];
-                }
-                grupos[grupoKey].push(user);
+                const gruposUsuario = this.obtenerGruposUsuario(user);
+                gruposUsuario.forEach((grupoKey) => {
+                    if (!grupos[grupoKey]) {
+                        grupos[grupoKey] = [];
+                    }
+                    grupos[grupoKey].push(user);
+                });
             });
 
             // Ordenar usuarios dentro de cada grupo por nombre
@@ -645,20 +650,22 @@ export default {
             // Agrupar usuarios por convenio y luego por grupo
             this.users.forEach(user => {
                 const convenio = user.convenio || 'sin-convenio';
-                const grupo = user.grupo || 'sin-grupo';
+                const gruposUsuario = this.obtenerGruposUsuario(user);
 
                 // Crear objeto de convenio si no existe
                 if (!resultado[convenio]) {
                     resultado[convenio] = {};
                 }
 
-                // Crear array de grupo si no existe
-                if (!resultado[convenio][grupo]) {
-                    resultado[convenio][grupo] = [];
-                }
+                gruposUsuario.forEach((grupo) => {
+                    // Crear array de grupo si no existe
+                    if (!resultado[convenio][grupo]) {
+                        resultado[convenio][grupo] = [];
+                    }
 
-                // Agregar usuario al grupo
-                resultado[convenio][grupo].push(user);
+                    // Agregar usuario al grupo
+                    resultado[convenio][grupo].push(user);
+                });
             });
 
             // Ordenar usuarios dentro de cada grupo por nombre
@@ -700,17 +707,19 @@ export default {
 
             usuariosFiltrados.forEach(user => {
                 const convenio = user.convenio || 'sin-convenio';
-                const grupo = user.grupo || 'sin-grupo';
+                const gruposUsuario = this.obtenerGruposUsuario(user);
 
                 if (!resultado[convenio]) {
                     resultado[convenio] = {};
                 }
 
-                if (!resultado[convenio][grupo]) {
-                    resultado[convenio][grupo] = [];
-                }
+                gruposUsuario.forEach((grupo) => {
+                    if (!resultado[convenio][grupo]) {
+                        resultado[convenio][grupo] = [];
+                    }
 
-                resultado[convenio][grupo].push(user);
+                    resultado[convenio][grupo].push(user);
+                });
             });
 
             Object.keys(resultado).forEach(convenio => {
@@ -728,7 +737,7 @@ export default {
             const documento = (this.numDocumento || '').trim();
             const email = (this.userEmail || '').trim();
             const nombre = (this.nombre || '').trim();
-            const grupo = (this.grupo || '').trim();
+            const grupo = this.normalizarGrupos(this.grupo);
 
             const requiereGrupo = this.cargoRequiereGrupo(cargo);
 
@@ -789,10 +798,15 @@ export default {
             const cargos = new Set((this.profesionalesDisponiblesParaAcceso || []).map((u) => String(u?.cargo || '').trim()).filter(Boolean));
             return Array.from(cargos).sort((a, b) => a.localeCompare(b));
         },
+        conveniosDisponiblesAcceso() {
+            const convenios = new Set((this.profesionalesDisponiblesParaAcceso || [])
+                .map((u) => String(u?.convenio || '').trim())
+                .filter(Boolean));
+            return Array.from(convenios).sort((a, b) => a.localeCompare(b));
+        },
         profesionalesDisponiblesParaAcceso() {
             const cargos = new Set(['Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista']);
             const idEditando = this.usuarioEditando?.uid;
-            const convenioObjetivo = String(this.editConvenio || '').trim().toLowerCase();
 
             const mapaPorDocumento = new Map();
 
@@ -800,11 +814,9 @@ export default {
                 .forEach((u) => {
                     const cargo = String(u?.cargo || '').trim();
                     const documento = String(u?.numDocumento || '').trim();
-                    const convenio = String(u?.convenio || '').trim().toLowerCase();
 
                     if (!cargos.has(cargo) || !documento) return;
                     if (idEditando && u.uid === idEditando) return;
-                    if (convenioObjetivo && convenio !== convenioObjetivo) return;
 
                     if (!mapaPorDocumento.has(documento)) {
                         mapaPorDocumento.set(documento, u);
@@ -815,6 +827,7 @@ export default {
                 .sort((a, b) => String(a?.nombre || '').localeCompare(String(b?.nombre || '')));
         },
         profesionalesDisponiblesParaAccesoFiltrados() {
+            const convenioFiltro = String(this.filtroAccesoConvenio || '').trim().toLowerCase();
             const cargoFiltro = String(this.filtroAccesoCargo || '').trim();
             const texto = String(this.filtroAccesoTexto || '').trim().toLowerCase();
 
@@ -823,11 +836,13 @@ export default {
                     const documento = String(u?.numDocumento || '').trim();
                     const nombre = String(u?.nombre || '').trim().toLowerCase();
                     const cargo = String(u?.cargo || '').trim();
+                    const convenio = String(u?.convenio || '').trim().toLowerCase();
 
+                    const cumpleConvenio = !convenioFiltro || convenio === convenioFiltro;
                     const cumpleCargo = !cargoFiltro || cargo === cargoFiltro;
                     const cumpleTexto = !texto || nombre.includes(texto) || documento.toLowerCase().includes(texto);
 
-                    return cumpleCargo && cumpleTexto;
+                    return cumpleConvenio && cumpleCargo && cumpleTexto;
                 });
         },
         profesionalesAsignadosAcceso() {
@@ -877,6 +892,26 @@ export default {
         }
     },
     methods: {
+        normalizarGrupos(valor) {
+            return Array.from(
+                new Set(
+                    String(valor || '')
+                        .split(',')
+                        .map((item) => item.trim())
+                        .filter(Boolean)
+                )
+            ).join(',');
+        },
+
+        obtenerGruposUsuario(user) {
+            const grupos = String(user?.grupo || '')
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean);
+
+            return grupos.length ? grupos : ['sin-grupo'];
+        },
+
         esCargoOculto(cargo) {
             return String(cargo || '').trim().toLowerCase() === 'superusuario';
         },
@@ -1081,6 +1116,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             this.editAccesosProfesionales = Array.isArray(user.accesosProfesionales)
                 ? [...user.accesosProfesionales]
                 : [];
+            this.filtroAccesoConvenio = "";
             this.filtroAccesoCargo = "";
             this.filtroAccesoTexto = "";
             this.mostrarModalEdicion = true;
@@ -1090,6 +1126,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             this.mostrarModalEdicion = false;
             this.usuarioEditando = null;
             this.editAccesosProfesionales = [];
+            this.filtroAccesoConvenio = "";
             this.filtroAccesoCargo = "";
             this.filtroAccesoTexto = "";
         },
@@ -1127,6 +1164,13 @@ Esta acción eliminará el usuario de la base de datos.`)) {
         async guardarCambiosUsuario() {
             if (!this.editNombre || !this.editNumDocumento || !this.editCargo) {
                 this.message = "Por favor, completa todos los campos obligatorios.";
+                this.messageType = "error";
+                return;
+            }
+
+            this.editGrupo = this.normalizarGrupos(this.editGrupo);
+            if (this.cargoRequiereGrupo(this.editCargo) && !this.editGrupo) {
+                this.message = "El campo # Grupo(s) es obligatorio para el cargo seleccionado.";
                 this.messageType = "error";
                 return;
             }
@@ -1200,7 +1244,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             this.numDocumento = String(this.numDocumento || '').trim();
             this.cargo = String(this.cargo || '').trim();
             this.convenio = String(this.convenio || '').trim();
-            this.grupo = String(this.grupo || '').trim();
+            this.grupo = this.normalizarGrupos(this.grupo);
 
             if (!this.convenio || !this.userEmail || !this.nombre || !this.numDocumento || !this.cargo) {
                 this.message = "Por favor, completa todos los campos obligatorios.";
@@ -1209,7 +1253,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             }
 
             if (this.cargoRequiereGrupo(this.cargo) && !this.grupo) {
-                this.message = "El campo # Grupo es obligatorio para el cargo seleccionado.";
+                this.message = "El campo # Grupo(s) es obligatorio para el cargo seleccionado.";
                 this.messageType = "error";
                 return;
             }
@@ -1307,6 +1351,13 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             ).join('');
         },
 
+        estaUsuarioBloqueado(user) {
+            const lockedUntil = user?.lockedUntil ? new Date(user.lockedUntil) : null;
+            const tieneBloqueoTemporal = lockedUntil && !Number.isNaN(lockedUntil.getTime()) && lockedUntil.getTime() > Date.now();
+            const tieneBloqueoPermanente = Number(user?.lockLevel || 0) >= 3;
+            return Boolean(user?.isLocked) || tieneBloqueoTemporal || tieneBloqueoPermanente;
+        },
+
         /*  resetear password con clave temporal */
         async resetPassword(user) {
             const userId = user?.uid || user?.id;
@@ -1322,9 +1373,15 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             try {
                 this.loading = true;
                 await updateUserPasswordById(userId, temporalPassword, true);
-                this.message = `Contraseña temporal generada para ${user?.email || 'el usuario'}:`;
+                if (this.isAdmin || this.isSuperUser) {
+                    await unlockUserById(userId);
+                }
+                this.message = this.estaUsuarioBloqueado(user)
+                    ? `Usuario desbloqueado y contraseña temporal generada para ${user?.email || 'el usuario'}:`
+                    : `Contraseña temporal generada para ${user?.email || 'el usuario'}:`;
                 this.messagePassword = temporalPassword;
                 this.messageType = "success";
+                await this.fetchUsers();
             } catch (error) {
                 this.message = `Error al generar contraseña temporal: ${error.message}`;
                 this.messageType = "error";

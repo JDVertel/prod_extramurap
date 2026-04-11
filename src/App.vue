@@ -115,7 +115,7 @@ export default {
 </script>
 
 <template>
-     <div id="app">
+      <div id="app" :class="{ 'is-delegated-session': enSesionDelegada }">
         <Navbar v-if="!$route.meta.hideNavbar" />
         <router-view :key="$route.path">
         </router-view>

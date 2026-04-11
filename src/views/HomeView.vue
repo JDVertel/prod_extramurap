@@ -71,10 +71,47 @@ export default {
             idips: null,
             cargandoProfesionales: false,
             profesionalesMismoGrupoConvenio: [],
+            homeLoadPromise: null,
+            homeLoadKey: "",
         };
     },
     methods: {
         ...mapActions(["fetchUserDataByUid", "getdataips", "consultarUsuariosApi"]),
+
+        buildHomeLoadKey(userData = {}) {
+            const grupo = String(userData?.grupo || "").trim();
+            const convenio = String(userData?.convenio || "").trim();
+            const ipsId = String(userData?.ipsId || userData?.ips_id || userData?.idips || "").trim();
+            return [String(this.uid || "").trim(), grupo, convenio, ipsId].join("|");
+        },
+
+        async cargarDatosHome(force = false) {
+            const userData = this.getUserData || {};
+            if (!userData?.numDocumento) {
+                return;
+            }
+
+            const nextKey = this.buildHomeLoadKey(userData);
+            if (!force && this.homeLoadPromise) {
+                return this.homeLoadPromise;
+            }
+
+            if (!force && nextKey && this.homeLoadKey === nextKey) {
+                return;
+            }
+
+            this.homeLoadKey = nextKey;
+            this.homeLoadPromise = (async () => {
+                await this.cargarIpsDelUsuario();
+                await this.cargarProfesionalesMismoGrupoConvenio();
+            })();
+
+            try {
+                await this.homeLoadPromise;
+            } finally {
+                this.homeLoadPromise = null;
+            }
+        },
 
         async cargarIpsDelUsuario() {
             const ipsId = String(this.getUserData?.ipsId || "").trim();
@@ -128,21 +165,22 @@ export default {
         getUserData: {
             immediate: true,
             async handler(nuevoValor) {
-                await this.cargarIpsDelUsuario();
-                if (nuevoValor?.grupo && nuevoValor?.convenio) {
-                    this.cargarProfesionalesMismoGrupoConvenio();
+                if (!nuevoValor?.numDocumento) {
+                    return;
                 }
+                await this.cargarDatosHome();
             }
         }
     },
     async mounted() {
         if (this.uid) {
-            await this.fetchUserDataByUid(this.uid);
+            if (!this.getUserData?.numDocumento) {
+                await this.fetchUserDataByUid(this.uid);
+            }
         } else {
             console.warn("UID no disponible para cargar datos de usuario");
         }
-        await this.cargarIpsDelUsuario();
-        await this.cargarProfesionalesMismoGrupoConvenio();
+        await this.cargarDatosHome();
     },
 };
 </script>

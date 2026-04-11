@@ -16,6 +16,11 @@
         <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
             Visualizando como admin: {{ nombreProfesionalSeleccionado }}
         </p>
+        <div v-if="cantCerradosHoy > 0" class="text-center mb-2">
+            <span class="badge bg-success">
+                <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
+            </span>
+        </div>
         <nav>
             <div class="nav nav-tabs" id="nav-tab" role="tablist">
                 <button class="nav-link active" id="nav-home-tab" data-bs-toggle="tab" data-bs-target="#nav-home"
@@ -68,11 +73,23 @@
 
                                             <!-- CUPS (Enfermero y Medico) -->
                                             <div
-                                                v-if="userData.cargo === 'Enfermero' || userData.cargo === 'Medico'">
+                                                v-if="cargoMostrado === 'Enfermero' || cargoMostrado === 'Medico'">
                                                 <button type="button" class="btn btn-danger btn-sm agendar-btn"
                                                     @click="cupsGestion(encuesta.id)">
                                                     <i class="bi bi-calendar2-heart-fill"></i>
                                                     <span class="agendar-label">Cups</span>
+                                                </button>
+                                            </div>
+                                            <div
+                                                v-for="destino in obtenerDestinosRegreso(encuesta)"
+                                                :key="`${encuesta.id}-${destino.statusKey}`">
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-warning btn-sm agendar-btn"
+                                                    :disabled="regresarDisabled[`${encuesta.id}_${destino.statusKey}`]"
+                                                    @click="regresarParaCorreccion(encuesta, destino)">
+                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                    <span class="agendar-label">{{ `Reg ${destino.rolShort}` }}</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -108,6 +125,7 @@
                         <table class="table table-sm table-hover table-striped table-bordered align-middle mb-0 tabla-proceso">
                             <thead class="table-light sticky-top cabecera-proceso">
                                 <tr>
+                                    <th>Convenio</th>
                                     <th>Auxiliar</th>
                                     <th>Paciente</th>
                                     <th>EPS</th>
@@ -115,8 +133,10 @@
                                     <th>F. Nac</th>
                                     <th>F. Encuesta</th>
                                     <th>Estados</th>
+                                    <th>Acciones</th>
                                 </tr>
                                 <tr>
+                                    <th></th>
                                     <th>
                                         <select id="filtroAuxiliar" v-model="filtroAuxiliar" class="form-select form-select-sm">
                                             <option value="">Todos ({{ encuestasEnProceso.length }})</option>
@@ -134,10 +154,12 @@
                                             </option>
                                         </select>
                                     </th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-for="(encuesta, index) in encuestasEnProcesoFiltradas" :key="encuesta.id || index">
+                                    <td>{{ encuesta.convenio || "Sin convenio" }}</td>
                                     <td>{{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</td>
                                     <td>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</td>
                                     <td>{{ encuesta.eps }}</td>
@@ -162,6 +184,20 @@
                                                 <div class="estado-fecha" v-if="estado.fecha">{{ estado.fecha }}</div>
                                             </div>
                                         </div>
+                                    </td>
+                                    <td>
+                                        <div class="acciones-proceso" v-if="obtenerDestinosRegreso(encuesta).length">
+                                            <button
+                                                v-for="destino in obtenerDestinosRegreso(encuesta)"
+                                                :key="`${encuesta.id}-proc-${destino.statusKey}`"
+                                                type="button"
+                                                class="btn btn-warning btn-sm"
+                                                :disabled="regresarDisabled[`${encuesta.id}_${destino.statusKey}`]"
+                                                @click="regresarParaCorreccion(encuesta, destino)">
+                                                {{ `Reg ${destino.rolShort}` }}
+                                            </button>
+                                        </div>
+                                        <span v-else class="text-muted small">Sin acción</span>
                                     </td>
                                 </tr>
                             </tbody>
@@ -188,6 +224,7 @@ import { mapActions, mapState } from "vuex";
 import moment from "moment";
 import { getAllUsers } from "@/api/usersApi";
 import * as XLSX from "xlsx";
+import realtime_api from "@/api/realtimeApi";
 export default {
     data() {
         return {
@@ -196,6 +233,7 @@ export default {
             filtroAuxiliar: "",
             filtroEstadoProfesional: "",
             auxiliaresPorDocumento: {},
+            regresarDisabled: {},
         };
     },
     methods: {
@@ -206,6 +244,107 @@ export default {
             "getAllRegistersByIduserEnfer",
             " SelectExistenteAgendas",
         ]),
+
+        obtenerNivelStatusGestion(encuesta = {}, statusKey = "") {
+            if (!statusKey) return 0;
+
+            const valorCrudo = encuesta?.[`${statusKey}_valor`];
+            if (valorCrudo !== undefined && valorCrudo !== null && valorCrudo !== "") {
+                const parsed = Number(valorCrudo);
+                if (Number.isFinite(parsed)) {
+                    if (parsed >= 2) return 2;
+                    if (parsed >= 1) return 1;
+                    return 0;
+                }
+            }
+
+            const base = encuesta?.[statusKey];
+            if (typeof base === "boolean") return base ? 1 : 0;
+
+            const parsedBase = Number(base);
+            if (Number.isFinite(parsedBase)) {
+                if (parsedBase >= 2) return 2;
+                if (parsedBase >= 1) return 1;
+                return 0;
+            }
+
+            return 0;
+        },
+
+        obtenerDefinicionesDestinoRegreso(encuesta = {}) {
+            const docMedico = String(encuesta?.idMedicoAtiende || "").trim();
+            const docEnfermero = String(encuesta?.idEnfermeroAtiende || "").trim();
+            const docPsicologo = String(encuesta?.idPsicologoAtiende || "").trim();
+            const docTsocial = String(encuesta?.idTsocialAtiende || "").trim();
+            const docNutricionista = String(
+                encuesta?.idNutricionistaAtiende ||
+                encuesta?.idNutriAtiende ||
+                encuesta?.id_nutricionista_atiende ||
+                ""
+            ).trim();
+            const docAux = String(encuesta?.idEncuestador || "").trim();
+
+            return [
+                { statusKey: "status_gest_aux", fechaKey: "fechagestAuxiliar", rolLabel: "Auxiliar", rolShort: "Aux", doc: docAux },
+                { statusKey: "status_gest_medica", fechaKey: "fechagestMedica", rolLabel: "Médico", rolShort: "Med", doc: docMedico },
+                { statusKey: "status_gest_enfermera", fechaKey: "fechagestEnfermera", rolLabel: "Enfermero", rolShort: "Enf", doc: docEnfermero },
+                { statusKey: "status_gest_psicologo", fechaKey: "fechagestPsicologo", rolLabel: "Psicólogo", rolShort: "Psi", doc: docPsicologo },
+                { statusKey: "status_gest_tsocial", fechaKey: "fechagestTsocial", rolLabel: "Trabajador social", rolShort: "TS", doc: docTsocial },
+                { statusKey: "status_gest_nutricionista", fechaKey: "fechagestNutricionista", rolLabel: "Nutricionista", rolShort: "Nut", doc: docNutricionista },
+            ].filter((item) => !!item.doc);
+        },
+
+        obtenerDestinosRegreso(encuesta) {
+            if (!encuesta || !encuesta.id) return false;
+            return this.obtenerDefinicionesDestinoRegreso(encuesta).filter((destino) => {
+                const nivel = this.obtenerNivelStatusGestion(encuesta, destino.statusKey);
+                return nivel >= 1;
+            });
+        },
+
+        async regresarParaCorreccion(encuesta, destino) {
+            if (!encuesta?.id || !destino?.statusKey) return;
+
+            const nivel = this.obtenerNivelStatusGestion(encuesta, destino.statusKey);
+            if (nivel < 1) {
+                alert("Este registro no esta cerrado para regresar a correccion.");
+                return;
+            }
+
+            const confirmar = confirm(`Este registro se regresara a ${destino.rolLabel} para corregir CUPS. ¿Desea continuar?`);
+            if (!confirmar) return;
+
+            const disabledKey = `${encuesta.id}_${destino.statusKey}`;
+            this.regresarDisabled = {
+                ...this.regresarDisabled,
+                [disabledKey]: true,
+            };
+
+            try {
+                const payload = {
+                    [destino.statusKey]: 0,
+                };
+
+                await realtime_api.patch(`/Encuesta/${encuesta.id}.json`, payload);
+
+                const documentoObjetivo = this.getDocumentoObjetivo();
+                const convenioObjetivo = this.getConvenioObjetivo();
+                await this.getAllRegistersByIduserEnfer({
+                    idUsuario: documentoObjetivo,
+                    convenio: convenioObjetivo,
+                });
+
+                alert(`Registro regresado a ${destino.rolLabel} para correccion de CUPS.`);
+            } catch (error) {
+                console.error("Error al regresar registro para correccion de CUPS:", error);
+                alert("No se pudo regresar el registro: " + (error?.message || error));
+            } finally {
+                this.regresarDisabled = {
+                    ...this.regresarDisabled,
+                    [disabledKey]: false,
+                };
+            }
+        },
 
         removeRegEncuesta(id) {
             this.removeRegEnc(id);
@@ -238,11 +377,21 @@ export default {
 
         cupsGestion(id) {
             sessionStorage.setItem("rutaAnterior", "/sop_enfermero");
+            const query = String(this.$route?.query?.estadoView || "") === "1"
+                ? {
+                    estadoView: "1",
+                    profesionalDoc: String(this.$route?.query?.profesionalDoc || this.getDocumentoObjetivo?.() || "").trim(),
+                    profesionalCargo: String(this.$route?.query?.profesionalCargo || this.cargoMostrado || this.userData?.cargo || "").trim(),
+                    profesionalConvenio: String(this.$route?.query?.profesionalConvenio || this.getConvenioObjetivo?.() || this.userData?.convenio || "").trim(),
+                    profesionalNombre: String(this.$route?.query?.profesionalNombre || this.userData?.nombre || "").trim(),
+                }
+                : {};
             this.$router.push({
                 name: "sop_cups",
                 params: {
                     idEncuesta: id,
                 },
+                query,
             });
         },
 
@@ -313,7 +462,7 @@ export default {
 
         construirEstadosGestion(encuesta) {
             const estados = [];
-            const convenio = this.userData?.convenio;
+            const convenio = this.getConvenioObjetivo();
 
             if ('status_gest_aux' in encuesta && (convenio !== 'E Basicos' || encuesta.idEncuestador)) {
                 estados.push({
@@ -322,7 +471,7 @@ export default {
                     rol: 'Auxiliar',
                     nombre: this.obtenerNombreProfesional(encuesta.idEncuestador),
                     completado: encuesta.status_gest_aux === true,
-                    fecha: encuesta.fechagestAuxiliar || '',
+                    fecha: encuesta.status_gest_aux === true ? (encuesta.fechagestAuxiliar || '') : '',
                 });
             }
 
@@ -333,7 +482,7 @@ export default {
                     rol: 'Médico',
                     nombre: this.obtenerNombreProfesional(encuesta.idMedicoAtiende),
                     completado: encuesta.status_gest_medica === true,
-                    fecha: encuesta.fechagestMedica || '',
+                    fecha: encuesta.status_gest_medica === true ? (encuesta.fechagestMedica || '') : '',
                 });
             }
 
@@ -344,7 +493,7 @@ export default {
                     rol: 'Psicólogo',
                     nombre: this.obtenerNombreProfesional(encuesta.idPsicologoAtiende),
                     completado: encuesta.status_gest_psicologo === true,
-                    fecha: encuesta.fechagestPsicologo || '',
+                    fecha: encuesta.status_gest_psicologo === true ? (encuesta.fechagestPsicologo || '') : '',
                 });
             }
 
@@ -355,7 +504,19 @@ export default {
                     rol: 'Trabajador social',
                     nombre: this.obtenerNombreProfesional(encuesta.idTsocialAtiende),
                     completado: encuesta.status_gest_tsocial === true,
-                    fecha: encuesta.fechagestTsocial || '',
+                    fecha: encuesta.status_gest_tsocial === true ? (encuesta.fechagestTsocial || '') : '',
+                });
+            }
+
+            if ('status_gest_nutricionista' in encuesta && convenio !== 'Extramural' && (convenio !== 'E Basicos' || encuesta.idNutricionistaAtiende || encuesta.idNutriAtiende)) {
+                const idNutricionista = String(encuesta.idNutricionistaAtiende || encuesta.idNutriAtiende || "").trim();
+                estados.push({
+                    key: `nut-${encuesta.id || encuesta.numdoc || encuesta.fecha || ''}`,
+                    idProfesional: idNutricionista,
+                    rol: 'Nutricionista',
+                    nombre: this.obtenerNombreProfesional(idNutricionista),
+                    completado: encuesta.status_gest_nutricionista === true,
+                    fecha: encuesta.status_gest_nutricionista === true ? (encuesta.fechagestNutricionista || '') : '',
                 });
             }
 
@@ -399,7 +560,7 @@ export default {
         },
 
         construirHtmlTablaEnProceso() {
-            const headers = ["Auxiliar", "Paciente", "EPS", "Riesgo", "F. Nac", "F. Encuesta", "Estados"];
+            const headers = ["Convenio", "Auxiliar", "Paciente", "EPS", "Riesgo", "F. Nac", "F. Encuesta", "Estados"];
             const filas = this.encuestasEnProcesoFiltradas;
             const thead = `<thead><tr>${headers.map((h) => `<th>${this.escaparHtml(h)}</th>`).join("")}</tr></thead>`;
             const tbody = `<tbody>${filas.map((encuesta) => {
@@ -409,6 +570,7 @@ export default {
 
                 return `
                     <tr>
+                        <td>${this.escaparHtml(encuesta.convenio || "")}</td>
                         <td>${this.escaparHtml(this.obtenerNombreAuxiliar(encuesta.idEncuestador))}</td>
                         <td>${this.escaparHtml(`${encuesta.nombre1 || ""} ${encuesta.apellido1 || ""}`.trim())}</td>
                         <td>${this.escaparHtml(encuesta.eps || "")}</td>
@@ -445,6 +607,7 @@ export default {
 
                 estados.forEach((estado) => {
                     filasExcel.push({
+                        Convenio: encuesta.convenio || "",
                         Auxiliar: this.obtenerNombreAuxiliar(encuesta.idEncuestador),
                         Paciente: `${encuesta.nombre1 || ""} ${encuesta.apellido1 || ""}`.trim(),
                         EPS: encuesta.eps || "",
@@ -470,6 +633,7 @@ export default {
             }
 
             ws["!cols"] = [
+                { wch: 18 },
                 { wch: 24 },
                 { wch: 26 },
                 { wch: 16 },
@@ -543,6 +707,11 @@ export default {
                 return encuesta?.status_gest_medica === true;
             };
         },
+        estadoGestionNutricionista() {
+            return (encuesta) => {
+                return encuesta?.status_gest_nutricionista === true;
+            };
+        },
         encuestasPendientesBase() {
             if (!this.encuestas || this.encuestas.length === 0) return [];
             const convenioObjetivo = this.getConvenioObjetivo();
@@ -584,21 +753,28 @@ export default {
                     const requiereMed = !!encuesta.idMedicoAtiende;
                     const requierePsi = !!encuesta.idPsicologoAtiende;
                     const requiereTS = !!encuesta.idTsocialAtiende;
+                    const requiereNutri = !!(encuesta.idNutricionistaAtiende || encuesta.idNutriAtiende);
 
                     if (requiereAux && encuesta.status_gest_aux !== true) return false;
                     if (requiereMed && !this.estadoGestionMedica(encuesta)) return false;
                     if (requierePsi && encuesta.status_gest_psicologo !== true) return false;
                     if (requiereTS && encuesta.status_gest_tsocial !== true) return false;
+                    if (requiereNutri && !this.estadoGestionNutricionista(encuesta)) return false;
 
                     return true;
                 }
 
-                return (
-                    encuesta.status_gest_aux === true &&
-                    this.estadoGestionMedica(encuesta) &&
-                    encuesta.status_gest_psicologo === true &&
-                    encuesta.status_gest_tsocial === true
-                );
+                const requierePsi = !!encuesta.idPsicologoAtiende;
+                const requiereTS = !!encuesta.idTsocialAtiende;
+                const requiereNutri = !!(encuesta.idNutricionistaAtiende || encuesta.idNutriAtiende);
+
+                if (encuesta.status_gest_aux !== true) return false;
+                if (!this.estadoGestionMedica(encuesta)) return false;
+                if (requierePsi && encuesta.status_gest_psicologo !== true) return false;
+                if (requiereTS && encuesta.status_gest_tsocial !== true) return false;
+                if (requiereNutri && !this.estadoGestionNutricionista(encuesta)) return false;
+
+                return true;
             });
         },
         cantEncuestasPendientes() {
@@ -626,22 +802,24 @@ export default {
                     const requiereMed = !!encuesta.idMedicoAtiende;
                     const requierePsi = !!encuesta.idPsicologoAtiende;
                     const requiereTS = !!encuesta.idTsocialAtiende;
+                    const requiereNutri = !!(encuesta.idNutricionistaAtiende || encuesta.idNutriAtiende);
 
                     const estados = [];
                     if (requiereAux) estados.push(encuesta.status_gest_aux);
                     if (requiereMed) estados.push(this.estadoGestionMedica(encuesta));
                     if (requierePsi) estados.push(encuesta.status_gest_psicologo);
                     if (requiereTS) estados.push(encuesta.status_gest_tsocial);
+                    if (requiereNutri) estados.push(this.estadoGestionNutricionista(encuesta));
 
                     return estados.length > 0 ? estados.some((valor) => valor === false) : false;
                 }
 
-                const estados = [
-                    encuesta.status_gest_aux,
-                    this.estadoGestionMedica(encuesta),
-                    encuesta.status_gest_psicologo,
-                    encuesta.status_gest_tsocial,
-                ];
+                const estados = [encuesta.status_gest_aux, this.estadoGestionMedica(encuesta)];
+                if (encuesta.idPsicologoAtiende) estados.push(encuesta.status_gest_psicologo);
+                if (encuesta.idTsocialAtiende) estados.push(encuesta.status_gest_tsocial);
+                if (encuesta.idNutricionistaAtiende || encuesta.idNutriAtiende) {
+                    estados.push(this.estadoGestionNutricionista(encuesta));
+                }
 
                 return estados.some((valor) => valor === false);
             });
@@ -704,6 +882,15 @@ export default {
 
         totalRegisters() {
             return this.encuestas.length;
+        },
+        cantCerradosHoy() {
+            if (!this.encuestas || !this.fechaActual) return 0;
+            const doc = this.getDocumentoObjetivo();
+            return this.encuestas.filter(e =>
+                String(e.idEnfermeroAtiende || "").trim() === doc &&
+                e.status_gest_enfermera === true &&
+                String(e.fechagestEnfermera || "").startsWith(this.fechaActual)
+            ).length;
         },
     },
     async mounted() {
@@ -896,6 +1083,13 @@ export default {
 .estado-fecha {
     font-size: 0.7rem;
     color: #6c757d;
+}
+
+.acciones-proceso {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 160px;
 }
 
 .tabla-proceso-wrap {

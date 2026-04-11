@@ -28,8 +28,13 @@
                 Detalle de Actividades ({{ cantEncuestasFiltradasPorConvenio }}) <small>Pendientes</small>
                 <span v-if="cantEncuestasEnProceso > 0"
                     class="badge bg-warning text-dark ms-2"
+                    style="cursor: pointer;"
+                    @click="abrirModalEnProceso"
                     title="Encuestas asignadas pero pendientes de cierre por el auxiliar">
                     <i class="bi bi-hourglass-split"></i> {{ cantEncuestasEnProceso }} en proceso
+                </span>
+                <span v-if="cantCerradosHoy > 0" class="badge bg-success ms-2">
+                    <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
                 </span>
             </h4>
 
@@ -73,20 +78,57 @@
                     </div>
                 </div>
             </div>
+
+            <div v-if="mostrarModalEnProceso" class="enproceso-modal-overlay" @click="cerrarModalEnProceso">
+                <div class="enproceso-modal-content" @click.stop>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">Registros en proceso ({{ registrosEnProcesoModal.length }})</h5>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @click="cerrarModalEnProceso">Cerrar</button>
+                    </div>
+                    <div v-if="cargandoEnProcesoModal" class="text-muted py-2">Cargando registros...</div>
+                    <div v-else-if="registrosEnProcesoModal.length === 0" class="alert alert-info mb-0">
+                        No hay registros en proceso para este profesional.
+                    </div>
+                    <div v-else class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+                        <table class="table table-sm table-striped table-bordered align-middle mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Paciente</th>
+                                    <th>Convenio</th>
+                                    <th>EPS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="item in registrosEnProcesoModal" :key="item.id">
+                                    <td>{{ item.paciente }}</td>
+                                    <td>{{ item.convenio }}</td>
+                                    <td>{{ item.eps }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
 
 <script>
 import { mapActions, mapState } from "vuex";
+import moment from "moment";
+import realtime_api from "@/api/realtimeApi";
 
 export default {
     data() {
         return {
             cargando: true,
+            fechaActual: "",
             eliminandoRegistro: null,
             rutaAnterior: null,
             errorCarga: null,
+            mostrarModalEnProceso: false,
+            cargandoEnProcesoModal: false,
+            registrosEnProcesoModal: [],
         };
     },
 
@@ -102,6 +144,13 @@ export default {
                 if (docSeleccionado) return docSeleccionado;
             }
             return String(this.userData?.numDocumento || "").trim();
+        },
+        getConvenioObjetivo() {
+            if (this.esEstadoView) {
+                const convenioSeleccionado = String(this.$route?.query?.profesionalConvenio || "").trim();
+                if (convenioSeleccionado) return convenioSeleccionado;
+            }
+            return String(this.userData?.convenio || "").trim();
         },
         async eliminarRegistro(idEncuesta) {
             if (!confirm('¿Está seguro de que desea eliminar este registro?\n\nEsta acción eliminará el registro de actividades y la encuesta asociada.')) {
@@ -132,9 +181,19 @@ export default {
 
         cupsGestion(id) {
             sessionStorage.setItem("rutaAnterior", "/sop_psicologo");
+            const query = String(this.$route?.query?.estadoView || "") === "1"
+                ? {
+                    estadoView: "1",
+                    profesionalDoc: String(this.$route?.query?.profesionalDoc || this.getDocumentoObjetivo() || "").trim(),
+                    profesionalCargo: String(this.$route?.query?.profesionalCargo || this.cargoMostrado || this.userData?.cargo || "").trim(),
+                    profesionalConvenio: String(this.$route?.query?.profesionalConvenio || this.getConvenioObjetivo() || "").trim(),
+                    profesionalNombre: String(this.$route?.query?.profesionalNombre || this.userData?.nombre || "").trim(),
+                }
+                : {};
             this.$router.push({
                 name: "sop_cups",
                 params: { idEncuesta: id },
+                query,
             });
         },
 
@@ -144,6 +203,40 @@ export default {
 
             // En la bandeja de psicología el botón CUPS debe estar disponible para cada registro.
             return esPsicologo;
+        },
+
+        cerrarModalEnProceso() {
+            this.mostrarModalEnProceso = false;
+        },
+
+        async abrirModalEnProceso() {
+            this.mostrarModalEnProceso = true;
+            this.cargandoEnProcesoModal = true;
+            this.registrosEnProcesoModal = [];
+
+            try {
+                const documentoObjetivo = this.getDocumentoObjetivo();
+                const { data } = await realtime_api.get("/Encuesta.json");
+                const lista = Object.entries(data || {}).map(([id, value]) => ({ id, ...value }));
+
+                this.registrosEnProcesoModal = lista
+                    .filter((e) => {
+                        if (String(e.idPsicologoAtiende || "").trim() !== String(documentoObjetivo || "").trim()) return false;
+                        if (e.status_gest_aux === true) return false;
+                        return true;
+                    })
+                    .map((e) => ({
+                        id: e.id,
+                        paciente: `${e.nombre1 || ""} ${e.apellido1 || ""}`.trim() || "Sin nombre",
+                        convenio: String(e.convenio || "Sin convenio").trim() || "Sin convenio",
+                        eps: e.eps || "",
+                    }))
+                    .sort((a, b) => String(a.paciente || "").localeCompare(String(b.paciente || "")));
+            } catch (error) {
+                console.error("Error cargando modal de en proceso:", error);
+            } finally {
+                this.cargandoEnProcesoModal = false;
+            }
         },
 
         async cargarEncuestas() {
@@ -211,9 +304,7 @@ export default {
         },
         encuestasFiltradasPorConvenio() {
             if (!this.encuestas || this.encuestas.length === 0) return [];
-            const convenioObjetivo = this.esEstadoView
-                ? String(this.$route?.query?.profesionalConvenio || "").trim()
-                : String(this.userData?.convenio || "").trim();
+            const convenioObjetivo = this.getConvenioObjetivo();
 
             if (!convenioObjetivo) {
                 return this.encuestas.filter(encuesta => encuesta.status_gest_aux === true);
@@ -221,12 +312,21 @@ export default {
 
             // Filtrar encuestas donde el convenio coincida con userData.convenio
             return this.encuestas.filter(encuesta =>
-                String(encuesta.convenio || "").trim() === convenioObjetivo &&
+                String(encuesta.convenio || "").trim().toLowerCase() === String(convenioObjetivo || "").trim().toLowerCase() &&
                 encuesta.status_gest_aux === true
             );
         },
         cantEncuestasFiltradasPorConvenio() {
             return this.encuestasFiltradasPorConvenio.length;
+        },
+        cantCerradosHoy() {
+            if (!this.encuestas || !this.fechaActual) return 0;
+            const doc = this.getDocumentoObjetivo();
+            return this.encuestas.filter(e =>
+                String(e.idPsicologoAtiende || "").trim() === doc &&
+                e.status_gest_psicologo === true &&
+                String(e.fechagestPsicologo || "").startsWith(this.fechaActual)
+            ).length;
         },
     },
 
@@ -247,6 +347,7 @@ export default {
 
     async mounted() {
         this.rutaAnterior = this.$route.name;
+        this.fechaActual = moment().format("YYYY-MM-DD");
         this.cargando = true;
         await this.cargarEncuestas();
     },
@@ -338,5 +439,23 @@ export default {
 .row.paciente strong {
     color: #ffffff;
     font-size: 0.9rem;
+}
+
+.enproceso-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.enproceso-modal-content {
+    width: min(820px, 96vw);
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px;
 }
 </style>

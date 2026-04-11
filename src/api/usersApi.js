@@ -49,3 +49,8 @@ export async function updateUserPasswordById(id, password, mustChangePassword) {
   });
   return data;
 }
+
+export async function unlockUserById(id) {
+  const { data } = await http.patch(`/users/${id}/unlock`);
+  return data;
+}

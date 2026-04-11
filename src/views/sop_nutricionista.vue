@@ -26,8 +26,13 @@
             <h4>
                 Detalle de Actividades ({{ cantEncuestasFiltradasPorConvenio }}) <small>Pendientes</small>
                 <span v-if="cantEncuestasEnProceso > 0" class="badge bg-warning text-dark ms-2"
+                    style="cursor: pointer;"
+                    @click="abrirModalEnProceso"
                     title="Encuestas asignadas pero pendientes de cierre por el auxiliar">
                     <i class="bi bi-hourglass-split"></i> {{ cantEncuestasEnProceso }} en proceso
+                </span>
+                <span v-if="cantCerradosHoy > 0" class="badge bg-success ms-2">
+                    <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
                 </span>
             </h4>
 
@@ -64,20 +69,57 @@
                     </div>
                 </div>
             </div>
+
+            <div v-if="mostrarModalEnProceso" class="enproceso-modal-overlay" @click="cerrarModalEnProceso">
+                <div class="enproceso-modal-content" @click.stop>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">Registros en proceso ({{ registrosEnProcesoModal.length }})</h5>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @click="cerrarModalEnProceso">Cerrar</button>
+                    </div>
+                    <div v-if="cargandoEnProcesoModal" class="text-muted py-2">Cargando registros...</div>
+                    <div v-else-if="registrosEnProcesoModal.length === 0" class="alert alert-info mb-0">
+                        No hay registros en proceso para este profesional.
+                    </div>
+                    <div v-else class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+                        <table class="table table-sm table-striped table-bordered align-middle mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Paciente</th>
+                                    <th>Convenio</th>
+                                    <th>EPS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="item in registrosEnProcesoModal" :key="item.id">
+                                    <td>{{ item.paciente }}</td>
+                                    <td>{{ item.convenio }}</td>
+                                    <td>{{ item.eps }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
 
 <script>
 import { mapActions, mapState } from "vuex";
+import moment from "moment";
+import realtime_api from "@/api/realtimeApi";
 
 export default {
     data() {
         return {
             cargando: true,
+            fechaActual: "",
             eliminandoRegistro: null,
             rutaAnterior: null,
             errorCarga: null,
+            mostrarModalEnProceso: false,
+            cargandoEnProcesoModal: false,
+            registrosEnProcesoModal: [],
         };
     },
 
@@ -117,15 +159,62 @@ export default {
 
         cupsGestion(id) {
             sessionStorage.setItem("rutaAnterior", "/sop_nutricionista");
+            const query = String(this.$route?.query?.estadoView || "") === "1"
+                ? {
+                    estadoView: "1",
+                    profesionalDoc: String(this.$route?.query?.profesionalDoc || this.getDocumentoObjetivo() || "").trim(),
+                    profesionalCargo: String(this.$route?.query?.profesionalCargo || this.cargoMostrado || this.userData?.cargo || "").trim(),
+                    profesionalConvenio: String(this.$route?.query?.profesionalConvenio || this.getConvenioObjetivo() || "").trim(),
+                    profesionalNombre: String(this.$route?.query?.profesionalNombre || this.userData?.nombre || "").trim(),
+                }
+                : {};
             this.$router.push({
                 name: "sop_cups",
                 params: { idEncuesta: id },
+                query,
             });
         },
 
         mostrarBotonCups() {
             const cargo = (this.cargoMostrado || "").toString().trim().toLowerCase();
             return cargo === "nutricionista";
+        },
+
+        cerrarModalEnProceso() {
+            this.mostrarModalEnProceso = false;
+        },
+
+        async abrirModalEnProceso() {
+            this.mostrarModalEnProceso = true;
+            this.cargandoEnProcesoModal = true;
+            this.registrosEnProcesoModal = [];
+
+            try {
+                const documentoObjetivo = this.getDocumentoObjetivo();
+                const { data } = await realtime_api.get("/Encuesta.json");
+                const lista = Object.entries(data || {}).map(([id, value]) => ({ id, ...value }));
+
+                this.registrosEnProcesoModal = lista
+                    .filter((e) => {
+                        const esAsignada = [e.idNutricionistaAtiende, e.idNutriAtiende, e.idNutricionista, e.idNutricionAtiende]
+                            .map((v) => String(v || "").trim())
+                            .includes(String(documentoObjetivo || "").trim());
+                        if (!esAsignada) return false;
+                        if (e.status_gest_aux === true) return false;
+                        return true;
+                    })
+                    .map((e) => ({
+                        id: e.id,
+                        paciente: `${e.nombre1 || ""} ${e.apellido1 || ""}`.trim() || "Sin nombre",
+                        convenio: String(e.convenio || "Sin convenio").trim() || "Sin convenio",
+                        eps: e.eps || "",
+                    }))
+                    .sort((a, b) => String(a.paciente || "").localeCompare(String(b.paciente || "")));
+            } catch (error) {
+                console.error("Error cargando modal de en proceso:", error);
+            } finally {
+                this.cargandoEnProcesoModal = false;
+            }
         },
 
         getDocumentoObjetivo() {
@@ -136,6 +225,14 @@ export default {
                 }
             }
             return String(this.userData?.numDocumento || "").trim();
+        },
+
+        getConvenioObjetivo() {
+            if (this.esEstadoView) {
+                const convenioSeleccionado = String(this.$route?.query?.profesionalConvenio || "").trim();
+                if (convenioSeleccionado) return convenioSeleccionado;
+            }
+            return String(this.userData?.convenio || "").trim();
         },
 
         async cargarEncuestas() {
@@ -171,6 +268,16 @@ export default {
                 this.$forceUpdate();
             }
         },
+
+        esEstadoCerrado(valor) {
+            if (valor === true || valor === 1) return true;
+            if (typeof valor === "string") {
+                const limpio = valor.trim().toLowerCase();
+                return limpio === "true" || limpio === "1" || limpio === "2";
+            }
+            if (typeof valor === "number") return valor >= 1;
+            return false;
+        },
     },
 
     computed: {
@@ -200,22 +307,29 @@ export default {
         },
         encuestasFiltradasPorConvenio() {
             if (!this.encuestas || this.encuestas.length === 0) return [];
-            const convenioObjetivo = this.esEstadoView
-                ? String(this.$route?.query?.profesionalConvenio || "").trim()
-                : String(this.userData?.convenio || "").trim();
+            const convenioObjetivo = this.getConvenioObjetivo();
 
             if (!convenioObjetivo) {
-                return this.encuestas.filter(encuesta => encuesta.status_gest_aux === true);
+                return this.encuestas.filter(encuesta => this.esEstadoCerrado(encuesta.status_gest_aux));
             }
 
             return this.encuestas.filter(encuesta =>
-                String(encuesta.convenio || "").trim() === convenioObjetivo &&
-                encuesta.status_gest_aux === true
+                String(encuesta.convenio || "").trim().toLowerCase() === String(convenioObjetivo || "").trim().toLowerCase() &&
+                this.esEstadoCerrado(encuesta.status_gest_aux)
             );
         },
         cantEncuestasFiltradasPorConvenio() {
             return this.encuestasFiltradasPorConvenio.length;
-        }
+        },
+        cantCerradosHoy() {
+            if (!this.encuestas || !this.fechaActual) return 0;
+            const doc = this.getDocumentoObjetivo();
+            return this.encuestas.filter(e =>
+                String(e.idNutricionistaAtiende || "").trim() === doc &&
+                e.status_gest_nutricionista === true &&
+                String(e.fechagestNutricionista || "").startsWith(this.fechaActual)
+            ).length;
+        },
     },
 
     watch: {
@@ -233,6 +347,7 @@ export default {
 
     async mounted() {
         this.rutaAnterior = this.$route.name;
+        this.fechaActual = moment().format("YYYY-MM-DD");
         this.cargando = true;
         await this.cargarEncuestas();
     },
@@ -303,11 +418,11 @@ export default {
 .row.paciente {
     background: linear-gradient(
         90deg,
-        #1f6f3d 0%,
-        #2e8b57 30%,
-        #3fa76f 60%,
-        #2e8b57 80%,
-        #1f6f3d 100%
+        #9a3412 0%,
+        #c2410c 30%,
+        #f97316 60%,
+        #c2410c 80%,
+        #9a3412 100%
     );
     border-radius: 10px;
     padding: 8px 10px;
@@ -317,12 +432,30 @@ export default {
 
 .row.paciente small {
     display: block;
-    color: #eafff1;
+    color: #fff7ed;
     line-height: 1.4;
 }
 
 .row.paciente strong {
     color: #ffffff;
     font-size: 0.9rem;
+}
+
+.enproceso-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.enproceso-modal-content {
+    width: min(820px, 96vw);
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px;
 }
 </style>

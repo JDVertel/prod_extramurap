@@ -18,14 +18,21 @@
       <button class="btn btn-primary" @click="cargarEncuestas">Reintentar</button>
     </div>
     <div v-else>
-      <h1 class="display-6 center">{{ userData.cargo }}</h1>
+      <h1 class="display-6 center">{{ cargoMostrado }}</h1>
+      <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
+        Visualizando como admin: {{ nombreProfesionalSeleccionado }}
+      </p>
       <div class="alert alert-warning shadow-sm d-flex justify-content-between align-items-center" role="alert">
         Realizar nueva encuesta <RouterLink class="btn btn-warning" to="/sop_encuesta">
           <i class="bi bi-file-earmark-plus-fill"></i>
         </RouterLink>
       </div>
 
-      <h4>Detalle de Actividades ({{ cantEncuestasFiltradasPorConvenio }}) <small>Pendientes</small></h4>
+      <h4>Detalle de Actividades ({{ cantEncuestasFiltradasPorConvenio }}) <small>Pendientes</small>
+        <span v-if="cantCerradosHoy > 0" class="badge bg-success ms-2">
+          <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
+        </span>
+      </h4>
 
       <!-- Mensaje cuando no hay registros -->
       <div v-if="!encuestasFiltradasPorConvenio || encuestasFiltradasPorConvenio.length === 0"
@@ -49,7 +56,7 @@
             <div class="btn-grid">
               <div class="btn-row">
                 <!-- Auxiliar: Visita -->
-                <template v-if="userData.cargo === 'Auxiliar de enfermeria'">
+                <template v-if="esAuxiliarMostrado">
                   <template v-if="esConvenioExtramural(encuesta.convenio)">
                     <div
                       v-if="encuesta.Agenda_Visitamedica?.cita_visitamedica === false || encuesta.Agenda_Visitamedica?.cita_visitamedica === undefined">
@@ -69,7 +76,7 @@
                 </template>
 
                 <!-- Auxiliar: Caracterización -->
-                <template v-if="userData.cargo === 'Auxiliar de enfermeria'">
+                <template v-if="esAuxiliarMostrado">
                   <div v-if="encuesta.status_caracterizacion === false">
                     <button type="button" class="btn btn-warning  agendar-btn" @click="Caracterizar(encuesta.id)">
                       <i class="bi bi-calendar2-check"></i>
@@ -85,8 +92,7 @@
                 </template>
 
                 <!-- CUPS -->
-                <div
-                  v-if="userData.cargo === 'Auxiliar de enfermeria' || userData.cargo === 'Medico'">
+                <div v-if="esAuxiliarMostrado || esMedicoMostrado">
                   <button type="button" class="btn btn-primary  agendar-btn" @click="cupsGestion(encuesta.id)">
                     <i class="bi bi-calendar2-heart-fill"></i>
                     <span class="agendar-label">Cups</span>
@@ -94,7 +100,7 @@
                 </div>
 
                 <!-- Eliminar -->
-                <template v-if="userData.cargo === 'Auxiliar de enfermeria'">
+                <template v-if="esAuxiliarMostrado">
                   <div>
                     <button type="button" class="btn btn-danger  agendar-btn" @click="eliminarRegistro(encuesta.id)"
                       :disabled="eliminandoRegistro === encuesta.id" :title="'Eliminar registro'">
@@ -115,11 +121,13 @@
 
 <script>
 import { mapActions, mapState } from "vuex";
+import moment from "moment";
 
 export default {
   data() {
     return {
       cargando: true,
+      fechaActual: "",
       eliminandoRegistro: null,
       rutaAnterior: null,
       errorCarga: null,
@@ -185,9 +193,20 @@ export default {
 
     cupsGestion(id) {
       sessionStorage.setItem("rutaAnterior", "/sop_aux");
+      const query = this.esEstadoView
+        ? {
+            estadoView: "1",
+            profesionalDoc: this.documentoObjetivo,
+            profesionalCargo: this.cargoMostrado,
+            profesionalConvenio: this.convenioObjetivo,
+            profesionalNombre: this.nombreProfesionalSeleccionado || this.userData?.nombre || "",
+          }
+        : {};
+
       this.$router.push({
         name: "sop_cups",
         params: { idEncuesta: id },
+        query,
       });
     },
 
@@ -203,13 +222,14 @@ export default {
           intentos++;
         }
 
-        if (!this.userData?.numDocumento) {
+        const documentoObjetivo = String(this.documentoObjetivo || "").trim();
+        if (!documentoObjetivo) {
           throw new Error('Usuario no disponible después de esperar');
         }
 
         await Promise.race([
           this.getAllRegistersByFechaStatus({
-            idUsuario: this.userData.numDocumento,
+            idUsuario: documentoObjetivo,
           }),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Timeout - tardó más de 10 segundos')), 10000)
@@ -229,11 +249,55 @@ export default {
 
   computed: {
     ...mapState(["encuestas", "userData", "cantEncuestas"]),
+    esEstadoView() {
+      if (String(this.$route?.query?.estadoView || "") !== "1") return false;
+      const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
+      if (!docSeleccionado) return false;
+
+      const cargoActual = String(this.userData?.cargo || "").trim().toLowerCase();
+      const esAdmin = cargoActual === "admin" || cargoActual === "administrador";
+      if (esAdmin) return true;
+
+      const accesos = Array.isArray(this.userData?.accesosProfesionales)
+        ? this.userData.accesosProfesionales
+        : [];
+      return accesos.map((item) => String(item || "").trim()).includes(docSeleccionado);
+    },
+    cargoMostrado() {
+      if (this.esEstadoView) {
+        const cargo = String(this.$route?.query?.profesionalCargo || "").trim();
+        return cargo || "Auxiliar de enfermeria";
+      }
+      return this.userData?.cargo || "";
+    },
+    esAuxiliarMostrado() {
+      return String(this.cargoMostrado || "").trim() === "Auxiliar de enfermeria";
+    },
+    esMedicoMostrado() {
+      return String(this.cargoMostrado || "").trim() === "Medico";
+    },
+    nombreProfesionalSeleccionado() {
+      return String(this.$route?.query?.profesionalNombre || "").trim();
+    },
+    documentoObjetivo() {
+      if (this.esEstadoView) {
+        const doc = String(this.$route?.query?.profesionalDoc || "").trim();
+        if (doc) return doc;
+      }
+      return String(this.userData?.numDocumento || "").trim();
+    },
+    convenioObjetivo() {
+      if (this.esEstadoView) {
+        const convenio = String(this.$route?.query?.profesionalConvenio || "").trim();
+        if (convenio) return convenio;
+      }
+      return String(this.userData?.convenio || "").trim();
+    },
     encuestasFiltradasPorConvenio() {
       if (!this.encuestas || this.encuestas.length === 0) return [];
-      if (!this.userData || !this.userData.convenio) return this.encuestas;
+      if (!this.convenioObjetivo) return this.encuestas;
 
-      const convenioUsuario = String(this.userData.convenio || "").trim().toLowerCase();
+      const convenioUsuario = String(this.convenioObjetivo || "").trim().toLowerCase();
       // Filtrar encuestas donde el convenio coincida (normalizado)
       return this.encuestas.filter((encuesta) =>
         String(encuesta.convenio || "").trim().toLowerCase() === convenioUsuario
@@ -241,7 +305,16 @@ export default {
     },
     cantEncuestasFiltradasPorConvenio() {
       return this.encuestasFiltradasPorConvenio.length;
-    }
+    },
+    cantCerradosHoy() {
+      if (!this.encuestas || !this.fechaActual) return 0;
+      const doc = String(this.documentoObjetivo || "").trim();
+      return this.encuestas.filter(e =>
+        String(e.idEncuestador || "").trim() === doc &&
+        e.status_gest_aux === true &&
+        String(e.fechagestAuxiliar || "").startsWith(this.fechaActual)
+      ).length;
+    },
   },
 
   watch: {
@@ -261,6 +334,7 @@ export default {
 
   async mounted() {
     this.rutaAnterior = this.$route.name;
+    this.fechaActual = moment().format("YYYY-MM-DD");
     this.cargando = true;
     await this.cargarEncuestas();
   },

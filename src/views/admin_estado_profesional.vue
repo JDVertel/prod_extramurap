@@ -95,21 +95,43 @@
 import { getDelegatedProfessionals } from "@/api/usersApi";
 import { mapState } from "vuex";
 
-const CARGOS_PROFESIONALES = [
-  "Medico",
-  "Enfermero",
-  "Psicologo",
-  "Tsocial",
-  "Nutricionista",
-];
+const CARGO_CANONICO_POR_NORMALIZADO = {
+  auxiliardeenfermeria: "Auxiliar de enfermeria",
+  auxiliar: "Auxiliar de enfermeria",
+  medico: "Medico",
+  enfermero: "Enfermero",
+  psicologo: "Psicologo",
+  tsocial: "Tsocial",
+  trabajadorsocial: "Tsocial",
+  trabajadorasocial: "Tsocial",
+  nutricionista: "Nutricionista",
+};
 
-const RUTA_POR_CARGO = {
+const RUTA_POR_CARGO_CANONICO = {
+  "Auxiliar de enfermeria": "/sop_aux",
   Medico: "/sop_profesional",
   Enfermero: "/sop_enfermero",
   Psicologo: "/sop_psicologo",
   Tsocial: "/sop_tsocial",
   Nutricionista: "/sop_nutricionista",
 };
+
+function normalizarCargo(valor) {
+  return String(valor || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function obtenerCargoCanonico(valor) {
+  return CARGO_CANONICO_POR_NORMALIZADO[normalizarCargo(valor)] || "";
+}
+
+function esCargoProfesional(valor) {
+  return Boolean(obtenerCargoCanonico(valor));
+}
 
 export default {
   name: "AdminEstadoProfesional",
@@ -191,7 +213,7 @@ export default {
         this.profesionales = (usuarios || [])
           .filter((user) => {
             const cargo = String(user?.cargo || "").trim();
-            return CARGOS_PROFESIONALES.includes(cargo);
+            return esCargoProfesional(cargo);
           })
           .sort((a, b) => String(a?.nombre || "").localeCompare(String(b?.nombre || "")));
       } catch (err) {
@@ -205,7 +227,8 @@ export default {
       if (!profesional) return;
 
       const cargo = String(profesional.cargo || "").trim();
-      const ruta = RUTA_POR_CARGO[cargo];
+      const cargoCanonico = obtenerCargoCanonico(cargo);
+      const ruta = RUTA_POR_CARGO_CANONICO[cargoCanonico];
 
       if (!ruta) {
         this.error = "El cargo seleccionado no tiene una vista de estado disponible.";
@@ -219,7 +242,7 @@ export default {
         query: {
           estadoView: "1",
           profesionalDoc: String(profesional.numDocumento || ""),
-          profesionalCargo: cargo,
+          profesionalCargo: cargoCanonico || cargo,
           profesionalConvenio: String(profesional.convenio || ""),
           profesionalNombre: String(profesional.nombre || ""),
         },

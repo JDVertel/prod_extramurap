@@ -69,6 +69,7 @@ export default {
             email: "",
             password: "",
             errorMessage: "",
+            intentosRestantes: 3,
             logueado: false,
             userData: {
                 rol: null,
@@ -122,11 +123,28 @@ export default {
                     localStorage.setItem("userData", JSON.stringify(userData));
                     this.$store.commit("setUserData", userData);
                 }
+                this.intentosRestantes = 3;
                 this.$router.push("/homeviews");
             } catch (error) {
                 const status = error?.response?.status;
+                const detail = error?.response?.data?.detail || {};
                 if (status === 401) {
-                    this.errorMessage = "Credenciales incorrectas. Verifica tu correo y contraseña.";
+                    if (typeof detail?.attemptsRemaining === "number") {
+                        this.intentosRestantes = detail.attemptsRemaining;
+                        this.errorMessage = `Credenciales incorrectas. Verifica tu correo y contraseña. Te quedan ${detail.attemptsRemaining} intento(s); se bloqueará el usuario al agotar los 3 intentos.`;
+                    } else {
+                        this.intentosRestantes = Math.max(0, Number(this.intentosRestantes || 3) - 1);
+                        this.errorMessage = `Credenciales incorrectas. Verifica tu correo y contraseña. Te quedan ${this.intentosRestantes} intento(s); se bloqueará el usuario al agotar los 3 intentos.`;
+                    }
+                } else if (status === 423) {
+                    this.intentosRestantes = 0;
+                    if (detail?.permanent) {
+                        this.errorMessage = "Usuario bloqueado de forma permanente. Solicita desbloqueo al administrador.";
+                    } else if (typeof detail?.minutesRemaining === "number") {
+                        this.errorMessage = `Usuario bloqueado. Intenta nuevamente en ${detail.minutesRemaining} minuto(s) antes de que se desbloquee automáticamente.`;
+                    } else {
+                        this.errorMessage = error?.response?.data?.message || "Usuario bloqueado. Contacta al administrador.";
+                    }
                 } else if (status === 403) {
                     this.errorMessage = "Tu usuario está inactivo. Contacta al administrador.";
                 } else {

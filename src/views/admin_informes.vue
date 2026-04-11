@@ -34,27 +34,37 @@
                         <option selected value="">Seleccione</option>
                         <option value="1">Seguimiento</option>
                         <option value="2">Actividades</option>
+                        <option value="3">Facturación</option>
                     </select>
                     <br>
 
                 </div>
 
-                <div class="col-6 col-md-2" v-if="tipoinforme == '1' || tipoinforme == '2'">
+                <div class="col-6 col-md-2" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3'">
                     <label for="fechaInicio" class="form-label">Fecha de Inicio</label>
                     <input type="date" id="fechaInicio" class="form-control" v-model="fechaInicio" required />
                 </div>
-                <div class="col-6 col-md-2" v-if="tipoinforme == '1' || tipoinforme == '2'">
+                <div class="col-6 col-md-2" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3'">
                     <label for="fechaFin" class="form-label">Fecha de Fin</label>
                     <input type="date" id="fechaFin" class="form-control" v-model="fechaFin" required />
                 </div>
-                <div class="col-12 col-md-3" v-if="tipoinforme == '1' || tipoinforme == '2'">
+                <div class="col-12 col-md-3" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3'">
                     <label for="convenioInforme" class="form-label">Convenio</label>
                     <select id="convenioInforme" class="form-select" v-model="convenioInforme">
                         <option value="">Todos</option>
                         <option v-for="conv in conveniosDisponibles" :key="conv" :value="conv">{{ conv }}</option>
                     </select>
                 </div>
-                <div class="col-12 col-md-2 mt-3" v-if="tipoinforme == '1' || tipoinforme == '2'">
+                <div class="col-12 col-md-3" v-if="tipoinforme == '3'">
+                    <label for="facturadorInforme" class="form-label">Facturador</label>
+                    <select id="facturadorInforme" class="form-select" v-model="facturadorInforme">
+                        <option value="">Todos</option>
+                        <option v-for="fact in facturadoresDisponiblesFiltrados" :key="fact.documento" :value="fact.documento">
+                            {{ fact.nombre }}
+                        </option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-2 mt-3" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3'">
                     <button type="button" class="btn btn-warning  mt-3" @click="generarInforme()">
                         <i class="bi bi-clipboard2-data h6"></i> Generar Informe
                     </button>
@@ -64,6 +74,7 @@
                 enfermera entre las
                 fechas seleccionadas</p>
             <p v-if="mostrarFormulario && !tieneDatosTabla && tipoinforme == '2'">*Todas las encuestas registradas entre las fechas seleccionadas, con sus actividades y datos del paciente</p>
+            <p v-if="mostrarFormulario && !tieneDatosTabla && tipoinforme == '3'">*Cierres de facturación por paciente y actividades (CUPS) en el rango de fechas, filtrables por convenio y facturador</p>
 
         </div>
         <br>
@@ -229,6 +240,7 @@
 
 <script>
 import realtime_api from "@/api/realtimeApi.js";
+import { getAllUsers } from "@/api/usersApi";
 import {
     mapState,
     mapActions
@@ -261,6 +273,7 @@ const COLUMNAS_INFORME = [
     { key: "detalle", label: "Detalle" },
     { key: "grupoCUP", label: "Grupo CUP" },
     { key: "factura", label: "Factura" },
+    { key: "facturador", label: "Facturador" },
     { key: "homolog", label: "Homolog" },
     { key: "profesional", label: "Profesional" },
     { key: "rol", label: "Rol" },
@@ -283,6 +296,7 @@ const COLUMNAS_ACTIVIDADES = [
     { key: "riesgo", label: "Población Riesgo" },
     { key: "remision", label: "Remisión" },
     { key: "actividad", label: "Actividad" },
+    { key: "facturador", label: "Facturador" },
     { key: "profesional", label: "Profesional" },
     { key: "rol", label: "Rol" },
     { key: "cupsNombre", label: "CUPS Nombre" },
@@ -290,6 +304,22 @@ const COLUMNAS_ACTIVIDADES = [
     { key: "descripcionCUP", label: "Descripción CUP" },
     { key: "cantidad", label: "Cantidad" },
     { key: "detalle", label: "Detalle" },
+];
+
+const COLUMNAS_FACTURACION = [
+    { key: "convenio", label: "Convenio" },
+    { key: "fechaCierrePaciente", label: "Fecha Cierre Factura" },
+    { key: "paciente", label: "Paciente" },
+    { key: "documento", label: "Documento" },
+    { key: "eps", label: "EPS" },
+    { key: "actividad", label: "Actividad" },
+    { key: "cupsNombre", label: "CUPS Nombre" },
+    { key: "codigo", label: "Código" },
+    { key: "cantidad", label: "Cantidad" },
+    { key: "factura", label: "Factura" },
+    { key: "facturadorActividad", label: "Facturador Actividad" },
+    { key: "fechaCierreActividad", label: "Fecha Asignación Factura CUPS" },
+    { key: "facturado", label: "Facturado" },
 ];
 
 const crearFiltrosIniciales = (columnas) => columnas.reduce((acc, col) => {
@@ -304,7 +334,11 @@ export default {
             fechaFin: "",
             tipoinforme: "",
             convenioInforme: "",
-            conveniosDisponibles: ["Extramural", "E Basicos"],
+            facturadorInforme: "",
+            conveniosDisponibles: ["Extramural", "E Basicos", "PIC"],
+            facturadoresDisponibles: [],
+            facturadoresMap: {},
+            facturadoresConveniosMap: {},
             progresoInforme: 0,
             mensajeProgreso: "Preparando consulta...",
             detallesVisibles: [], // Para controlar la visibilidad de detalles por fila
@@ -325,10 +359,222 @@ export default {
                 ffinal: "",
                 profesional: "",
                 convenio: "",
+                facturador: "",
             },
         };
     },
     methods: {
+        normalizarIdFacturador(valor) {
+            return String(valor || "")
+                .trim()
+                .toLowerCase()
+                .replace(/^([0-9]+)\.0+$/, "$1")
+                .replace(/[^a-z0-9]/g, "");
+        },
+
+        normalizarTextoComparable(valor) {
+            return String(valor || "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, " ");
+        },
+
+        extraerConveniosUsuario(valor) {
+            if (Array.isArray(valor)) {
+                return valor
+                    .map((item) => String(item || "").trim())
+                    .filter(Boolean);
+            }
+
+            if (valor && typeof valor === "object") {
+                return Object.values(valor)
+                    .map((item) => String(item || "").trim())
+                    .filter(Boolean);
+            }
+
+            const texto = String(valor || "").trim();
+            if (!texto) return [];
+
+            // Soporta convenio almacenado como JSON string: ["PIC","E Basicos"]
+            if ((texto.startsWith("[") && texto.endsWith("]")) || (texto.startsWith("{") && texto.endsWith("}"))) {
+                try {
+                    const parsed = JSON.parse(texto);
+                    if (Array.isArray(parsed)) {
+                        return parsed.map((item) => String(item || "").trim()).filter(Boolean);
+                    }
+                    if (parsed && typeof parsed === "object") {
+                        return Object.values(parsed).map((item) => String(item || "").trim()).filter(Boolean);
+                    }
+                } catch (_) {
+                    // Si falla JSON.parse, continúa con split tradicional
+                }
+            }
+
+            return texto
+                .split(/[;,|]/)
+                .map((item) => item.replace(/[\[\]"]+/g, "").trim())
+                .filter(Boolean);
+        },
+
+        async cargarConveniosDisponibles() {
+            try {
+                const normalizar = (valor) => String(valor || "").trim();
+                const convenios = new Set(["Extramural", "E Basicos", "PIC"]);
+
+                const [respEncuestas, respAsignaciones, respUsuarios] = await Promise.all([
+                    realtime_api.get("/Encuesta.json"),
+                    realtime_api.get("/Asignaciones.json"),
+                    realtime_api.get("/Usuarios.json"),
+                ]);
+
+                const encuestasObj = respEncuestas?.data || {};
+                Object.values(encuestasObj).forEach((encuesta) => {
+                    const convenio = normalizar(encuesta?.convenio);
+                    if (convenio) convenios.add(convenio);
+                });
+
+                const asignacionesObj = respAsignaciones?.data || {};
+                Object.values(asignacionesObj).forEach((asignacion) => {
+                    const convenioAsignacion = normalizar(asignacion?.convenio);
+                    if (convenioAsignacion) convenios.add(convenioAsignacion);
+
+                    const cupsObj = asignacion?.cups;
+                    if (cupsObj && typeof cupsObj === "object") {
+                        Object.values(cupsObj).forEach((cup) => {
+                            const convenioCup = normalizar(cup?.convenio);
+                            if (convenioCup) convenios.add(convenioCup);
+                        });
+                    }
+                });
+
+                const usuariosObj = respUsuarios?.data || {};
+                Object.values(usuariosObj).forEach((usuario) => {
+                    this.extraerConveniosUsuario(usuario?.convenio || usuario?.convenios).forEach((conv) => {
+                        const convenio = normalizar(conv);
+                        if (convenio) convenios.add(convenio);
+                    });
+                });
+
+                this.conveniosDisponibles = Array.from(convenios).sort((a, b) =>
+                    a.localeCompare(b, "es", { sensitivity: "base" })
+                );
+            } catch (error) {
+                console.error("Error cargando convenios disponibles:", error);
+                this.conveniosDisponibles = ["Extramural", "E Basicos", "PIC"];
+            }
+        },
+
+        async cargarFacturadoresDisponibles() {
+            try {
+                const usuarios = await getAllUsers();
+                const esFacturador = (cargo) => {
+                    const valor = String(cargo || "").trim().toLowerCase();
+                    return valor === "fact" || valor === "facturador";
+                };
+                const construirNombreUsuario = (u = {}) => {
+                    const nombreDirecto = String(u?.nombre || u?.nombres || u?.nombre_completo || u?.name || "").trim();
+                    if (nombreDirecto) return nombreDirecto;
+
+                    const nombreCompleto = [u?.nombre1, u?.nombre2, u?.apellido1, u?.apellido2]
+                        .map((parte) => String(parte || "").trim())
+                        .filter(Boolean)
+                        .join(" ")
+                        .trim();
+
+                    return nombreCompleto || String(u?.email || u?.numDocumento || u?.num_documento || u?.documento || "").trim();
+                };
+                const separarConvenios = (valor) =>
+                    this.extraerConveniosUsuario(valor);
+
+                const mapa = new Map();
+
+                usuarios.forEach((u) => {
+                    const cargo = String(u?.cargo || "").trim();
+                    const grupo = String(u?.grupo || "").trim().toUpperCase();
+                    if (!esFacturador(cargo) && grupo !== "F") return;
+
+                    const documento = String(u?.numDocumento || u?.num_documento || u?.documento || "").trim();
+                    if (!documento) return;
+
+                    const documentoNorm = this.normalizarIdFacturador(documento);
+                    const nombre = String(construirNombreUsuario(u) || "").trim() || "Sin nombre en BD";
+                    const convenios = separarConvenios(u?.convenio || u?.convenios);
+
+                    if (!mapa.has(documentoNorm)) {
+                        mapa.set(documentoNorm, {
+                            documento,
+                            nombre,
+                            convenios: new Set(convenios),
+                        });
+                        return;
+                    }
+
+                    const actual = mapa.get(documentoNorm);
+                    if ((!actual.nombre || actual.nombre === "Sin nombre en BD") && nombre) {
+                        actual.nombre = nombre;
+                    }
+                    convenios.forEach((conv) => actual.convenios.add(conv));
+                });
+
+                const lista = Array.from(mapa.values())
+                    .map((item) => ({
+                        documento: item.documento,
+                        nombre: item.nombre || "Sin nombre en BD",
+                    }))
+                    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
+
+                this.facturadoresDisponibles = lista;
+                this.facturadoresMap = lista.reduce((acc, item) => {
+                    acc[item.documento] = item.nombre;
+                    acc[this.normalizarIdFacturador(item.documento)] = item.nombre;
+                    return acc;
+                }, {});
+                this.facturadoresConveniosMap = Array.from(mapa.entries()).reduce((acc, [doc, item]) => {
+                    acc[doc] = Array.from(item.convenios || []);
+                    return acc;
+                }, {});
+            } catch (error) {
+                console.error("Error cargando facturadores:", error);
+                this.facturadoresDisponibles = [];
+                this.facturadoresMap = {};
+                this.facturadoresConveniosMap = {};
+            }
+        },
+
+        normalizarFechaSoloDia(valorFecha) {
+            if (!valorFecha) return "";
+            const texto = String(valorFecha).trim();
+            const matchIso = texto.match(/^(\d{4}-\d{2}-\d{2})/);
+            if (matchIso) return matchIso[1];
+
+            const matchLatam = texto.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})/);
+            if (matchLatam) return `${matchLatam[3]}-${matchLatam[2]}-${matchLatam[1]}`;
+
+            const fecha = new Date(texto);
+            if (!Number.isNaN(fecha.getTime())) {
+                return fecha.toISOString().slice(0, 10);
+            }
+
+            return "";
+        },
+
+        fechaDentroDeRango(valorFecha, inicio, fin) {
+            const fecha = this.normalizarFechaSoloDia(valorFecha);
+            const ini = this.normalizarFechaSoloDia(inicio);
+            const end = this.normalizarFechaSoloDia(fin);
+            if (!fecha || !ini || !end) return false;
+            return fecha >= ini && fecha <= end;
+        },
+
+        obtenerNombreFacturador(documento) {
+            const doc = String(documento || "").trim();
+            if (!doc) return "";
+            const docNorm = this.normalizarIdFacturador(doc);
+            return this.facturadoresMap[doc] || this.facturadoresMap[docNorm] || "Sin nombre";
+        },
+
         actualizarProgreso(valor, mensaje) {
             this.progresoInforme = Math.max(0, Math.min(100, Math.round(valor)));
             if (mensaje) {
@@ -398,7 +644,9 @@ export default {
         },
 
         obtenerColumnasPorTipo(tipo) {
-            return tipo === "2" ? COLUMNAS_ACTIVIDADES : COLUMNAS_INFORME;
+            if (tipo === "2") return COLUMNAS_ACTIVIDADES;
+            if (tipo === "3") return COLUMNAS_FACTURACION;
+            return COLUMNAS_INFORME;
         },
 
         normalizarConvenio(valor) {
@@ -421,6 +669,7 @@ export default {
             const encuestas = Array.isArray(this.encuestasInforme) ? this.encuestasInforme : [];
 
             for (const paciente of encuestas) {
+                const facturadorPacienteDoc = String(paciente?.asigfact || paciente?.asig_fact || "").trim();
                 const base = {
                     grupo: paciente.grupo || "",
                     paciente: `${paciente.nombre1 || ""} ${paciente.apellido1 || ""} ${paciente.apellido2 || ""}`.trim(),
@@ -456,6 +705,7 @@ export default {
                         detalle: "",
                         grupoCUP: "",
                         factura: "",
+                        facturador: this.obtenerNombreFacturador(facturadorPacienteDoc),
                         homolog: "",
                         profesional: "",
                         rol: "",
@@ -481,6 +731,7 @@ export default {
                             detalle: "",
                             grupoCUP: "",
                             factura: "",
+                            facturador: this.obtenerNombreFacturador(facturadorPacienteDoc),
                             homolog: "",
                             profesional: "",
                             rol: "",
@@ -495,6 +746,9 @@ export default {
                         const asig = asignaciones[i];
                         const idActividad = String(asig?.actividadId ?? asig?.idActividad ?? actividad?.key ?? "");
                         const cupId = asig?.cupsId || asig?.id || "";
+                        const facturadorDoc = String(
+                            asig?.FactProf || asig?.factProf || asig?.fact_prof || facturadorPacienteDoc
+                        ).trim();
                         const nombreCup = this.obtenerNombreCupDesdeId(cupId, asig?.cupsNombre || asig?.DescripcionCUP || asig?.codigo || "");
                         filas.push({
                             ...base,
@@ -508,6 +762,7 @@ export default {
                             detalle: asig?.detalle || "",
                             grupoCUP: asig?.Grupo || "",
                             factura: asig?.FactNum || "",
+                            facturador: this.obtenerNombreFacturador(facturadorDoc),
                             homolog: asig?.Homolog || "",
                             profesional: asig?.nombreProf || "",
                             rol: asig?.key || "",
@@ -527,6 +782,7 @@ export default {
             const encuestas = Array.isArray(this.encuestasInforme) ? this.encuestasInforme : [];
 
             for (const paciente of encuestas) {
+                const facturadorPacienteDoc = String(paciente?.asigfact || paciente?.asig_fact || "").trim();
                 const base = {
                     convenio: paciente.convenio || "",
                     grupo: paciente.grupo || "",
@@ -550,6 +806,7 @@ export default {
                         ...base,
                         rowKey: `${paciente.id}-sin-actividad`,
                         actividad: "Sin actividades",
+                        facturador: this.obtenerNombreFacturador(facturadorPacienteDoc),
                         profesional: "",
                         rol: "",
                         cupsNombre: "",
@@ -569,6 +826,7 @@ export default {
                             ...base,
                             rowKey: `${paciente.id}-${actividad.key}-sin-asignacion`,
                             actividad: actividad.nombre || "Actividad",
+                            facturador: this.obtenerNombreFacturador(facturadorPacienteDoc),
                             profesional: "",
                             rol: "",
                             cupsNombre: "",
@@ -583,12 +841,16 @@ export default {
                     for (let i = 0; i < asignaciones.length; i++) {
                         const asig = asignaciones[i];
                         const cupId = asig?.cupsId || asig?.id || "";
+                        const facturadorDoc = String(
+                            asig?.FactProf || asig?.factProf || asig?.fact_prof || facturadorPacienteDoc
+                        ).trim();
                         const nombreCup = this.obtenerNombreCupDesdeId(cupId, asig?.cupsNombre || asig?.DescripcionCUP || asig?.codigo || "");
 
                         filas.push({
                             ...base,
                             rowKey: `${paciente.id}-${actividad.key}-${i}`,
                             actividad: actividad.nombre || "Actividad",
+                            facturador: this.obtenerNombreFacturador(facturadorDoc),
                             profesional: asig?.nombreProf || "",
                             rol: asig?.key || "",
                             cupsNombre: nombreCup,
@@ -602,6 +864,155 @@ export default {
             }
 
             return filas;
+        },
+
+        construirFilasFacturacion() {
+            const filas = [];
+            const encuestas = Array.isArray(this.encuestasInforme) ? this.encuestasInforme : [];
+
+            for (const paciente of encuestas) {
+                const facturadorPacienteDoc = String(
+                    paciente?.asigfact ||
+                    paciente?.asig_fact ||
+                    ""
+                ).trim();
+                const base = {
+                    convenio: paciente.convenio || "",
+                    facturadorPaciente: this.obtenerNombreFacturador(facturadorPacienteDoc),
+                    fechaCierrePaciente: this.formatearFechaYYYYMMDD(
+                        paciente.FechaFacturacion ||
+                        paciente.fechaFacturacion ||
+                        paciente.fecha_facturacion
+                    ),
+                    paciente: `${paciente.nombre1 || ""} ${paciente.apellido1 || ""} ${paciente.apellido2 || ""}`.trim(),
+                    documento: `${paciente.tipodoc || ""}-${paciente.numdoc || ""}`,
+                    eps: paciente.eps || "",
+                };
+
+                const cups = Array.isArray(paciente.cupsFacturacion) ? paciente.cupsFacturacion : [];
+
+                if (!cups.length) {
+                    filas.push({
+                        ...base,
+                        rowKey: `${paciente.id}-sin-cups` ,
+                        actividad: "Sin actividades",
+                        cupsNombre: "",
+                        codigo: "",
+                        cantidad: "",
+                        factura: "",
+                        facturadorActividad: "",
+                        fechaCierreActividad: "",
+                        facturado: "No",
+                    });
+                    continue;
+                }
+
+                for (let i = 0; i < cups.length; i++) {
+                    const cup = cups[i];
+                    const facturadorActividadDoc = String(
+                        cup?.FactProf ||
+                        cup?.factProf ||
+                        cup?.fact_prof ||
+                        ""
+                    ).trim();
+                    const cupId = String(cup?.id || cup?.cupsId || i);
+
+                    filas.push({
+                        ...base,
+                        rowKey: `${paciente.id}-${cupId}-${i}`,
+                        actividad: this.obtenerNombreActividadDesdeKey(cup?.actividadId || cup?.idActividad || "") || "Actividad",
+                        cupsNombre: cup?.DescripcionCUP || cup?.cupsNombre || cup?.codigo || "",
+                        codigo: cup?.codigo || "",
+                        cantidad: cup?.cantidad ?? "",
+                        factura: cup?.FactNum || cup?.factNum || cup?.fact_num || "",
+                        facturadorActividad: this.obtenerNombreFacturador(facturadorActividadDoc),
+                        fechaCierreActividad: this.formatearFechaYYYYMMDD(
+                            cup?.fechaAsignacionFactura ||
+                            cup?.fechaFacturacion ||
+                            cup?.fecha_facturacion ||
+                            cup?.FechaFacturacion
+                        ),
+                        facturado: cup?.facturado === true ? "Sí" : "No",
+                    });
+                }
+            }
+
+            return filas;
+        },
+
+        async actualizarDatosFacturacionInforme() {
+            const [respEncuestas, respAsignaciones, respActividadesExtra] = await Promise.all([
+                realtime_api.get("/Encuesta.json"),
+                realtime_api.get("/Asignaciones.json"),
+                realtime_api.get("/actividadesExtra.json"),
+            ]);
+
+            const encuestasObj = respEncuestas?.data || {};
+            const asignacionesObj = respAsignaciones?.data || {};
+            const actividadesExtraGlobal = respActividadesExtra?.data || {};
+
+            this.actividadesExtraMap = Object.entries(actividadesExtraGlobal).reduce((acc, [id, item]) => {
+                if (item && item.key !== undefined && item.key !== null) {
+                    const nombreActividad = item.nombre || item.descripcion || String(item.key);
+                    acc[String(item.key)] = nombreActividad;
+                    acc[String(id)] = nombreActividad;
+                }
+                return acc;
+            }, {});
+
+            const convenioSeleccionado = this.normalizarConvenio(this.convenioInforme);
+            const facturadorSeleccionado = this.normalizarIdFacturador(this.facturadorInforme);
+
+            const encuestasLista = Object.entries(encuestasObj).map(([id, data]) => ({
+                id,
+                ...(data || {}),
+            }));
+
+            this.encuestasInforme = encuestasLista
+                .filter((encuesta) => encuesta?.status_facturacion === true)
+                .filter((encuesta) => {
+                    if (!convenioSeleccionado) return true;
+                    return this.normalizarConvenio(encuesta?.convenio) === convenioSeleccionado;
+                })
+                .map((encuesta) => {
+                    const cupsObj = asignacionesObj?.[encuesta.id]?.cups;
+                    const cupsLista = cupsObj && typeof cupsObj === "object"
+                        ? Object.entries(cupsObj).map(([cupId, cup]) => ({ id: cupId, ...(cup || {}) }))
+                        : [];
+
+                    const cupsFacturados = cupsLista.filter((cup) => cup?.facturado === true);
+
+                    return {
+                        ...encuesta,
+                        cupsFacturacion: cupsFacturados,
+                    };
+                })
+                .filter((encuesta) => {
+                    const fechaPacienteEnRango = this.fechaDentroDeRango(
+                        encuesta?.FechaFacturacion || encuesta?.fechaFacturacion || encuesta?.fecha_facturacion,
+                        this.fechaInicio,
+                        this.fechaFin
+                    );
+                    const actividadEnRango = (encuesta.cupsFacturacion || []).some((cup) =>
+                        this.fechaDentroDeRango(
+                            cup?.fechaAsignacionFactura || cup?.fechaFacturacion || cup?.fecha_facturacion || cup?.FechaFacturacion,
+                            this.fechaInicio,
+                            this.fechaFin
+                        )
+                    );
+
+                    return fechaPacienteEnRango || actividadEnRango;
+                })
+                .filter((encuesta) => {
+                    if (!facturadorSeleccionado) return true;
+
+                    const factPaciente = this.normalizarIdFacturador(encuesta?.asigfact || encuesta?.asig_fact || "");
+                    if (factPaciente === facturadorSeleccionado) return true;
+
+                    return (encuesta.cupsFacturacion || []).some((cup) =>
+                        this.normalizarIdFacturador(cup?.FactProf || cup?.factProf || cup?.fact_prof || "") === facturadorSeleccionado
+                    );
+                });
         },
 
         obtenerNombreActividadDesdeKey(keyActividad) {
@@ -928,6 +1339,7 @@ export default {
                         ffinal: parametros.ffinal,
                         profesional: "",
                         convenio: this.convenioInforme || "Todos",
+                        facturador: "",
                     };
                 } else if (this.fechaInicio && this.fechaFin && this.tipoinforme == "2") {
                     let parametros = {
@@ -941,6 +1353,19 @@ export default {
                         ffinal: parametros.ffinal,
                         profesional: "",
                         convenio: this.convenioInforme || "Todos",
+                        facturador: "",
+                    };
+                } else if (this.fechaInicio && this.fechaFin && this.tipoinforme == "3") {
+                    await this.actualizarDatosFacturacionInforme();
+                    consultaUsada = {
+                        tipo: "Facturación",
+                        finicial: this.fechaInicio,
+                        ffinal: this.fechaFin,
+                        profesional: "",
+                        convenio: this.convenioInforme || "Todos",
+                        facturador: this.facturadorInforme
+                            ? this.obtenerNombreFacturador(this.facturadorInforme)
+                            : "Todos",
                     };
                 } else {
                     this.$toast.error("Debe seleccionar tipo de informe y rango de fechas");
@@ -949,8 +1374,12 @@ export default {
                     return;
                 }
 
-                this.actualizarProgreso(55, "Procesando actividades y asignaciones...");
-                await this.actualizarDatosSeguimientoInforme();
+                if (this.tipoinforme === "3") {
+                    this.actualizarProgreso(55, "Procesando cierres de facturación...");
+                } else {
+                    this.actualizarProgreso(55, "Procesando actividades y asignaciones...");
+                    await this.actualizarDatosSeguimientoInforme();
+                }
                 if (consultaUsada) {
                     this.consultaActual = consultaUsada;
                 }
@@ -981,6 +1410,7 @@ export default {
             this.fechaInicio = "";
             this.fechaFin = "";
             this.convenioInforme = "";
+            this.facturadorInforme = "";
             this.progresoInforme = 0;
             this.mensajeProgreso = "Preparando consulta...";
             this.encuestasInforme = [];
@@ -995,6 +1425,7 @@ export default {
                 ffinal: "",
                 profesional: "",
                 convenio: "",
+                facturador: "",
             };
         },
 
@@ -1006,8 +1437,19 @@ export default {
 
     computed: {
         ...mapState(["userData", "EncuestasAdmin"]),
+        facturadoresDisponiblesFiltrados() {
+            const convenioSel = this.normalizarTextoComparable(this.convenioInforme);
+            if (!convenioSel) return this.facturadoresDisponibles;
+
+            return (this.facturadoresDisponibles || []).filter((fact) => {
+                const convenios = this.facturadoresConveniosMap?.[this.normalizarIdFacturador(fact.documento)] || [];
+                return convenios.some((conv) => this.normalizarTextoComparable(conv) === convenioSel);
+            });
+        },
         tituloListado() {
-            return this.tipoinforme === "2" ? "Listado de actividades" : "Listado de Pacientes finalizados";
+            if (this.tipoinforme === "2") return "Listado de actividades";
+            if (this.tipoinforme === "3") return "Listado de facturación";
+            return "Listado de Pacientes finalizados";
         },
         filasFiltradasOrdenadas() {
             let filas = [...this.filasInformeTabla];
@@ -1055,9 +1497,9 @@ export default {
             return opciones;
         },
         filasInformeTabla() {
-            return this.tipoinforme === "2"
-                ? this.construirFilasActividades()
-                : this.construirFilasExportacion();
+            if (this.tipoinforme === "2") return this.construirFilasActividades();
+            if (this.tipoinforme === "3") return this.construirFilasFacturacion();
+            return this.construirFilasExportacion();
         },
         tieneDatosTabla() {
             return this.filasInformeTabla.length > 0;
@@ -1070,11 +1512,26 @@ export default {
             }
             if (this.consultaActual.convenio) etiquetas.push(`Convenio: ${this.consultaActual.convenio}`);
             if (this.consultaActual.profesional) etiquetas.push(`Profesional: ${this.consultaActual.profesional}`);
+            if (this.consultaActual.facturador) etiquetas.push(`Facturador: ${this.consultaActual.facturador}`);
             return etiquetas;
         },
 
     },
     watch: {
+        tipoinforme(nuevoTipo) {
+            if (nuevoTipo === "3" && (!this.facturadoresDisponibles || this.facturadoresDisponibles.length === 0)) {
+                this.cargarFacturadoresDisponibles();
+            }
+        },
+        convenioInforme() {
+            if (!this.facturadorInforme) return;
+            const existe = this.facturadoresDisponiblesFiltrados.some(
+                (fact) => fact.documento === this.facturadorInforme
+            );
+            if (!existe) {
+                this.facturadorInforme = "";
+            }
+        },
         tieneDatosTabla(nuevoValor) {
             if (nuevoValor) {
                 this.mostrarFormulario = false;
@@ -1089,12 +1546,16 @@ export default {
 
     mounted() {
         window.addEventListener('resize', this.actualizarAnchoTabla);
+        this.cargarConveniosDisponibles();
+        this.cargarFacturadoresDisponibles();
         // Inicializar detallesVisibles según la cantidad de pacientes
         this.$watch(
             () => this.EncuestasAdmin,
             (nuevo) => {
                 this.detallesVisibles = Array.isArray(nuevo) ? Array(nuevo.length).fill(false) : [];
-                this.actualizarDatosSeguimientoInforme();
+                if (this.tipoinforme !== "3") {
+                    this.actualizarDatosSeguimientoInforme();
+                }
                 this.actualizarAnchoTabla();
             }, {
             immediate: true,
