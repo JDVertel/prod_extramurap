@@ -201,3 +201,10 @@ table.table thead th.global-sort-active .global-sort-indicator {
 table.table thead th.global-sort-active .global-sort-indicator {
   font-weight: 700;
 }
+
+/* Desactiva globalmente la capa transparente de los modales Bootstrap. */
+.modal-backdrop,
+.modal-backdrop.show {
+  display: none !important;
+  opacity: 0 !important;
+}

@@ -19,10 +19,57 @@ function generarId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 }
 
-function resolveCurrentIpsId(userData = {}) {
-  const raw = userData?.ipsId ?? userData?.ips_id ?? userData?.idips ?? userData?.ips;
+function resolveCurrentIpsId(userData = {}, fallbackDataips = {}) {
+  const raw =
+    userData?.ipsId ??
+    userData?.ips_id ??
+    userData?.idips ??
+    userData?.ips ??
+    fallbackDataips?.id ??
+    fallbackDataips?.ipsId ??
+    fallbackDataips?.ips_id ??
+    fallbackDataips?.idips ??
+    fallbackDataips?.ips;
+
   const normalized = String(raw ?? "").trim();
-  return normalized || null;
+  if (normalized) {
+    return normalized;
+  }
+
+  // Fallback para sesiones donde el store aun no hidrata userData/dataips.
+  if (typeof localStorage !== "undefined") {
+    try {
+      const rawUser = localStorage.getItem("userData");
+      const fromUser = rawUser ? JSON.parse(rawUser) : null;
+      const userIps = String(
+        fromUser?.ipsId ?? fromUser?.ips_id ?? fromUser?.idips ?? fromUser?.ips ?? ""
+      ).trim();
+      if (userIps) {
+        return userIps;
+      }
+
+      const rawIps = localStorage.getItem("dataips");
+      const fromDataips = rawIps ? JSON.parse(rawIps) : null;
+      const dataIps = String(
+        fromDataips?.id ?? fromDataips?.ipsId ?? fromDataips?.ips_id ?? fromDataips?.idips ?? fromDataips?.ips ?? ""
+      ).trim();
+      if (dataIps) {
+        return dataIps;
+      }
+    } catch (_) {
+      // Ignorar errores de parseo de localStorage y seguir con null.
+    }
+  }
+
+  return null;
+}
+
+function resolveRequiredIpsId(state = {}, contextLabel = "operacion") {
+  const ipsId = resolveCurrentIpsId(state?.userData, state?.dataips);
+  if (!ipsId) {
+    throw new Error(`No se detectó IPS en la sesión para ${contextLabel}. Recarga la app e inicia sesión de nuevo.`);
+  }
+  return ipsId;
 }
 
 function getNoCacheRequestConfig() {
@@ -2027,7 +2074,7 @@ export default createStore({
     crearEps: async ({ commit, state }, entradaseps) => {
       try {
         const { bd, eps } = entradaseps;
-        const ipsId = resolveCurrentIpsId(state.userData);
+        const ipsId = resolveRequiredIpsId(state, "crear EPS");
 
         const DataToSaveC = { eps, ipsId };
 
@@ -2090,7 +2137,7 @@ export default createStore({
     actualizarEps: async ({ commit, state }, { id, eps }) => {
       try {
         if (!id) throw new Error("ID inválido para actualizar");
-        const ipsId = resolveCurrentIpsId(state.userData);
+        const ipsId = resolveRequiredIpsId(state, "actualizar EPS");
         const DataToSave = { eps, ipsId };
         const { data } = await realtime_api.put(`/eps/${id}.json`, DataToSave);
         return data;

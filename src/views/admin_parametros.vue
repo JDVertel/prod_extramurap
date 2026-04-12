@@ -1201,23 +1201,17 @@ export default {
     closeModal(modalId) {
       const modal = document.getElementById(modalId);
       if (modal) {
-        // Intentar obtener la instancia existente
-        const bsModal = window.bootstrap.Modal.getInstance(modal);
+        const bsModal = window.bootstrap?.Modal?.getInstance(modal);
         if (bsModal) {
           bsModal.hide();
-        } else {
-          // Si no existe instancia, crear una nueva y cerrar
-          const newBsModal = new window.bootstrap.Modal(modal);
-          newBsModal.hide();
         }
 
-        // Remover el backdrop manualmente por si acaso
+        // Limpieza defensiva para evitar backdrops huérfanos.
         setTimeout(() => {
-          const backdrop = document.querySelector('.modal-backdrop');
-          if (backdrop) {
-            backdrop.remove();
-          }
+          document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
           document.body.classList.remove('modal-open');
+          document.body.style.removeProperty('padding-right');
+          document.body.style.removeProperty('overflow');
         }, 300);
       }
     },
@@ -1232,19 +1226,6 @@ export default {
         this.cupProfesional = this.normalizarProfesionales(cups.profesional);
         this.cupsGrupo = cups.Grupo || "";
         this.cupsEps = Array.isArray(cups.Eps) ? cups.Eps : [];
-
-        // Abrir modal de forma robusta
-        this.$nextTick(() => {
-          const modal = document.getElementById("staticBackdrop");
-          if (modal) {
-            // Obtener instancia existente o crear una nueva
-            let bsModal = window.bootstrap.Modal.getInstance(modal);
-            if (!bsModal) {
-              bsModal = new window.bootstrap.Modal(modal);
-            }
-            bsModal.show();
-          }
-        });
       }
     },
 
@@ -1763,14 +1744,25 @@ export default {
         event.target.value = ""; return;
       }
       let errores = 0;
+      let primerError = "";
       for (const fila of validas) {
         try {
           await this.crearEps({ eps: fila.eps.trim(), bd: "eps" });
-        } catch (e) { errores++; }
+        } catch (e) {
+          errores++;
+          if (!primerError) {
+            primerError =
+              e?.response?.data?.detail ||
+              e?.response?.data?.message ||
+              e?.message ||
+              "Error desconocido";
+          }
+        }
       }
       await this.getAllEps();
       event.target.value = "";
-      alert(`Importación completada: ${validas.length - errores} EPS importadas${errores > 0 ? `, ${errores} con error` : ""}.`);
+      const resumen = `Importación completada: ${validas.length - errores} EPS importadas${errores > 0 ? `, ${errores} con error` : ""}.`;
+      alert(errores > 0 ? `${resumen}\nPrimer error: ${primerError}` : resumen);
     },
 
     async importarCsvCups(event) {
