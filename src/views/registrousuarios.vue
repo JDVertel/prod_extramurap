@@ -231,6 +231,8 @@
                                             <option value="Enfermero">Enfermero</option>
                                             <option v-if="editConvenio === 'E Basicos'" value="Psicologo">Psicologo</option>
                                             <option v-if="editConvenio === 'E Basicos'" value="Tsocial">Trabajador social</option>
+                                            <option v-if="editConvenio === 'PIC'" value="Psicologo">Psicologo</option>
+                                            <option v-if="editConvenio === 'PIC'" value="Tsocial">Trabajador social</option>
                                             <option v-if="editConvenio === 'PIC'" value="Nutricionista">Nutricionista</option>
                                             <option value="Fact">Facturador</option>
                                             <option value="admin">--Administrador--</option>
@@ -384,6 +386,93 @@
 
                 <div class="tab-pane fade" id="nav-profile" role="tabpanel" aria-labelledby="nav-profile-tab"
                     tabindex="0">
+                    <!-- Carga masiva de usuarios por CSV -->
+                    <div class="mt-5 p-4 border rounded bg-light">
+                        <!-- La IPS efectiva depende del perfil autenticado -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">
+                                {{ isSuperUser ? 'Superusuario: cada fila debe indicar su IPS en la columna idips.' : 'Los usuarios cargados quedarán asociados a la IPS de tu sesión:' }}
+                                <span v-if="!isSuperUser" class="text-primary">
+                                    {{ $store?.state?.userData?.ipsId ? $store.state.userData.ipsId : 'No disponible' }}
+                                </span>
+                            </label>
+                            <div v-if="!isSuperUser && !$store?.state?.userData?.ipsId" class="alert alert-danger mt-2">
+                                No se detectó una IPS válida en tu sesión. No podrás cargar usuarios masivamente.
+                            </div>
+                        </div>
+                        <h2 class="h5 mb-3"><i class="bi bi-upload"></i> Carga masiva de usuarios por CSV</h2>
+                        <p>
+                            Sube un archivo CSV con la siguiente estructura de columnas.
+                            <strong v-if="isSuperUser">El campo <span class="text-primary">idips</span> es obligatorio para indicar la IPS de cada fila.</strong>
+                            <strong v-else>La columna <span class="text-primary">idips</span> es opcional y se ignorará; se usará la IPS de tu sesión.</strong>
+                            La columna <span class="text-primary">Rol</span> es opcional y no afecta la creación actual.
+                        </p>
+                        <p class="small text-muted mb-3">
+                            En la columna <span class="text-primary">Cargo</span>, para el convenio <span class="text-primary">PIC</span> puedes cargar
+                            <strong>Medico</strong>, <strong>Enfermero</strong>, <strong>Psicologo</strong>, <strong>Tsocial</strong> y <strong>Nutricionista</strong>.
+                        </p>
+                        <div class="table-responsive mb-2">
+                            <table class="table table-bordered table-sm align-middle mb-0">
+                                <thead class="table-secondary">
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Email</th>
+                                        <th>Rol</th>
+                                        <th>Cargo</th>
+                                        <th>Grupo</th>
+                                        <th>Convenio</th>
+                                        <th>Documento</th>
+                                        <th>idips</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Juan Pérez</td>
+                                        <td>juan@email.com</td>
+                                        <td>admin</td>
+                                        <td>Psicologo</td>
+                                        <td>1</td>
+                                        <td>PIC</td>
+                                        <td>12345678</td>
+                                        <td>ips_001</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <input type="file" accept=".csv" @change="handleCsvUpload" class="form-control mb-2" />
+                        <button class="btn btn-success mt-2" :disabled="!(csvUsers && csvUsers.length) || loadingCsv || (!isSuperUser && !$store?.state?.userData?.ipsId)" @click="enviarCsvUsuarios">
+                            <i class="bi bi-person-plus-fill"></i> Crear usuarios masivamente
+                        </button>
+                        <div v-if="csvError" class="alert alert-danger mt-2">{{ csvError }}</div>
+                        <div v-if="csvSuccess" class="alert alert-success mt-2">{{ csvSuccess }}</div>
+                        <div v-if="csvPreview && csvPreview.length">
+                            <h6 class="mt-3">Vista previa de los primeros registros:</h6>
+                            <table class="table table-sm table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Email</th>
+                                        <th>Rol</th>
+                                        <th>Cargo</th>
+                                        <th>Grupo</th>
+                                        <th>Convenio</th>
+                                        <th>Documento</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(row, idx) in csvPreview" :key="idx">
+                                        <td>{{ row.Nombre }}</td>
+                                        <td>{{ row.Email }}</td>
+                                        <td>{{ row.Rol }}</td>
+                                        <td>{{ row.Cargo }}</td>
+                                        <td>{{ row.Grupo }}</td>
+                                        <td>{{ row.Convenio }}</td>
+                                        <td>{{ row.Documento }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                     <form @submit.prevent="createUserByAdmin" :class="['form-convenio-wrapper', convenio === 'Extramural' ? 'convenio-extramural' : convenio === 'E Basicos' ? 'convenio-ebasicos' : convenio === 'PIC' ? 'convenio-pic' : '']">
                     <h1 class="display-6 mb-3">Crear Usuario</h1>
 
@@ -401,14 +490,23 @@
                             />
                             <select v-model="selectedIpsId" class="form-select" :class="{ 'is-invalid': isAdmin && !selectedIpsId && formularioIntentado }">
                                 <option value="" disabled>— Seleccione una IPS —</option>
+                                // Agregar bulkCreateUsers si lo creas en usersApi.js
                                 <option v-for="ips in ipsListFiltrada" :key="ips.id" :value="ips.id">
                                     {{ ips.nombre || ips.name || ips.id }}
                                 </option>
                             </select>
+
+                            // Importar papaparse para parsear CSV
+                            import Papa from "papaparse";
                             <div class="invalid-feedback" v-if="isAdmin && !selectedIpsId && formularioIntentado">
                                 Debes seleccionar una IPS para el nuevo usuario.
                             </div>
                             <small class="text-muted mt-1 d-block" v-if="!selectedIpsId">
+                                        csvUsers: [],
+                                        csvPreview: [],
+                                        csvError: "",
+                                        csvSuccess: "",
+                                        loadingCsv: false,
                                 Campo obligatorio — el usuario quedará asociado a la IPS seleccionada.
                             </small>
                             <small class="text-success mt-1 d-block" v-else>
@@ -436,6 +534,8 @@
                                     <option value="Fact">Facturador</option>
                                     <option v-if="convenio === 'E Basicos'" value="Psicologo">Psicologo</option>
                                     <option v-if="convenio === 'E Basicos'" value="Tsocial">Trabajador social</option>
+                                    <option v-if="convenio === 'PIC'" value="Psicologo">Psicologo</option>
+                                    <option v-if="convenio === 'PIC'" value="Tsocial">Trabajador social</option>
                                     <option v-if="convenio === 'PIC'" value="Nutricionista">Nutricionista</option>
                                 </select>
                             </div>
@@ -531,6 +631,7 @@
 </template>
 
 <script>
+import Papa from "papaparse";
 import {
     createUser,
     deleteUserById,
@@ -600,6 +701,13 @@ export default {
             /* Filtro de IPS en el listado */
             filtroIpsId: "",
             filtroIpsSearch: "",
+
+            /* Carga masiva de usuarios por CSV */
+            csvUsers: [],
+            csvPreview: [],
+            csvError: "",
+            csvSuccess: "",
+            loadingCsv: false,
         };
     },
     computed: {
@@ -892,6 +1000,98 @@ export default {
         }
     },
     methods: {
+        puntuarTextoCsv(texto) {
+            const valor = String(texto || '');
+            let puntaje = 0;
+
+            if (valor.includes('\uFFFD')) {
+                puntaje -= 10;
+            }
+
+            const coincidencias = valor.match(/[ÁÉÍÓÚáéíóúÑñÜü]/g);
+            if (coincidencias) {
+                puntaje += coincidencias.length;
+            }
+
+            return puntaje;
+        },
+
+        decodificarCsv(arrayBuffer) {
+            const utf8 = new TextDecoder('utf-8').decode(arrayBuffer);
+            const windows1252 = new TextDecoder('windows-1252').decode(arrayBuffer);
+
+            return this.puntuarTextoCsv(windows1252) > this.puntuarTextoCsv(utf8)
+                ? windows1252
+                : utf8;
+        },
+
+        async handleCsvUpload(e) {
+            this.csvError = "";
+            this.csvSuccess = "";
+            this.csvUsers = [];
+            this.csvPreview = [];
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const csvContent = this.decodificarCsv(arrayBuffer);
+
+                Papa.parse(csvContent, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const headers = Array.isArray(results.meta?.fields) ? results.meta.fields : [];
+                        const expectedHeaders = ["Nombre", "Email", "Cargo", "Grupo", "Convenio", "Documento"];
+                        const requiredHeaders = this.isSuperUser ? [...expectedHeaders, "idips"] : expectedHeaders;
+                        if (!expectedHeaders.every(h => headers.includes(h))) {
+                            this.csvError = "El archivo CSV no tiene los encabezados requeridos: " + requiredHeaders.join(", ");
+                            return;
+                        }
+                        if (this.isSuperUser && !headers.includes("idips")) {
+                            this.csvError = "Como superusuario, el CSV debe incluir la columna idips.";
+                            return;
+                        }
+                        this.csvUsers = results.data;
+                        this.csvPreview = this.csvUsers.slice(0, 5);
+                    },
+                    error: (err) => {
+                        this.csvError = "Error al leer el archivo: " + err.message;
+                    }
+                });
+            } catch (err) {
+                this.csvError = "Error al leer el archivo: " + (err?.message || err);
+            }
+        },
+
+        async enviarCsvUsuarios() {
+            if (!this.csvUsers.length) return;
+            if (!this.isSuperUser && !this.$store?.state?.userData?.ipsId) {
+                this.csvError = "No se detectó una IPS válida en tu sesión.";
+                return;
+            }
+            this.loadingCsv = true;
+            this.csvError = "";
+            this.csvSuccess = "";
+            try {
+                const res = await this.$api.bulkCreateUsers(this.csvUsers);
+                let detallesErrores = '';
+                if (res.detalles && Array.isArray(res.detalles) && res.detalles.length > 0) {
+                    const errores = res.detalles.filter(d => d.status === 'error');
+                    if (errores.length > 0) {
+                        detallesErrores = '\nErrores:\n' + errores.map(e => `- ${e.email || ''}: ${e.error || ''}`).join('\n');
+                    }
+                }
+                this.csvSuccess = `Usuarios creados: ${res.creados || 0}. Errores: ${res.errores || 0}${detallesErrores}`;
+                this.csvUsers = [];
+                this.csvPreview = [];
+                // Opcional: recargar usuarios
+                await this.fetchUsers?.();
+            } catch (err) {
+                this.csvError = err?.response?.data?.message || err.message || "Error al crear usuarios";
+            } finally {
+                this.loadingCsv = false;
+            }
+        },
         normalizarGrupos(valor) {
             return Array.from(
                 new Set(
@@ -973,9 +1173,10 @@ export default {
         },
 
         contarUsuariosConvenio(gruposPorConvenio) {
+            if (!gruposPorConvenio || typeof gruposPorConvenio !== 'object') return 0;
             let total = 0;
             Object.keys(gruposPorConvenio).forEach(grupo => {
-                total += gruposPorConvenio[grupo].length;
+                total += Array.isArray(gruposPorConvenio[grupo]) ? gruposPorConvenio[grupo].length : 0;
             });
             return total;
         },

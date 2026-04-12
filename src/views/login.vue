@@ -1,5 +1,5 @@
 <template>
-    <div class="login-layout">
+    <div class="login-layout" :style="loginBackgroundStyle">
         <div class="login-container">
             <div class="card p-4 shadow login-card">
                 <img src="@/assets/images/logo_extramurapp.png" alt="Logo Extramuralapp" class="login-logo-bg" />
@@ -55,12 +55,25 @@
                 </template>
             </div>
         </div>
+        <footer class="login-footer-version" role="contentinfo">
+            <span class="login-footer-brand">ExtramurApp</span>
+            <span class="login-footer-separator">|</span>
+            <span>{{ appVersionText }}</span>
+        </footer>
     </div>
 </template>
 
 <script>
 import { loginWithApi } from "@/api/authApi";
 import { emailExists } from "@/api/usersApi";
+import { getAppVersionText } from "@/utils/appVersion";
+
+const loginBackgroundModules = import.meta.glob("@/assets/images/ramdom/*.{jpg,jpeg,png,webp}", {
+    eager: true,
+    import: "default",
+});
+
+const LAST_LOGIN_BACKGROUND_KEY = "extramurapp_last_login_background";
 
 export default {
     name: "App",
@@ -71,12 +84,43 @@ export default {
             errorMessage: "",
             intentosRestantes: 3,
             logueado: false,
+            appVersionText: "",
+            loginBackgroundImages: [],
+            currentBackgroundUrl: "",
             userData: {
                 rol: null,
             },
         };
     },
+    computed: {
+        loginBackgroundStyle() {
+            const fallback = new URL("../assets/images/fondo_extramurapp.jpg", import.meta.url).href;
+            const imageUrl = this.currentBackgroundUrl || fallback;
+
+            return {
+                backgroundImage: `url("${imageUrl}")`,
+            };
+        },
+    },
     methods: {
+        initializeBackgroundImages() {
+            this.loginBackgroundImages = Object.values(loginBackgroundModules).filter(Boolean);
+            const count = this.loginBackgroundImages.length;
+            if (count === 0) return;
+
+            if (count === 1) {
+                this.currentBackgroundUrl = this.loginBackgroundImages[0];
+                localStorage.setItem(LAST_LOGIN_BACKGROUND_KEY, this.currentBackgroundUrl);
+                return;
+            }
+
+            const lastBackground = localStorage.getItem(LAST_LOGIN_BACKGROUND_KEY) || "";
+            const candidates = this.loginBackgroundImages.filter((img) => img !== lastBackground);
+            const pool = candidates.length > 0 ? candidates : this.loginBackgroundImages;
+            this.currentBackgroundUrl = pool[Math.floor(Math.random() * pool.length)];
+            localStorage.setItem(LAST_LOGIN_BACKGROUND_KEY, this.currentBackgroundUrl);
+        },
+
         async correoExisteEnBD(correo) {
             const correoNormalizado = String(correo || "").trim().toLowerCase();
             if (!correoNormalizado) return false;
@@ -157,6 +201,8 @@ export default {
     },
 
     mounted() {
+        this.appVersionText = getAppVersionText();
+        this.initializeBackgroundImages();
         const token = localStorage.getItem("token");
         if (token) {
             this.$router.push("/homeviews");
@@ -180,11 +226,12 @@ body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: url("@/assets/images/fondo_extramurapp.jpg");
+    background-color: #dceaf3;
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
     background-attachment: fixed;
+    transition: background-image 0.45s ease-in-out;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -196,6 +243,7 @@ body {
     justify-content: center;
     width: 100%;
     height: 100%;
+    padding-bottom: 52px;
 }
 
 .login-card {
@@ -249,6 +297,32 @@ body {
     font-size: 1.3rem;
 }
 
+.login-footer-version {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: 12px;
+    z-index: 9;
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.34);
+    border-radius: 10px;
+    padding: 8px 12px;
+    text-align: center;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(4px);
+}
+
+.login-footer-brand {
+    font-weight: 700;
+}
+
+.login-footer-separator {
+    margin: 0 7px;
+    opacity: 0.55;
+}
+
 @media (max-width: 767px) {
     .login-layout {
         background-position: 20% center;
@@ -265,6 +339,14 @@ body {
         width: 95%;
         max-width: 350px;
         margin: 0 20px 20px 20px;
+    }
+
+    .login-footer-version {
+        left: 12px;
+        right: 12px;
+        bottom: 10px;
+        font-size: 0.68rem;
+        padding: 7px 10px;
     }
 }
 </style>

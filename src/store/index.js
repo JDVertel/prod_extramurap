@@ -185,6 +185,7 @@ export default createStore({
      * Crea un nuevo registro de encuesta con actividades
      */
     createNewRegister: async ({ commit }, entradasE) => {
+      let mainId = null;
       try {
         const {
           bd,
@@ -296,7 +297,7 @@ export default createStore({
 
         // 1. Guardar registro principal
         const { data } = await realtime_api.post(`/${bd}.json`, DataToSaveE);
-        const mainId = data.name;
+        mainId = data.name;
 
         // 2. Guardar actividades
         const esperadas = actividadesNormalizadas.map((actividad) => actividad.key);
@@ -364,6 +365,21 @@ export default createStore({
           actividadesFallidas: [],
         };
       } catch (error) {
+        // Rollback: evitar encuestas "fantasma" si el proceso falla a mitad.
+        if (mainId) {
+          try {
+            await realtime_api.delete(`/${bd}/${mainId}.json`);
+          } catch (rollbackMainError) {
+            console.error("No se pudo revertir registro principal tras fallo:", rollbackMainError);
+          }
+
+          try {
+            await realtime_api.delete(`/Actividades/${mainId}.json`);
+          } catch (rollbackActivitiesError) {
+            console.error("No se pudieron revertir actividades tras fallo:", rollbackActivitiesError);
+          }
+        }
+
         console.error("Error en Action_createNewRegister:", error);
         throw error;
       }

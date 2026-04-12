@@ -3,7 +3,7 @@
     <!-- {{ dataencuesta.eps }} -->
     <div class="sop-cups-auxiliar-view">
         <!-- SPINNER SIEMPRE VISIBLE MIENTRAS CARGA -->
-        <div v-if="cargandoDatos" class="overlay-guardando">
+        <div v-if="cargandoDatos && !modalAbierto" class="overlay-guardando">
             <div class="progress-card shadow">
                 <div class="h5 mb-3">Cargando datos</div>
                 <div class="progress mb-2" role="progressbar" aria-label="Cargando datos" aria-valuemin="0"
@@ -17,7 +17,7 @@
         </div>
 
         <!-- OVERLAY DE GUARDANDO -->
-        <div v-if="guardando && !cargandoDatos" class="overlay-guardando">
+        <div v-if="guardando && !cargandoDatos && !modalAbierto" class="overlay-guardando">
             <div class="progress-card shadow">
                 <div class="h5 mb-3">Guardando listado</div>
                 <div class="progress mb-2" role="progressbar" aria-label="Guardando listado" aria-valuemin="0"
@@ -145,8 +145,7 @@
                                 <tr v-for="(item, key) in actividadesPaciente" :key="`${item.key}-${key}`">
                                         <td> <button class="btn btn-primary btn-sm"
                                             v-if="item && puedeMostrarActividad(item) && tieneCupsDisponiblesActividad(item.key)" type="button"
-                                            data-bs-toggle="modal" data-bs-target="#staticBackdrop"
-                                            @click="integrarCup(item)">
+                                            @click="abrirModalCups(item)">
                                             <i class="bi bi-plus-circle"></i>
                                         </button>
                                     </td>
@@ -197,11 +196,11 @@
                     </button>
                 </div>
                 <!-- El modal queda igual, puedes mejorar clase 'modal-content' por 'shadow-lg' si gustas -->
-                <div class="modal fade" id="staticBackdrop" tabindex="-1" aria-labelledby="staticBackdropLabel">
+                <div class="modal fade" id="cupsModal" data-bs-backdrop="false" tabindex="-1" aria-labelledby="cupsModalLabel">
                     <div class="modal-dialog modal-xl modal-dialog-scrollable">
                         <div class="modal-content shadow-lg">
                             <div class="modal-header">
-                                <h1 class="modal-title fs-5" id="staticBackdropLabel">
+                                <h1 class="modal-title fs-5" id="cupsModalLabel">
                                     <i class="bi bi-plus-circle-fill me-2"></i>
                                     Añadir CUPS a la actividad
                                 </h1>
@@ -344,7 +343,6 @@ import {
     mapActions,
     mapState
 } from "vuex";
-import moment from "moment";
 import { caracterizacionApi } from "@/api/modulesApi";
 
 /* ----------------------------------------------------------------------------------------------- */
@@ -367,6 +365,7 @@ export default {
             modalHideHandler: null,
             modalHiddenHandler: null,
             modalScrollRescueTimeout: null,
+            modalAbierto: false,
             caracterizacionEncuesta: {},
             mostrarCaracterizacion: false,
             cargandoCaracterizacion: false,
@@ -453,7 +452,7 @@ export default {
             if (!docSeleccionado) return false;
 
             const cargoActual = String(this.userData?.cargo || "").trim().toLowerCase();
-            const esAdmin = cargoActual === "admin" || cargoActual === "administrador";
+            const esAdmin = cargoActual === "admin" || cargoActual === "administrador" || cargoActual === "superusuario";
             if (esAdmin) return true;
 
             const accesos = Array.isArray(this.userData?.accesosProfesionales)
@@ -1019,8 +1018,10 @@ export default {
         },
 
         onModalShown() {
+            this.modalAbierto = true;
+
             // Remover aria-hidden cuando el modal se muestra para solucionar problemas de accesibilidad
-            const modal = document.getElementById('staticBackdrop');
+            const modal = document.getElementById('cupsModal');
             if (modal) {
                 modal.removeAttribute('aria-hidden');
             }
@@ -1044,7 +1045,7 @@ export default {
             const backdrops = document.querySelectorAll('.modal-backdrop');
             backdrops.forEach((backdrop) => backdrop.remove());
 
-            const modal = document.getElementById('staticBackdrop');
+            const modal = document.getElementById('cupsModal');
             if (modal) {
                 modal.classList.remove('show');
                 modal.removeAttribute('aria-modal');
@@ -1071,8 +1072,10 @@ export default {
         },
 
         onModalHidden() {
+            this.modalAbierto = false;
+
             // Restaurar aria-hidden y limpiar focus cuando el modal se oculta
-            const modal = document.getElementById('staticBackdrop');
+            const modal = document.getElementById('cupsModal');
             if (modal) {
                 modal.setAttribute('aria-hidden', 'true');
             }
@@ -1087,13 +1090,15 @@ export default {
         },
 
         onModalHide() {
+            this.modalAbierto = false;
+
             // Respaldo cuando hidden.bs.modal no se dispara por cierres abruptos.
             this.programarRescateScroll();
         },
 
         registrarEventosModal() {
             if (!this.modalEl) {
-                const modal = document.getElementById('staticBackdrop');
+                const modal = document.getElementById('cupsModal');
                 if (!modal) return;
                 this.modalEl = modal;
             }
@@ -1117,7 +1122,7 @@ export default {
         quitarEventosModal() {
             // Forzar a Bootstrap a cerrar el modal si está abierto
             try {
-                const modalRef = this.modalEl || document.getElementById('staticBackdrop');
+                const modalRef = this.modalEl || document.getElementById('cupsModal');
                 const bootstrapModal = modalRef ? window.bootstrap?.Modal?.getInstance(modalRef) : null;
                 if (bootstrapModal) {
                     bootstrapModal.hide();
@@ -1148,63 +1153,7 @@ export default {
             this.modalShownHandler = null;
             this.modalHideHandler = null;
             this.modalHiddenHandler = null;
-        },
-
-        // Función de debugging para diagnosticar problemas de datos
-        debugEpsContratos() {
-            console.log('🔍 === DEBUG DE EPS Y CONTRATOS ===');
-
-            if (this.userEncuesta) {
-                console.log('👤 Datos del paciente:', {
-                    eps: this.userEncuesta.eps,
-                    nombre: `${this.userEncuesta.nombre1} ${this.userEncuesta.apellido1}`
-                });
-            }
-
-            if (this.userData) {
-                console.log('👨‍⚕️ Usuario actual:', {
-                    cargo: this.userData.cargo,
-                    nombre: this.userData.nombre
-                });
-            }
-
-            if (this.idItem) {
-                console.log('🎯 Actividad seleccionada:', {
-                    key: this.idItem,
-                    nombre: this.obtenerNombreActividadDelContrato(this.idItem)
-                });
-            }
-
-            if (this.epss) {
-                console.log('📋 EPS disponibles:', this.epss.length);
-            }
-
-            if (this.contratos) {
-                console.log('📄 Contratos disponibles:', this.contratos.length);
-                let cupsEncontrados = 0;
-                this.contratos.forEach((contrato, index) => {
-                    if (contrato.cups) {
-                        const cupsDelContrato = Object.values(contrato.cups);
-                        cupsEncontrados += cupsDelContrato.length;
-                        console.log(`Contrato ${index}:`, {
-                            totalCups: cupsDelContrato.length,
-                            esemploeps: cupsDelContrato[0]?.epsNombre,
-                            ejemmploprofesional: cupsDelContrato[0]?.cupsProfesional,
-                            ejemploActividad: cupsDelContrato[0]?.actividadNombre
-                        });
-                    }
-                });
-                console.log(`📊 Total CUPS en todos los contratos: ${cupsEncontrados}`);
-            }
-
-            if (this.cupsDisponiblesPorContrato) {
-                console.log('✅ CUPS filtrados disponibles:', this.cupsDisponiblesPorContrato.length);
-                console.log('📝 CUPS filtrados:', this.cupsDisponiblesPorContrato.map(cup => ({
-                    codigo: cup.codigo,
-                    nombre: cup.DescripcionCUP,
-                    profesional: cup.profesional
-                })));
-            }
+            this.modalAbierto = false;
         },
 
         edadActual(x) {
@@ -1341,6 +1290,35 @@ export default {
             }
 
             await this.cargarCupsGuardados(this.idItem);
+        },
+
+        async abrirModalCups(item) {
+            try {
+                await this.integrarCup(item);
+
+                this.restablecerEstadoModalScroll(false);
+
+                await this.$nextTick();
+                this.registrarEventosModal();
+
+                const modalRef = this.modalEl || document.getElementById('cupsModal');
+                if (!modalRef || !window.bootstrap?.Modal) return;
+
+                // Si existe una instancia previa con backdrop=true, desecharla para aplicar configuración limpia.
+                const instanciaExistente = window.bootstrap.Modal.getInstance(modalRef);
+                if (instanciaExistente) {
+                    instanciaExistente.dispose();
+                }
+
+                const instancia = new window.bootstrap.Modal(modalRef, {
+                    backdrop: false,
+                    keyboard: true,
+                    focus: true,
+                });
+                instancia.show();
+            } catch (error) {
+                console.error('Error al abrir modal de CUPS:', error);
+            }
         },
         async cargarCupsGuardados(idActividad) {
             try {
@@ -2230,6 +2208,14 @@ body.modal-open {
 
 .modal {
     overflow-y: auto;
+}
+
+#cupsModal.modal {
+    z-index: 2600 !important;
+}
+
+.modal-backdrop.show {
+    z-index: 2500 !important;
 }
 
 select {

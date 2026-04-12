@@ -25,6 +25,12 @@
         <button class="nav-link" :class="{ active: tab === 'admins' }" @click="tab = 'admins'" type="button">
           <i class="bi bi-person-badge me-1"></i> Administradores
         </button>
+        <button class="nav-link" :class="{ active: tab === 'bandejas' }" @click="tab = 'bandejas'" type="button">
+          <i class="bi bi-collection me-1"></i> Bandejas profesionales
+        </button>
+        <button class="nav-link" :class="{ active: tab === 'version' }" @click="tab = 'version'" type="button">
+          <i class="bi bi-code-slash me-1"></i> Version App
+        </button>
       </div>
     </nav>
 
@@ -228,15 +234,75 @@
       </div>
     </div>
 
+    <div v-show="tab === 'bandejas'">
+      <AdminEstadoProfesional />
+    </div>
+
+    <div v-show="tab === 'version'" class="row g-3">
+      <div class="col-12 col-lg-8">
+        <div class="card shadow-sm">
+          <div class="card-header d-flex align-items-center justify-content-between">
+            <strong><i class="bi bi-gear-wide-connected me-1"></i> Configuracion de version visible</strong>
+          </div>
+          <div class="card-body">
+            <p class="text-muted mb-3">
+              Este texto se mostrara en el footer del login para todos los usuarios.
+            </p>
+            <form @submit.prevent="guardarVersionApp">
+              <div class="mb-3">
+                <label class="form-label fw-bold">Texto de version</label>
+                <input
+                  v-model="versionAppInput"
+                  type="text"
+                  class="form-control"
+                  maxlength="80"
+                  placeholder="Ej: Version 2.7 | 12/04/2026"
+                />
+                <small class="text-muted">Maximo 80 caracteres.</small>
+              </div>
+              <div class="d-flex gap-2 flex-wrap">
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-floppy-fill me-1"></i> Guardar version
+                </button>
+                <button type="button" class="btn btn-outline-secondary" @click="restablecerVersionDefault">
+                  <i class="bi bi-arrow-counterclockwise me-1"></i> Restaurar predeterminado
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-header">
+            <strong><i class="bi bi-eye me-1"></i> Vista previa login</strong>
+          </div>
+          <div class="card-body">
+            <div class="p-3 border rounded bg-light small text-center">
+              <span class="fw-bold">ExtramurApp</span>
+              <span class="mx-1 opacity-50">|</span>
+              <span>{{ versionAppPreview }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script>
 import { ipsApi } from "@/api/modulesApi";
 import { createUser, deleteUserById, getAllUsers } from "@/api/usersApi";
+import AdminEstadoProfesional from "@/views/admin_estado_profesional.vue";
+import { getAppVersionText, getDefaultAppVersionText, setAppVersionText } from "@/utils/appVersion";
 
 export default {
   name: "SuperusuarioView",
+  components: {
+    AdminEstadoProfesional,
+  },
   data() {
     return {
       tab: "ips",
@@ -253,7 +319,15 @@ export default {
       creandoAdmin: false,
       adminForm: { ipsId: "", nombre: "", email: "", numDocumento: "" },
       adminCreado: null,
+
+      versionAppInput: "",
     };
+  },
+
+  computed: {
+    versionAppPreview() {
+      return String(this.versionAppInput || "").trim() || getDefaultAppVersionText();
+    },
   },
 
   methods: {
@@ -388,11 +462,24 @@ export default {
         this.notificar("error", "Error al eliminar administrador: " + (e?.response?.data?.message || e.message));
       }
     },
+
+    guardarVersionApp() {
+      const saved = setAppVersionText(this.versionAppInput);
+      this.versionAppInput = saved;
+      this.notificar("ok", "Version de la app actualizada correctamente.");
+    },
+
+    restablecerVersionDefault() {
+      const defaultValue = getDefaultAppVersionText();
+      this.versionAppInput = setAppVersionText(defaultValue);
+      this.notificar("ok", "Version restablecida al valor predeterminado.");
+    },
   },
 
   async mounted() {
     await this.recargarIps();
     await this.recargarAdmins();
+    this.versionAppInput = getAppVersionText();
   },
 };
 </script>

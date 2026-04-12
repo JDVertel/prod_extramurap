@@ -1,12 +1,13 @@
 import { createRouter, createWebHistory } from "vue-router";
-import HomeView from "../views/HomeView.vue";
 
 const routes = [
   /* Soportes */
   {
     path: "/",
-    name: "home",
-    component: () => import("../views/dashboard.vue"),
+    redirect: () => {
+      const token = localStorage.getItem("token");
+      return token ? "/homeviews" : "/login";
+    },
     meta: { hideNavbar: true }
   },
   /* Rutas equipo */

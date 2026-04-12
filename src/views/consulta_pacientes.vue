@@ -173,6 +173,13 @@
                   <i class="bi bi-clipboard-check"></i> Asignaciones (CUPS)
                 </button>
               </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" :id="'tab-profesionales-' + index" data-bs-toggle="tab"
+                  :data-bs-target="'#content-profesionales-' + index" type="button" role="tab"
+                  :aria-controls="'content-profesionales-' + index" aria-selected="false">
+                  <i class="bi bi-person-badge"></i> Profesionales
+                </button>
+              </li>
             </ul>
 
             <!-- CONTENIDO DE PESTAÑAS -->
@@ -268,21 +275,39 @@
 
                 <div
                   v-if="paciente.asignaciones && paciente.asignaciones.cups && Object.keys(paciente.asignaciones.cups).length > 0">
+                  <div class="small text-muted mb-2">
+                    Haz clic en una cabecera para agrupar/ordenar.
+                  </div>
                   <table class="table table-sm table-striped table-bordered">
                     <thead class="table-light">
                       <tr>
-                        <th>Código</th>
-                        <th>Descripción CUPS</th>
-                        <th>Actividad</th>
-                        <th>Profesional</th>
-                        <th>Cantidad</th>
+                        <th role="button" @click="setOrdenAsignaciones('codigo')">
+                          Código {{ indicadorOrdenAsignaciones('codigo') }}
+                        </th>
+                        <th role="button" @click="setOrdenAsignaciones('descripcion')">
+                          Descripción CUPS {{ indicadorOrdenAsignaciones('descripcion') }}
+                        </th>
+                        <th role="button" @click="setOrdenAsignaciones('actividad')">
+                          Actividad {{ indicadorOrdenAsignaciones('actividad') }}
+                        </th>
+                        <th role="button" @click="setOrdenAsignaciones('profesional')">
+                          Profesional {{ indicadorOrdenAsignaciones('profesional') }}
+                        </th>
+                        <th role="button" @click="setOrdenAsignaciones('cantidad')">
+                          Cantidad {{ indicadorOrdenAsignaciones('cantidad') }}
+                        </th>
                         <th>Detalle</th>
-                        <th>Grupo</th>
-                        <th>Convenio</th>
+                        <th role="button" @click="setOrdenAsignaciones('grupo')">
+                          Grupo {{ indicadorOrdenAsignaciones('grupo') }}
+                        </th>
+                        <th role="button" @click="setOrdenAsignaciones('convenio')">
+                          Convenio {{ indicadorOrdenAsignaciones('convenio') }}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="(cup, cupId) in paciente.asignaciones.cups" :key="cupId">
+                      <tr v-for="(cup, idxCup) in obtenerCupsOrdenados(paciente.asignaciones.cups)"
+                        :key="`${paciente.id}-cup-${idxCup}`">
                         <td>{{ cup.codigo || cup.cupsId || '-' }}</td>
                         <td><strong>{{ cup.DescripcionCUP || cup.cupsNombre || 'Sin descripción' }}</strong></td>
                         <td>{{ getNombreActividad(cup.actividadId) }}</td>
@@ -305,6 +330,41 @@
                   <small class="text-muted">ID Encuesta: {{ paciente.id }}</small>
                 </div>
               </div>
+
+              <!-- TAB: PROFESIONALES -->
+              <div :id="'content-profesionales-' + index" class="tab-pane fade" role="tabpanel"
+                :aria-labelledby="'tab-profesionales-' + index">
+                <div v-if="obtenerAsignacionesProfesionales(paciente).length > 0" class="table-responsive">
+                  <table class="table table-sm table-striped table-bordered">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Rol</th>
+                        <th>Documento</th>
+                        <th>Nombre</th>
+                        <th>Estado</th>
+                        <th>Fecha de cierre</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(prof, idxProf) in obtenerAsignacionesProfesionales(paciente)"
+                        :key="`${paciente.id}-prof-${idxProf}`">
+                        <td>{{ prof.rol }}</td>
+                        <td>{{ prof.documento || '-' }}</td>
+                        <td>{{ prof.nombre || '-' }}</td>
+                        <td>
+                          <span class="badge" :class="prof.cerrado ? 'bg-success' : 'bg-warning text-dark'">
+                            {{ prof.cerrado ? 'Cerrado' : 'Pendiente' }}
+                          </span>
+                        </td>
+                        <td>{{ prof.fechaCierre || 'Sin cierre' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else class="alert alert-info">
+                  <i class="bi bi-info-circle"></i> No hay profesionales asignados para esta encuesta.
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -316,6 +376,7 @@
 <script>
 import { mapState, mapActions, mapMutations } from "vuex";
 import realtime_api from "@/api/realtimeApi";
+import { getAllUsers } from "@/api/usersApi";
 
 export default {
   name: "ConsultaPacientes",
@@ -355,6 +416,9 @@ export default {
         { value: "PT", label: "Permiso por protección temporal" },
       ],
       regimenOptions: ["Contributivo", "Subsidiado", "Especial", "PPNA"],
+      usuariosPorDocumento: {},
+      ordenAsignacionesPor: "actividad",
+      ordenAsignacionesDir: "asc",
     };
   },
   computed: {
@@ -422,6 +486,60 @@ export default {
       return actividad?.nombre || actividadKey || 'Actividad sin nombre';
     },
 
+    setOrdenAsignaciones(campo) {
+      if (this.ordenAsignacionesPor === campo) {
+        this.ordenAsignacionesDir = this.ordenAsignacionesDir === "asc" ? "desc" : "asc";
+        return;
+      }
+
+      this.ordenAsignacionesPor = campo;
+      this.ordenAsignacionesDir = "asc";
+    },
+
+    indicadorOrdenAsignaciones(campo) {
+      if (this.ordenAsignacionesPor !== campo) return "↕";
+      return this.ordenAsignacionesDir === "asc" ? "↑" : "↓";
+    },
+
+    obtenerCupsOrdenados(cupsData) {
+      const lista = Array.isArray(cupsData) ? cupsData : Object.values(cupsData || {});
+
+      const valorOrden = (cup) => {
+        switch (this.ordenAsignacionesPor) {
+          case "actividad":
+            return this.getNombreActividad(cup?.actividadId);
+          case "profesional":
+            return this.formatearProfesionalesCup(cup?.nombreProf || cup?.key);
+          case "codigo":
+            return cup?.codigo || cup?.cupsId || "";
+          case "descripcion":
+            return cup?.DescripcionCUP || cup?.cupsNombre || "";
+          case "cantidad":
+            return Number(cup?.cantidad || 1);
+          case "grupo":
+            return cup?.Grupo || "";
+          case "convenio":
+            return cup?.convenio || "";
+          default:
+            return this.getNombreActividad(cup?.actividadId);
+        }
+      };
+
+      return [...lista].sort((a, b) => {
+        const va = valorOrden(a);
+        const vb = valorOrden(b);
+
+        let resultado = 0;
+        if (typeof va === "number" || typeof vb === "number") {
+          resultado = Number(va || 0) - Number(vb || 0);
+        } else {
+          resultado = String(va || "").localeCompare(String(vb || ""), "es", { sensitivity: "base" });
+        }
+
+        return this.ordenAsignacionesDir === "desc" ? -resultado : resultado;
+      });
+    },
+
     formatearClave(clave) {
       return clave
         .replace(/([A-Z])/g, ' $1')
@@ -467,6 +585,145 @@ export default {
       }
 
       return texto;
+    },
+
+    formatearFechaConHora(valorFecha) {
+      if (!valorFecha) return "";
+      const texto = String(valorFecha).trim();
+
+      // Si viene sin zona horaria, mantener la hora literal y solo formatear AM/PM.
+      const matchIsoLocal = texto.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/);
+      if (matchIsoLocal) {
+        const fecha = matchIsoLocal[1];
+        let hNum = Number(matchIsoLocal[2]);
+        const mm = String(matchIsoLocal[3] || "00").padStart(2, "0");
+        const ss = String(matchIsoLocal[4] || "00").padStart(2, "0");
+        const periodo = hNum >= 12 ? "PM" : "AM";
+        hNum = hNum % 12;
+        if (hNum === 0) hNum = 12;
+        const hh = String(hNum).padStart(2, "0");
+        return `${fecha} ${hh}:${mm}:${ss} ${periodo}`;
+      }
+
+      const fecha = new Date(texto);
+      if (!Number.isNaN(fecha.getTime())) {
+        const partes = new Intl.DateTimeFormat("es-CO", {
+          timeZone: "America/Bogota",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        }).formatToParts(fecha);
+
+        const tomar = (tipo) => partes.find((p) => p.type === tipo)?.value || "";
+        const dd = tomar("day");
+        const mm = tomar("month");
+        const yyyy = tomar("year");
+        const hh = tomar("hour");
+        const mi = tomar("minute");
+        const ss = tomar("second");
+        const dayPeriod = String(tomar("dayPeriod") || "").toUpperCase();
+
+        return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss} ${dayPeriod}`.trim();
+      }
+
+      return texto;
+    },
+
+    normalizarDocumento(valor) {
+      return String(valor ?? "").trim();
+    },
+
+    esEstadoCerrado(valor) {
+      if (valor === true || valor === 1) return true;
+      if (typeof valor === "string") {
+        const limpio = valor.trim().toLowerCase();
+        return limpio === "true" || limpio === "1" || limpio === "2" || limpio === "cerrado";
+      }
+      if (typeof valor === "number") return valor >= 1;
+      return false;
+    },
+
+    obtenerNombreProfesional(documento) {
+      const doc = this.normalizarDocumento(documento);
+      if (!doc) return "";
+      const persona = this.usuariosPorDocumento[doc];
+      if (!persona) return doc;
+
+      const nombre = [persona.nombre1, persona.nombre2, persona.apellido1, persona.apellido2]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .join(" ");
+
+      return nombre || persona.nombre || persona.usuario || doc;
+    },
+
+    obtenerAsignacionesProfesionales(paciente) {
+      if (!paciente) return [];
+
+      const roles = [
+        {
+          rol: "Auxiliar",
+          documento: paciente.idEncuestador,
+          estado: paciente.status_gest_aux,
+          fecha: paciente.fechagestAuxiliar,
+        },
+        {
+          rol: "Médico",
+          documento: paciente.idMedicoAtiende,
+          estado: paciente.status_gest_medica,
+          fecha: paciente.fechagestMedica,
+        },
+        {
+          rol: "Enfermero",
+          documento: paciente.idEnfermeroAtiende,
+          estado: paciente.status_gest_enfermera,
+          fecha: paciente.fechagestEnfermera,
+        },
+        {
+          rol: "Psicólogo",
+          documento: paciente.idPsicologoAtiende,
+          estado: paciente.status_gest_psicologo,
+          fecha: paciente.fechagestPsicologo,
+        },
+        {
+          rol: "Trabajador social",
+          documento: paciente.idTsocialAtiende,
+          estado: paciente.status_gest_tsocial,
+          fecha: paciente.fechagestTsocial,
+        },
+        {
+          rol: "Nutricionista",
+          documento: paciente.idNutricionistaAtiende || paciente.idNutriAtiende,
+          estado: paciente.status_gest_nutricionista,
+          fecha: paciente.fechagestNutricionista,
+        },
+        {
+          rol: "Facturación",
+          documento: paciente.asigfact || paciente.asig_fact,
+          estado: paciente.status_facturacion,
+          fecha: paciente.fechaFacturacion || paciente.FechaFacturacion,
+        },
+      ];
+
+      return roles
+        .map((item) => {
+          const documento = this.normalizarDocumento(item.documento);
+          if (!documento) return null;
+
+          const cerrado = this.esEstadoCerrado(item.estado);
+          return {
+            rol: item.rol,
+            documento,
+            nombre: this.obtenerNombreProfesional(documento),
+            cerrado,
+            fechaCierre: cerrado ? (this.formatearFechaConHora(item.fecha) || "") : "",
+          };
+        })
+        .filter(Boolean);
     },
 
     iniciarEdicionEncuesta(paciente) {
@@ -582,8 +839,15 @@ Esta acción NO se puede deshacer.`;
   async mounted() {
     try {
       await this.getAllActividadesExtra();
+
+      const usuarios = await getAllUsers();
+      this.usuariosPorDocumento = (usuarios || []).reduce((acc, item) => {
+        const documento = this.normalizarDocumento(item?.numDocumento || item?.numdoc || item?.documento);
+        if (documento) acc[documento] = item;
+        return acc;
+      }, {});
     } catch (error) {
-      console.error("[ConsultaPacientes] Error al cargar actividades extra:", error);
+      console.error("[ConsultaPacientes] Error al cargar catálogos:", error);
     }
   }
 };

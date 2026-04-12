@@ -665,7 +665,7 @@ export default {
             }
 
             const cargoActual = String(this.userData?.cargo || "").trim().toLowerCase();
-            const esAdmin = cargoActual === "admin" || cargoActual === "administrador";
+            const esAdmin = cargoActual === "admin" || cargoActual === "administrador" || cargoActual === "superusuario";
             if (esAdmin) {
                 return true;
             }

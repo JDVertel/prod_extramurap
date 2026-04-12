@@ -66,9 +66,7 @@ export default {
     data() {
         return {
             logo,
-            token: localStorage.getItem("token"),
             uid: localStorage.getItem("uid"),
-            idips: null,
             cargandoProfesionales: false,
             profesionalesMismoGrupoConvenio: [],
             homeLoadPromise: null,
@@ -115,7 +113,6 @@ export default {
 
         async cargarIpsDelUsuario() {
             const ipsId = String(this.getUserData?.ipsId || "").trim();
-            this.idips = ipsId || null;
 
             if (!ipsId) {
                 this.$store.commit("setdatosips", {});

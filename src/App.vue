@@ -1,18 +1,24 @@
 <script>
 import Navbar from "./components/navbar.vue";
+import AppToastContainer from "./components/AppToastContainer.vue";
 import { mapActions, mapState } from "vuex";
 
 export default {
     components: {
+        AppToastContainer,
         Navbar,
-    },
-    data() {
-        return {
-            isLoggedIn: !!localStorage.getItem("token")
-        };
     },
     computed: {
         ...mapState(["userData"]),
+        themeClass() {
+            const cargo = String(this.userData?.cargo || "").trim().toLowerCase();
+            const convenio = String(this.userData?.convenio || "").trim().toLowerCase();
+
+            if (cargo === "admin" || cargo === "administrador") return "tema-admin-dorado";
+            if (convenio === "e basicos") return "tema-ebasicos";
+            if (convenio === "pic") return "tema-pic";
+            return "";
+        },
         enSesionDelegada() {
             return String(this.$route?.query?.estadoView || "") === "1";
         },
@@ -22,14 +28,6 @@ export default {
     },
     methods: {
         ...mapActions(["getdataips", "fetchUserDataByUid"]),
-        logout() {
-            localStorage.removeItem("token");
-            this.isLoggedIn = false;
-        },
-        login(token) {
-            localStorage.setItem("token", token);
-            this.isLoggedIn = true;
-        },
         syncUserDataFromStorage() {
             // Sincronizar userData desde localStorage si el Store está vacío
             if ((!this.userData || !this.userData.numDocumento)) {
@@ -115,10 +113,11 @@ export default {
 </script>
 
 <template>
-      <div id="app" :class="{ 'is-delegated-session': enSesionDelegada }">
+    <div id="app" :class="[themeClass, { 'is-delegated-session': enSesionDelegada }]">
         <Navbar v-if="!$route.meta.hideNavbar" />
         <router-view :key="$route.path">
         </router-view>
+                <AppToastContainer />
         <div v-if="enSesionDelegada" class="delegated-session-footer">
             <div class="delegated-session-footer-text">
                 Visualizando bandeja delegada
@@ -141,7 +140,7 @@ body {
     margin: 0;
     padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-    background: #fff;
+    background: transparent;
     color: #333;
     line-height: 1.6;
 }
@@ -150,6 +149,7 @@ body {
     width: 100%;
     min-height: 100vh;
     position: relative;
+    z-index: 1;
 }
 
 .delegated-session-footer {

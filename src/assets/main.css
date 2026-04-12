@@ -1,5 +1,56 @@
 @import "./base.css";
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+#app {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+svg,
+video,
+canvas,
+iframe {
+  max-width: 100%;
+  height: auto;
+}
+
+.container,
+.container-fluid,
+.row,
+[class*="col-"] {
+  min-width: 0;
+}
+
+.table-responsive,
+.table-horizontal-scroll,
+.table-scroll-container {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  max-width: 100%;
+}
+
+[style*="width: 100vw"],
+[style*="width:100vw"] {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
 #app {
   margin: 0 auto;
   padding: 8px;
@@ -91,6 +142,21 @@ hr {
   min-width: 900px;
 }
 
+@media (max-width: 768px) {
+  #app {
+    padding: 6px;
+    padding-top: 3.35rem;
+  }
+
+  .table-horizontal-scroll {
+    min-width: 100%;
+  }
+
+  [style*="min-width:"] {
+    min-width: 100% !important;
+  }
+}
+
 /* Contenedor de celda para texto largo */
 .cell-content {
   word-wrap: break-word;
@@ -114,4 +180,24 @@ hr {
 /* Tab content */
 .tab-content-padded {
   padding: 2rem 1rem;
+}
+
+table.table thead th.global-sort-header {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+table.table thead th .global-sort-indicator {
+  margin-left: 6px;
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+table.table thead th.global-sort-active .global-sort-indicator {
+  opacity: 1;
+}
+
+table.table thead th.global-sort-active .global-sort-indicator {
+  font-weight: 700;
 }

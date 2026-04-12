@@ -5,6 +5,34 @@
   --blanco: #ffffff;
   --gris-claro: #ffffff;
   --gris: #e5e7eb;
+  --salud-fondo: #f5fbff;
+  --salud-superficie: rgba(255, 255, 255, 0.86);
+  --salud-linea: rgba(56, 189, 248, 0.12);
+  --salud-linea-fuerte: rgba(14, 165, 233, 0.2);
+  --modal-header-bg: linear-gradient(
+    90deg,
+    #0b4f7d 0%,
+    #0369a1 18%,
+    #0ea5e9 34%,
+    #38bdf8 50%,
+    #0ea5e9 66%,
+    #0369a1 82%,
+    #0b4f7d 100%
+  );
+}
+
+#app .modal-header {
+  background: var(--modal-header-bg) !important;
+  color: #ffffff !important;
+  border-bottom: none !important;
+}
+
+#app .modal-header .modal-title {
+  color: #ffffff !important;
+}
+
+#app .modal-header .btn-close {
+  filter: invert(1) grayscale(100%) brightness(220%);
 }
 
 .center {
@@ -59,7 +87,7 @@ form {
 }
 
 body {
-  background: var(--gris-claro);
+  background: #F4F6FB;
   font-family: "Instrument Sans", sans-serif;
   font-size: 14px;
   line-height: 1.6;
@@ -70,6 +98,18 @@ body {
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  position: relative;
+}
+
+#app::before {
+  content: none;
+}
+
+#app::after {
+  content: none;
 }
 
 /* Encabezados profesionales */

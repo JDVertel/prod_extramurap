@@ -1,5 +1,5 @@
 <template>
-  <div class="app" :class="convenioThemeClass">
+  <div class="app" :class="[convenioThemeClass, { 'tema-admin-dorado': isAdminUser }]">
     <nav class="navbar bg-body-tertiary fixed-top">
       <div class="container-fluid">
         <!-- Botón toggler a la izquierda -->
@@ -9,7 +9,7 @@
         </button>
         <img src="@/assets/images/logo_extramurapp.png" alt="ExtramuApp Logo" class="navbar-logo" />
         <div class="user-info-badge">
-          <h6 v-if="userData && userData.nombre" class="text-start text-capitalize blanco user-info-text">
+          <h6 v-if="userData && userData.nombre" class="text-center text-capitalize blanco user-info-text">
             <span class="user-info-line user-info-line-top">{{ userData.convenio || "" }}/ {{ userData.cargo || "" }}</span>
             <span class="user-info-line user-info-line-bottom">{{ userData.nombre || "" }} </span>
           </h6>
@@ -27,7 +27,6 @@
               <h1 class="offcanvas-profile-name text-capitalize">Menú</h1>
             </div>
 
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
           </div>
 
           <div class="offcanvas-body">
@@ -181,7 +180,7 @@
 
               <li class="nav-item">
                 <router-link class="nav-link" to="/cambiar-password" @click="onNavLinkClick">
-                  <i class="bi bi-key-fill"></i> Cambiar contraseña
+                  <i class="bi bi-key-fill"></i> Cambiar clave
                 </router-link>
               </li>
 
@@ -191,18 +190,6 @@
                 </button>
               </li>
             </ul>
-            <div class="sidebar-version" style="
-                position: absolute;
-                bottom: 5px;
-                left: 0;
-                width: 100%;
-                text-align: center;
-                font-size: 0.65rem;
-                color: #333;
-                opacity: 0.7;
-              ">
-              <p style="margin: 0; padding: 0;">Version 2.6  25/03/2026</p>
-            </div>
           </div>
         </div>
       </div>
@@ -217,10 +204,6 @@ import { mapState, mapActions } from "vuex";
 export default {
   methods: {
     ...mapActions(["userLogout"]),
-    clearLocalStorage() {
-      localStorage.removeItem("token");
-      localStorage.removeItem("uid");
-    },
     async logoutUser() {
       try {
         // Redirigir a logout mientras se ejecuta el logout
@@ -251,7 +234,7 @@ export default {
     },
   },
   computed: {
-    ...mapState(["uid", "userData"]),
+    ...mapState(["userData"]),
     convenioThemeClass() {
       const convenio = String(this.userData?.convenio || "").trim().toLowerCase();
 
@@ -264,7 +247,8 @@ export default {
       return cargo === "admin" || cargo === "administrador";
     },
     canViewEstadoProfesional() {
-      return Boolean(this.userData && this.userData.numDocumento);
+      const cargo = String(this.userData?.cargo || "").trim().toLowerCase();
+      return Boolean(this.userData && (this.userData.numDocumento || cargo === "admin" || cargo === "administrador" || cargo === "superusuario"));
     },
   },
 };
@@ -275,13 +259,13 @@ export default {
 .navbar.bg-body-tertiary {
   background: linear-gradient(
     90deg,
-    #5b21b6 0%,
-    #6d28d9 18%,
-    #8b5cf6 34%,
-    #f3ecff 50%,
-    #8b5cf6 66%,
-    #6d28d9 82%,
-    #5b21b6 100%
+    #0b4f7d 0%,
+    #0369a1 18%,
+    #0ea5e9 34%,
+    #38bdf8 50%,
+    #0ea5e9 66%,
+    #0369a1 82%,
+    #0b4f7d 100%
   ) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   padding: 0.36rem 0 !important;
@@ -293,7 +277,7 @@ export default {
     #0f766e 0%,
     #0d9488 18%,
     #14b8a6 34%,
-    #e6fffa 50%,
+    #5eead4 50%,
     #14b8a6 66%,
     #0d9488 82%,
     #0f766e 100%
@@ -306,10 +290,23 @@ export default {
     #9a3412 0%,
     #c2410c 18%,
     #f97316 34%,
-    #fff7ed 50%,
+    #fdba74 50%,
     #f97316 66%,
     #c2410c 82%,
     #9a3412 100%
+  ) !important;
+}
+
+.tema-admin-dorado .navbar.bg-body-tertiary {
+  background: linear-gradient(
+    90deg,
+    #6f4e00 0%,
+    #8b6508 16%,
+    #b8860b 34%,
+    #d4af37 50%,
+    #b8860b 66%,
+    #8b6508 84%,
+    #6f4e00 100%
   ) !important;
 }
 
@@ -336,14 +333,14 @@ export default {
 .offcanvas {
   background: linear-gradient(
     180deg,
-    #5b21b6 0%,
-    #6d28d9 24%,
-    #8b5cf6 48%,
-    #c4b5fd 72%,
-    #f3ecff 88%,
-    #ffffff 100%
+    #0b4f7d 0%,
+    #0369a1 24%,
+    #0ea5e9 48%,
+    #38bdf8 72%,
+    #0ea5e9 88%,
+    #0284c7 100%
   ) !important;
-  width: 146px !important;
+  width: 124px !important;
 }
 
 .tema-ebasicos .offcanvas {
@@ -352,9 +349,9 @@ export default {
     #0f766e 0%,
     #0d9488 24%,
     #14b8a6 48%,
-    #99f6e4 72%,
-    #e6fffa 88%,
-    #ffffff 100%
+    #5eead4 72%,
+    #2dd4bf 88%,
+    #14b8a6 100%
   ) !important;
 }
 
@@ -364,9 +361,21 @@ export default {
     #9a3412 0%,
     #c2410c 24%,
     #f97316 48%,
-    #fdba74 72%,
-    #ffedd5 88%,
-    #ffffff 100%
+    #fb923c 72%,
+    #f97316 88%,
+    #ea580c 100%
+  ) !important;
+}
+
+.tema-admin-dorado .offcanvas {
+  background: linear-gradient(
+    180deg,
+    #6f4e00 0%,
+    #8b6508 22%,
+    #b8860b 44%,
+    #d4af37 66%,
+    #b8860b 84%,
+    #8b6508 100%
   ) !important;
 }
 
@@ -437,39 +446,59 @@ export default {
 .navbar-nav .nav-item {
   color: #fff !important;
   text-shadow: 1px 1px 4px #000;
-  font-size: 0.8rem;
-  font-weight: 500;
+  font-size: 0.54rem;
+  font-weight: 400;
   letter-spacing: 0.01em;
-  padding: 0.32rem 0.55rem !important;
-  margin: 0.32rem 0 !important;
+  padding: 0.28rem 0.24rem !important;
+  margin: 0.1rem 0 !important;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
+  justify-content: center;
+  gap: 0.06rem;
+  min-height: 56px;
+  text-align: center;
+  width: 100%;
   line-height: 1.1;
   overflow: hidden;
-  white-space: nowrap;
+  white-space: normal;
   text-overflow: ellipsis;
+  transition: all 0.18s ease;
+}
+
+.offcanvas-body .navbar-nav .nav-link,
+.offcanvas-body .navbar-nav .logout-btn {
+  text-align: center !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.offcanvas-body .navbar-nav > .nav-item {
+  margin: 0 !important;
+}
+
+.offcanvas-body .navbar-nav > .nav-item + .nav-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  padding-top: 0.2rem;
 }
 
 .navbar-nav .nav-link.router-link-exact-active {
-  color: #ffc107 !important;
+  color: #e0f2fe !important;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 5px;
   transition: all 0.2s ease;
 }
 
-.navbar-nav i {
-  font-size: 0.9rem;
-  margin-right: 0.2em;
-  vertical-align: middle;
-  flex-shrink: 0;
+.tema-admin-dorado .navbar-nav .nav-link.router-link-exact-active {
+  color: #fff7db !important;
+  background: rgba(255, 243, 205, 0.2);
 }
 
-.sidebar-version {
-  color: #bbb !important;
-  font-size: 0.65rem !important;
-  padding: 0 !important;
-  margin: 0 !important;
+.navbar-nav i {
+  font-size: 1.35rem;
+  margin-right: 0;
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 .logout-btn {
@@ -477,25 +506,40 @@ export default {
   border: none;
   color: #fff !important;
   text-shadow: 1px 1px 4px #000;
-  font-size: 0.8rem;
-  font-weight: 500;
-  padding: 0.32rem 0.55rem !important;
-  margin: 0.32rem 0 !important;
+  font-size: 0.54rem;
+  font-weight: 400;
+  padding: 0.28rem 0.24rem !important;
+  margin: 0.1rem 0 !important;
   cursor: pointer;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
-  transition: color 0.2s ease;
+  justify-content: center;
+  gap: 0.06rem;
+  min-height: 56px;
+  transition: all 0.18s ease;
   width: 100%;
-  text-align: left;
+  text-align: center;
+  justify-self: stretch;
   line-height: 1.1;
   overflow: hidden;
-  white-space: nowrap;
+  white-space: normal;
   text-overflow: ellipsis;
 }
 
+.navbar-nav .nav-link:hover,
 .logout-btn:hover {
-  color: #ff6b6b !important;
+  color: #ffffff !important;
+  background: rgba(14, 165, 233, 0.26);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(186, 230, 253, 0.5);
+  transform: translateY(-1px);
+}
+
+.tema-admin-dorado .navbar-nav .nav-link:hover,
+.tema-admin-dorado .logout-btn:hover {
+  background: rgba(255, 215, 128, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(255, 234, 173, 0.58);
 }
 
 .blanco {
@@ -549,7 +593,7 @@ export default {
   }
 
   .offcanvas {
-    width: 136px !important;
+    width: 89px !important;
   }
 
   .offcanvas-body {
@@ -566,12 +610,14 @@ export default {
 
   .offcanvas-body .navbar-nav .nav-item {
     margin: 0 !important;
+    border-top: none;
+    padding-top: 0;
   }
 
   .navbar-nav .nav-link,
   .logout-btn {
-    min-height: 70px;
-    padding: 0.35rem 0.2rem !important;
+    min-height: 49px;
+    padding: 0.24rem 0.14rem !important;
     margin: 0 !important;
     border: 1px solid rgba(255, 255, 255, 0.22);
     border-radius: 10px;
@@ -582,23 +628,27 @@ export default {
     justify-content: center;
     gap: 0.08rem;
     text-align: center;
-    font-size: 0.54rem;
-    font-weight: 400;
-    line-height: 1.1;
+    font-size: 0.135rem;
+    font-weight: 300;
+    text-shadow: none;
+    line-height: 1.02;
     white-space: normal;
     overflow: hidden;
     text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
   }
 
   .navbar-nav .nav-link i,
   .logout-btn i {
-    font-size: 1.9rem;
+    font-size: 1.33rem;
     margin-right: 0;
   }
 
   .navbar-nav .nav-link.router-link-exact-active {
-    background: rgba(255, 193, 7, 0.18);
-    border-color: rgba(255, 193, 7, 0.45);
+    background: rgba(14, 165, 233, 0.2);
+    border-color: rgba(125, 211, 252, 0.5);
   }
 
   .navbar-logo {
@@ -649,7 +699,7 @@ export default {
   }
 
   .offcanvas {
-    width: 126px !important;
+    width: 84px !important;
   }
 
   .offcanvas-body .navbar-nav {
@@ -658,15 +708,17 @@ export default {
 
   .navbar-nav .nav-link,
   .logout-btn {
-    min-height: 66px;
-    font-size: 0.5rem;
-    font-weight: 400;
-    padding: 0.28rem 0.14rem !important;
+    min-height: 43px;
+    font-size: 0.126rem;
+    font-weight: 300;
+    padding: 0.2rem 0.1rem !important;
+    line-height: 1;
+    text-shadow: none;
   }
 
   .navbar-nav .nav-link i,
   .logout-btn i {
-    font-size: 1.75rem;
+    font-size: 1.23rem;
   }
 
   .navbar-logo {

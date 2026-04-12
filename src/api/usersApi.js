@@ -1,3 +1,8 @@
+// Carga masiva de usuarios
+export async function bulkCreateUsers(usersArray) {
+  const { data } = await http.post("/users/bulk", { users: usersArray });
+  return data;
+}
 import http from "./http";
 
 export async function emailExists(email) {

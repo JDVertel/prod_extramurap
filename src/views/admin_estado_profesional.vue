@@ -7,7 +7,23 @@
 
     <div class="card shadow-sm">
       <div class="card-body">
-        <div class="row g-3 align-items-end">
+        <div v-if="isSuperUser" class="row g-3 align-items-end mb-3">
+          <div class="col-12 col-lg-6">
+            <label for="ipsSeleccionada" class="form-label">Selecciona la IPS</label>
+            <select id="ipsSeleccionada" v-model="ipsSeleccionada" class="form-select">
+              <option value="">Selecciona una IPS antes de filtrar</option>
+              <option v-for="ips in ipsDisponibles" :key="ips.id" :value="ips.id">
+                {{ ips.nombre || ips.id }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div v-if="isSuperUser && !ipsSeleccionada" class="alert alert-info mb-3">
+          Selecciona una IPS para habilitar los filtros y ver las bandejas de sus profesionales.
+        </div>
+
+        <div v-if="!isSuperUser || ipsSeleccionada" class="row g-3 align-items-end">
           <div class="col-12 col-lg-4">
             <label for="filtroNombre" class="form-label">Buscar profesional</label>
             <input
@@ -38,10 +54,9 @@
               </option>
             </select>
           </div>
-
         </div>
 
-        <div class="d-flex gap-2 mt-3">
+        <div v-if="!isSuperUser || ipsSeleccionada" class="d-flex gap-2 mt-3">
           <button class="btn btn-outline-secondary btn-sm" @click="cargarProfesionales">
             Recargar
           </button>
@@ -50,24 +65,27 @@
           </button>
         </div>
 
-        <div class="mt-3 text-muted small">
-          Mostrando {{ profesionalesFiltrados.length }} de {{ profesionales.length }} profesionales.
+        <div v-if="!isSuperUser || ipsSeleccionada" class="mt-3 text-muted small">
+          Mostrando {{ profesionalesFiltrados.length }} de {{ profesionalesBase.length }} profesionales.
         </div>
 
         <div v-if="cargando" class="mt-3 text-muted">Cargando profesionales...</div>
         <div v-if="error" class="alert alert-danger mt-3 mb-0">{{ error }}</div>
 
-        <div v-if="!cargando && profesionalesFiltrados.length === 0 && profesionales.length > 0" class="mt-3 text-muted small">
+        <div
+          v-if="(!isSuperUser || ipsSeleccionada) && !cargando && profesionalesFiltrados.length === 0 && profesionalesBase.length > 0"
+          class="mt-3 text-muted small"
+        >
           No hay profesionales que coincidan con los filtros aplicados.
         </div>
         <div
-          v-if="!cargando && profesionales.length === 0 && !isAdminUser"
+          v-if="(!isSuperUser || ipsSeleccionada) && !cargando && profesionalesBase.length === 0 && !isAdminUser"
           class="alert alert-warning mt-3 mb-0"
         >
           No hay profesionales delegados visibles para tu convenio o aún no tienes asignaciones activas.
         </div>
 
-        <ul v-if="!cargando && profesionalesFiltrados.length > 0" class="list-group mt-3">
+        <ul v-if="(!isSuperUser || ipsSeleccionada) && !cargando && profesionalesFiltrados.length > 0" class="list-group mt-3">
           <li
             v-for="profesional in profesionalesFiltrados"
             :key="profesional.id"
@@ -93,6 +111,7 @@
 
 <script>
 import { getDelegatedProfessionals } from "@/api/usersApi";
+import { ipsApi } from "@/api/modulesApi";
 import { mapState } from "vuex";
 
 const CARGO_CANONICO_POR_NORMALIZADO = {
@@ -139,10 +158,12 @@ export default {
     return {
       cargando: false,
       error: "",
+      ipsDisponibles: [],
+      ipsSeleccionada: "",
       filtroNombre: "",
       filtroConvenio: "",
       filtroCargo: "",
-        profesionales: [],
+      profesionales: [],
     };
   },
   computed: {
@@ -150,6 +171,10 @@ export default {
     isAdminUser() {
       const cargo = String(this.userData?.cargo || "").trim().toLowerCase();
       return cargo === "admin" || cargo === "administrador";
+    },
+    isSuperUser() {
+      const cargo = String(this.userData?.cargo || "").trim().toLowerCase();
+      return cargo === "superusuario";
     },
     accesosPermitidosSet() {
       const accesos = Array.isArray(this.userData?.accesosProfesionales)
@@ -160,9 +185,21 @@ export default {
     convenioUsuarioLogueado() {
       return String(this.userData?.convenio || "").trim().toLowerCase();
     },
+    profesionalesBase() {
+      if (!this.isSuperUser) {
+        return this.profesionales || [];
+      }
+
+      const ipsSeleccionada = String(this.ipsSeleccionada || "").trim();
+      if (!ipsSeleccionada) {
+        return [];
+      }
+
+      return (this.profesionales || []).filter((item) => String(item?.ipsId || "").trim() === ipsSeleccionada);
+    },
     conveniosDisponibles() {
       const unicos = new Set(
-        (this.profesionales || [])
+        (this.profesionalesBase || [])
           .map((item) => String(item?.convenio || "").trim())
           .filter(Boolean)
       );
@@ -171,7 +208,7 @@ export default {
     },
     cargosDisponibles() {
       const unicos = new Set(
-        (this.profesionales || [])
+        (this.profesionalesBase || [])
           .map((item) => String(item?.cargo || "").trim())
           .filter(Boolean)
       );
@@ -183,7 +220,7 @@ export default {
       const cargoFiltro = String(this.filtroCargo || "").trim();
       const convenioFiltro = String(this.filtroConvenio || "").trim();
 
-      return (this.profesionales || []).filter((item) => {
+      return (this.profesionalesBase || []).filter((item) => {
         const nombre = String(item?.nombre || "").toLowerCase();
         const documento = String(item?.numDocumento || "").toLowerCase();
         const cargo = String(item?.cargo || "").trim();
@@ -202,6 +239,22 @@ export default {
       this.filtroNombre = "";
       this.filtroConvenio = "";
       this.filtroCargo = "";
+    },
+    async cargarIps() {
+      if (!this.isSuperUser) {
+        this.ipsDisponibles = [];
+        return;
+      }
+
+      try {
+        const ips = await ipsApi.list();
+        this.ipsDisponibles = Array.isArray(ips)
+          ? ips.sort((a, b) => String(a?.nombre || a?.id || "").localeCompare(String(b?.nombre || b?.id || "")))
+          : [];
+      } catch (err) {
+        this.error = "No fue posible cargar la lista de IPS.";
+        console.error("Error cargando IPS para superusuario:", err);
+      }
     },
     async cargarProfesionales() {
       this.cargando = true;
@@ -250,8 +303,9 @@ export default {
     },
   },
 
-  mounted() {
-    this.cargarProfesionales();
+  async mounted() {
+    await this.cargarIps();
+    await this.cargarProfesionales();
   },
 };
 </script>

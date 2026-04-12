@@ -292,7 +292,7 @@ export default {
             if (!docSeleccionado) return false;
 
             const cargoActual = String(this.userData?.cargo || "").trim().toLowerCase();
-            const esAdmin = cargoActual === "admin" || cargoActual === "administrador";
+            const esAdmin = cargoActual === "admin" || cargoActual === "administrador" || cargoActual === "superusuario";
             if (esAdmin) return true;
 
             const accesos = Array.isArray(this.userData?.accesosProfesionales)
