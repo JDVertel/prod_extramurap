@@ -6,19 +6,19 @@
       <div class="nav nav-tabs" id="nav-tab" role="tablist">
         <button class="nav-link active" id="nav-home-tab" data-bs-toggle="tab" data-bs-target="#nav-home" type="button"
           role="tab" aria-controls="nav-home" aria-selected="true">
-          COMUNAS Y BARRIOS
+          COMUNAS Y BARRIOS <span class="badge bg-secondary ms-1">{{ comunasBarrios.length }}</span>
         </button>
         <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-profile" type="button"
           role="tab" aria-controls="nav-profile" aria-selected="false">
-          EPS
+          EPS <span class="badge bg-secondary ms-1">{{ epss.length }}</span>
         </button>
         <button class="nav-link" id="nav-contact-tab" data-bs-toggle="tab" data-bs-target="#nav-contact" type="button"
           role="tab" aria-controls="nav-contact" aria-selected="false">
-          CUPS
+          CUPS <span class="badge bg-secondary ms-1">{{ cups.length }}</span>
         </button>
         <button class="nav-link" id="nav-actividades-tab" data-bs-toggle="tab" data-bs-target="#nav-actividades"
           type="button" role="tab" aria-controls="nav-actividades" aria-selected="false">
-          ACTIVIDADES
+          ACTIVIDADES <span class="badge bg-secondary ms-1">{{ actividadesExtra.length }}</span>
         </button>
         <button class="nav-link" id="nav-contratos-tab" data-bs-toggle="tab" data-bs-target="#nav-contratos"
           type="button" role="tab" aria-controls="nav-contratos" aria-selected="false">
@@ -90,6 +90,7 @@
                 </tr>
               </tbody>
             </table>
+            <small class="text-muted">Total: <strong>{{ comunasBarrios.length }}</strong> registros</small>
           </div>
         </div>
       </div>
@@ -157,6 +158,7 @@
                         </tr>
                       </tbody>
                     </table>
+                    <small class="text-muted">Total: <strong>{{ epss.length }}</strong> EPS registradas</small>
                   </div>
                 </div>
               </div>
@@ -282,6 +284,7 @@
               </tr>
             </tbody>
           </table>
+          <small class="text-muted ms-1">Total: <strong>{{ cups.length }}</strong> CUPS registrados</small>
         </div>
       </div>
 
@@ -362,6 +365,7 @@
                 </tr>
               </tbody>
             </table>
+            <small class="text-muted">Total: <strong>{{ actividadesExtra.length }}</strong> actividades registradas</small>
           </div>
         </div>
       </div>
