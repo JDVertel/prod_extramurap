@@ -465,10 +465,10 @@
                         <select class="form-select form-select-sm" aria-label="Seleccione varios CUPS" v-model="Scups"
                           :key="`cups-${Seps}-${Sactividad}-${modoEdicionContratoExistente ? 'edit' : 'new'}`"
                           multiple style="height: 280px;" :disabled="!Sactividad">
-                          <optgroup v-for="grupo in cupsDisponiblesAgrupados" :key="`cups-grupo-${grupo.grupo}`"
-                            :label="`${grupo.grupo} (${grupo.items.length})`">
+                          <optgroup v-for="grupo in cupsDisponiblesAgrupados" :key="`cups-grupo-${grupo.clave}`"
+                            :label="`${grupo.profesional} — ${grupo.grupo} (${grupo.items.length})`">
                             <option :value="cup.id" v-for="cup in grupo.items" :key="cup.id">
-                              [{{ cup.Grupo }}] {{ cup.DescripcionCUP }}
+                              {{ cup.DescripcionCUP }}
                             </option>
                           </optgroup>
                         </select>
@@ -857,18 +857,22 @@ export default {
       const grouped = {};
 
       (this.cupsDisponiblesFiltrados || []).forEach((cup) => {
+        const profesional = this.formatProfesionales(cup?.profesional, this.sinEspecificar) || this.sinEspecificar;
         const grupoNombre = String(cup?.Grupo || this.sinEspecificar).trim() || this.sinEspecificar;
-        if (!grouped[grupoNombre]) {
-          grouped[grupoNombre] = [];
+        const clave = `${profesional}|${grupoNombre}`;
+        if (!grouped[clave]) {
+          grouped[clave] = { profesional, grupo: grupoNombre, items: [] };
         }
-        grouped[grupoNombre].push(cup);
+        grouped[clave].items.push(cup);
       });
 
       return Object.keys(grouped)
         .sort((a, b) => a.localeCompare(b))
-        .map((grupo) => ({
-          grupo,
-          items: grouped[grupo].slice().sort((a, b) =>
+        .map((clave) => ({
+          clave,
+          profesional: grouped[clave].profesional,
+          grupo: grouped[clave].grupo,
+          items: grouped[clave].items.slice().sort((a, b) =>
             String(a?.DescripcionCUP || "").localeCompare(String(b?.DescripcionCUP || ""))
           ),
         }));
