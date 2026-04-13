@@ -22,10 +22,35 @@
         </button>
         <button class="nav-link" id="nav-contratos-tab" data-bs-toggle="tab" data-bs-target="#nav-contratos"
           type="button" role="tab" aria-controls="nav-contratos" aria-selected="false">
-          CONTRATOS
+          CONTRATOS <span class="badge bg-secondary ms-1">{{ contratos.length }}</span>
         </button>
       </div>
     </nav>
+    <div v-if="csvImport.visible" class="alert mt-3 mb-2" :class="csvImport.inProgress ? 'alert-info' : 'alert-success'">
+      <div class="d-flex align-items-center gap-2">
+        <span v-if="csvImport.inProgress" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        <strong>{{ csvImport.modulo }}</strong>
+        <span>{{ csvImport.mensaje }}</span>
+      </div>
+      <div class="progress mt-2" style="height: 18px;">
+        <div
+          class="progress-bar progress-bar-striped"
+          :class="{ 'progress-bar-animated': csvImport.inProgress }"
+          role="progressbar"
+          :style="{ width: `${csvImport.porcentaje}%` }"
+          :aria-valuenow="csvImport.porcentaje"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          {{ csvImport.porcentaje }}%
+        </div>
+      </div>
+      <small class="d-block mt-1">
+        Procesados: {{ csvImport.procesados }}/{{ csvImport.total }}
+        | Exitosos: {{ csvImport.exitosos }}
+        | Errores: {{ csvImport.errores }}
+      </small>
+    </div>
     <div class="tab-content" id="nav-tabContent">
       <!-- ========== TAB: COMUNAS Y BARRIOS ========== -->
       <div class="tab-pane fade show active" id="nav-home" role="tabpanel" aria-labelledby="nav-home-tab" tabindex="0">
@@ -55,7 +80,7 @@
           </div>
           <div class="mt-2">
             <input type="file" ref="csvComunas" accept=".csv" style="display:none" @change="importarCsvComunas">
-            <button type="button" class="btn btn-sm btn-outline-secondary" @click="$refs.csvComunas.click()">
+            <button type="button" class="btn btn-sm btn-outline-secondary" :disabled="csvImport.inProgress" @click="$refs.csvComunas.click()">
               <i class="bi bi-upload"></i> Importar CSV
             </button>
             <small class="text-muted ms-2">Columnas requeridas: <code>comuna, barrio</code></small>
@@ -126,7 +151,7 @@
                         Cancelar
                       </button>
                       <input type="file" ref="csvEps" accept=".csv" style="display:none" @change="importarCsvEps">
-                      <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @click="$refs.csvEps.click()">
+                      <button type="button" class="btn btn-sm btn-outline-secondary ms-2" :disabled="csvImport.inProgress" @click="$refs.csvEps.click()">
                         <i class="bi bi-upload"></i> Importar CSV
                       </button>
                       <small class="text-muted ms-2">Columna requerida: <code>eps</code></small>
@@ -181,7 +206,7 @@
             + Nuevo CUPS
           </button>
           <input type="file" ref="csvCups" accept=".csv" style="display:none" @change="importarCsvCups">
-          <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @click="$refs.csvCups.click()">
+          <button type="button" class="btn btn-sm btn-outline-secondary ms-2" :disabled="csvImport.inProgress" @click="$refs.csvCups.click()">
             <i class="bi bi-upload"></i> Importar CSV
           </button>
           <small class="text-muted ms-2">Columnas: <code>descripcionCups, codigo, grupo, profesional</code> &nbsp;(profesional múltiple: <code>Medico|Enfermero</code>)</small>
@@ -328,7 +353,7 @@
               Cancelar
             </button>
             <input type="file" ref="csvActividades" accept=".csv" style="display:none" @change="importarCsvActividades">
-            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" @click="$refs.csvActividades.click()">
+            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" :disabled="csvImport.inProgress" @click="$refs.csvActividades.click()">
               <i class="bi bi-upload"></i> Importar CSV
             </button>
             <small class="text-muted ms-2">Columnas: <code>clave, nombre, profesionales</code> &nbsp;| Profesionales múltiples con <code>|</code> (Ej: <code>Auxiliar de enfermeria|Enfermero</code>) | Valores permitidos: Auxiliar de enfermeria, Enfermero, Medico, Psicologo, Tsocial, Nutricionista.</small>
@@ -430,18 +455,25 @@
                       </div>
                       <div class="col-12 col-md-12">
                         <label class="form-label fw-bold">CUPS Habilitados</label>
+                        <input
+                          type="text"
+                          class="form-control form-control-sm mb-2"
+                          v-model.trim="SbusquedaCup"
+                          :disabled="!Sactividad"
+                          placeholder="Buscar CUPS por codigo, nombre o grupo"
+                        />
                         <select class="form-select form-select-sm" aria-label="Seleccione varios CUPS" v-model="Scups"
                           :key="`cups-${Seps}-${Sactividad}-${modoEdicionContratoExistente ? 'edit' : 'new'}`"
                           multiple style="height: 280px;" :disabled="!Sactividad">
-                          <optgroup v-for="grupo in cupsDisponiblesAgrupados" :key="`cups-prof-${grupo.profesional}`"
-                            :label="`${grupo.profesional} (${grupo.items.length})`">
+                          <optgroup v-for="grupo in cupsDisponiblesAgrupados" :key="`cups-grupo-${grupo.grupo}`"
+                            :label="`${grupo.grupo} (${grupo.items.length})`">
                             <option :value="cup.id" v-for="cup in grupo.items" :key="cup.id">
                               [{{ cup.Grupo }}] {{ cup.DescripcionCUP }}
                             </option>
                           </optgroup>
                         </select>
-                        <small v-if="!Sactividad" class="text-muted d-block mt-1">Seleccione primero una actividad para filtrar CUPS por profesional.</small>
-                        <small v-else-if="cupsDisponiblesFiltrados.length === 0" class="text-danger d-block mt-1">No hay CUPS compatibles con los profesionales de la actividad seleccionada.</small>
+                        <small v-if="!Sactividad" class="text-muted d-block mt-1">Seleccione primero una actividad.</small>
+                        <small v-else-if="cupsDisponiblesFiltrados.length === 0" class="text-danger d-block mt-1">No hay CUPS disponibles para asignar.</small>
                         <small v-else class="text-muted d-block mt-1">CTRL+Click para múltiples</small>
                       </div>
                     </div>
@@ -664,10 +696,22 @@ export default {
       Scargo: "",
       Scups: [], // Array para selección múltiple de CUPS
       Sactividad: "", // Nueva variable para actividad seleccionada
+      SbusquedaCup: "",
       contratosTemp: [], // Array temporal para CUPS antes de guardar
       modoEdicionContratoExistente: false,
       contratoEdicionId: null,
       sinEspecificar: "Sin especificar",
+      csvImport: {
+        visible: false,
+        inProgress: false,
+        modulo: "",
+        mensaje: "",
+        total: 0,
+        procesados: 0,
+        exitosos: 0,
+        errores: 0,
+        porcentaje: 0,
+      },
     };
   },
   computed: {
@@ -794,14 +838,18 @@ export default {
         return [];
       }
 
-      const profesionalesActividad = this.profesionalesActividadSeleccionada;
-      if (profesionalesActividad.length === 0) {
-        return [];
+      // En contratos no se restringe por grupo ni por profesional: se muestran todos los CUPS.
+      const cups = this.cupsDisponibles || [];
+      const termino = String(this.SbusquedaCup || "").toLowerCase().trim();
+      if (!termino) {
+        return cups;
       }
 
-      return (this.cupsDisponibles || []).filter((cup) => {
-        const profesionalesCup = this.normalizarProfesionales(cup?.profesional);
-        return profesionalesCup.some((prof) => profesionalesActividad.includes(prof));
+      return cups.filter((cup) => {
+        const codigo = String(cup?.codigo || "").toLowerCase();
+        const nombre = String(cup?.DescripcionCUP || "").toLowerCase();
+        const grupo = String(cup?.Grupo || "").toLowerCase();
+        return codigo.includes(termino) || nombre.includes(termino) || grupo.includes(termino);
       });
     },
 
@@ -809,18 +857,18 @@ export default {
       const grouped = {};
 
       (this.cupsDisponiblesFiltrados || []).forEach((cup) => {
-        const profesional = this.formatProfesionales(cup?.profesional, this.sinEspecificar);
-        if (!grouped[profesional]) {
-          grouped[profesional] = [];
+        const grupoNombre = String(cup?.Grupo || this.sinEspecificar).trim() || this.sinEspecificar;
+        if (!grouped[grupoNombre]) {
+          grouped[grupoNombre] = [];
         }
-        grouped[profesional].push(cup);
+        grouped[grupoNombre].push(cup);
       });
 
       return Object.keys(grouped)
         .sort((a, b) => a.localeCompare(b))
-        .map((profesional) => ({
-          profesional,
-          items: grouped[profesional].slice().sort((a, b) =>
+        .map((grupo) => ({
+          grupo,
+          items: grouped[grupo].slice().sort((a, b) =>
             String(a?.DescripcionCUP || "").localeCompare(String(b?.DescripcionCUP || ""))
           ),
         }));
@@ -1271,6 +1319,7 @@ export default {
       this.Seps = "";
       this.Scups = [];
       this.Sactividad = "";
+      this.SbusquedaCup = "";
       this.contratosTemp = [];
       this.modoEdicionContratoExistente = false;
       this.contratoEdicionId = null;
@@ -1343,7 +1392,10 @@ export default {
 
         // Verificar si ya existe en temporales PARA ESTA EPS específicamente
         const existeEnTemp = this.contratosTemp.some(
-          contrato => contrato.epsNombre === epsSeleccionada.eps && contrato.cupsId === cupsId
+          (contrato) =>
+            String(contrato.epsId) === String(this.Seps) &&
+            String(contrato.cupsId) === String(cupsId) &&
+            String(contrato.actividadId || "") === String(this.Sactividad || "")
         );
 
         if (existeEnTemp) {
@@ -1384,7 +1436,10 @@ export default {
       if (confirm("\u00bfDesea eliminar este CUPS del contrato temporal?")) {
         // Buscar en temporales para esta EPS específicamente usando nombres
         const indexTemp = this.contratosTemp.findIndex(
-          c => c.epsNombre === contrato.epsNombre && c.cupsNombre === contrato.cupsNombre
+          (c) =>
+            String(c.epsId) === String(contrato.epsId) &&
+            String(c.cupsId) === String(contrato.cupsId) &&
+            String(c.actividadId || "") === String(contrato.actividadId || "")
         );
 
         if (indexTemp !== -1) {
@@ -1418,15 +1473,19 @@ export default {
           }
 
           const cupsActuales = Array.isArray(contratoActual.cups) ? [...contratoActual.cups] : [];
-          const existentes = new Set(cupsActuales.map((item) => String(item.cupsId)));
+          const existentes = new Set(
+            cupsActuales.map(
+              (item) => `${String(item.cupsId)}::${String(item.actividadId || "")}`
+            )
+          );
           const nuevos = this.contratosTemp.filter((item) => String(item.epsId) === String(this.Seps));
 
           let agregados = 0;
           let duplicados = 0;
 
           nuevos.forEach((item) => {
-            const cupId = String(item.cupsId);
-            if (existentes.has(cupId)) {
+            const key = `${String(item.cupsId)}::${String(item.actividadId || "")}`;
+            if (existentes.has(key)) {
               duplicados++;
               return;
             }
@@ -1441,7 +1500,7 @@ export default {
               cupsProfesional: item.cupsProfesional,
               cupsGrupo: item.cupsGrupo,
             });
-            existentes.add(cupId);
+            existentes.add(key);
             agregados++;
           });
 
@@ -1706,6 +1765,45 @@ export default {
       return filas;
     },
 
+    iniciarProgresoCsv(modulo, total) {
+      this.csvImport = {
+        visible: true,
+        inProgress: true,
+        modulo,
+        mensaje: "Iniciando importacion...",
+        total,
+        procesados: 0,
+        exitosos: 0,
+        errores: 0,
+        porcentaje: 0,
+      };
+    },
+
+    actualizarProgresoCsv({ procesados, exitosos, errores, mensaje = "Procesando..." }) {
+      const total = Number(this.csvImport.total || 0);
+      const porcentaje = total > 0
+        ? Math.min(100, Math.round((Number(procesados || 0) / total) * 100))
+        : 0;
+      this.csvImport = {
+        ...this.csvImport,
+        procesados,
+        exitosos,
+        errores,
+        porcentaje,
+        mensaje,
+      };
+    },
+
+    finalizarProgresoCsv(mensajeFinal = "Importacion finalizada") {
+      this.csvImport = {
+        ...this.csvImport,
+        inProgress: false,
+        procesados: this.csvImport.total,
+        porcentaje: 100,
+        mensaje: mensajeFinal,
+      };
+    },
+
     async importarCsvComunas(event) {
       const archivo = event.target.files[0];
       if (!archivo) return;
@@ -1722,13 +1820,25 @@ export default {
         ? `Se importarán ${validas.length} registros (${omitidas} omitidos por datos incompletos). ¿Continuar?`
         : `Se importarán ${validas.length} registros de Comunas/Barrios. ¿Continuar?`;
       if (!confirm(msg)) { event.target.value = ""; return; }
+
+      this.iniciarProgresoCsv("Importando CSV de Comunas/Barrios", validas.length);
       let errores = 0;
-      for (const fila of validas) {
+      let exitosos = 0;
+      for (let i = 0; i < validas.length; i++) {
+        const fila = validas[i];
         try {
           await this.crearComunaBarrio({ comuna: fila.comuna, barrio: fila.barrio, bd: "comunasybarrios" });
+          exitosos++;
         } catch (e) { errores++; }
+        this.actualizarProgresoCsv({
+          procesados: i + 1,
+          exitosos,
+          errores,
+          mensaje: `Procesando registro ${i + 1} de ${validas.length}`,
+        });
       }
       await this.getAllComunaBarrios();
+      this.finalizarProgresoCsv("Importacion de Comunas/Barrios finalizada");
       event.target.value = "";
       alert(`Importación completada: ${validas.length - errores} registros importados${errores > 0 ? `, ${errores} con error` : ""}.`);
     },
@@ -1747,11 +1857,16 @@ export default {
       if (!confirm(`Se importarán ${validas.length} registros de EPS. ¿Continuar?`)) {
         event.target.value = ""; return;
       }
+
+      this.iniciarProgresoCsv("Importando CSV de EPS", validas.length);
       let errores = 0;
+      let exitosos = 0;
       let primerError = "";
-      for (const fila of validas) {
+      for (let i = 0; i < validas.length; i++) {
+        const fila = validas[i];
         try {
           await this.crearEps({ eps: fila.eps.trim(), bd: "eps" });
+          exitosos++;
         } catch (e) {
           errores++;
           if (!primerError) {
@@ -1762,8 +1877,15 @@ export default {
               "Error desconocido";
           }
         }
+        this.actualizarProgresoCsv({
+          procesados: i + 1,
+          exitosos,
+          errores,
+          mensaje: `Procesando registro ${i + 1} de ${validas.length}`,
+        });
       }
       await this.getAllEps();
+      this.finalizarProgresoCsv("Importacion de EPS finalizada");
       event.target.value = "";
       const resumen = `Importación completada: ${validas.length - errores} EPS importadas${errores > 0 ? `, ${errores} con error` : ""}.`;
       alert(errores > 0 ? `${resumen}\nPrimer error: ${primerError}` : resumen);
@@ -1785,11 +1907,24 @@ export default {
         ? `Se importarán ${validas.length} CUPS (${omitidas} omitidos por datos incompletos). ¿Continuar?`
         : `Se importarán ${validas.length} CUPS. ¿Continuar?`;
       if (!confirm(msg)) { event.target.value = ""; return; }
+
+      this.iniciarProgresoCsv("Importando CSV de CUPS", validas.length);
       let errores = 0;
-      for (const fila of validas) {
+      let exitosos = 0;
+      for (let i = 0; i < validas.length; i++) {
+        const fila = validas[i];
         try {
           const profesionales = this.normalizarProfesionales(fila.profesional.split("|").map((p) => p.trim()));
-          if (profesionales.length === 0) { errores++; continue; }
+          if (profesionales.length === 0) {
+            errores++;
+            this.actualizarProgresoCsv({
+              procesados: i + 1,
+              exitosos,
+              errores,
+              mensaje: `Procesando registro ${i + 1} de ${validas.length}`,
+            });
+            continue;
+          }
           await this.crearCups({
             nombre: fila.descripcioncups.trim(),
             codigo: fila.codigo.trim(),
@@ -1797,9 +1932,17 @@ export default {
             grupo: fila.grupo.trim(),
             bd: "cups",
           });
+          exitosos++;
         } catch (e) { errores++; }
+        this.actualizarProgresoCsv({
+          procesados: i + 1,
+          exitosos,
+          errores,
+          mensaje: `Procesando registro ${i + 1} de ${validas.length}`,
+        });
       }
       await this.getAllCups();
+      this.finalizarProgresoCsv("Importacion de CUPS finalizada");
       event.target.value = "";
       alert(`Importación completada: ${validas.length - errores} CUPS importados${errores > 0 ? `, ${errores} con error` : ""}.`);
     },
@@ -1823,13 +1966,23 @@ export default {
         ? `Se importarán ${validas.length} actividades (${omitidas} omitidas por nombre/profesionales vacíos). ¿Continuar?`
         : `Se importarán ${validas.length} actividades. ¿Continuar?`;
       if (!confirm(msg)) { event.target.value = ""; return; }
+
+      this.iniciarProgresoCsv("Importando CSV de Actividades", validas.length);
       let errores = 0;
-      for (const fila of validas) {
+      let exitosos = 0;
+      for (let i = 0; i < validas.length; i++) {
+        const fila = validas[i];
         try {
           const profesionalesRaw = fila.profesionales || fila.profesional || "";
           const profesionales = this.normalizarProfesionalesCsvActividades(profesionalesRaw);
           if (profesionales.length === 0) {
             errores++;
+            this.actualizarProgresoCsv({
+              procesados: i + 1,
+              exitosos,
+              errores,
+              mensaje: `Procesando registro ${i + 1} de ${validas.length}`,
+            });
             continue;
           }
           await this.crearActividadExtra({
@@ -1837,9 +1990,17 @@ export default {
             nombre: fila.nombre.trim(),
             Profesional: profesionales,
           });
+          exitosos++;
         } catch (e) { errores++; }
+        this.actualizarProgresoCsv({
+          procesados: i + 1,
+          exitosos,
+          errores,
+          mensaje: `Procesando registro ${i + 1} de ${validas.length}`,
+        });
       }
       await this.getAllActividadesExtra();
+      this.finalizarProgresoCsv("Importacion de Actividades finalizada");
       event.target.value = "";
       alert(`Importación completada: ${validas.length - errores} actividades importadas${errores > 0 ? `, ${errores} con error` : ""}.`);
     },

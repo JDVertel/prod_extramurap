@@ -913,7 +913,7 @@ export default {
             return Array.from(convenios).sort((a, b) => a.localeCompare(b));
         },
         profesionalesDisponiblesParaAcceso() {
-            const cargos = new Set(['Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista']);
+            const cargos = new Set(['Auxiliar de enfermeria', 'Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista']);
             const idEditando = this.usuarioEditando?.uid;
 
             const mapaPorDocumento = new Map();
@@ -960,7 +960,7 @@ export default {
 
             if (docsAsignados.size === 0) return [];
 
-            const cargos = new Set(['Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista']);
+            const cargos = new Set(['Auxiliar de enfermeria', 'Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista']);
             const idEditando = this.usuarioEditando?.uid;
 
             return (this.users || [])

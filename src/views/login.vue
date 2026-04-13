@@ -56,9 +56,9 @@
             </div>
         </div>
         <footer class="login-footer-version" role="contentinfo">
-            <span class="login-footer-brand">ExtramurApp</span>
+            <span class="login-footer-brand">ExtramurApp ®</span>
             <span class="login-footer-separator">|</span>
-            <span>{{ appVersionText }}</span>
+            <span>Version 3.0 - 13/04/2026</span>
         </footer>
     </div>
 </template>
@@ -66,7 +66,11 @@
 <script>
 import { loginWithApi } from "@/api/authApi";
 import { emailExists } from "@/api/usersApi";
-import { getAppVersionText } from "@/utils/appVersion";
+import {
+    APP_VERSION_STORAGE_KEY,
+    APP_VERSION_UPDATED_EVENT,
+    getAppVersionText,
+} from "@/utils/appVersion";
 
 const loginBackgroundModules = import.meta.glob("@/assets/images/ramdom/*.{jpg,jpeg,png,webp}", {
     eager: true,
@@ -103,6 +107,15 @@ export default {
         },
     },
     methods: {
+        refrescarVersionApp() {
+            this.appVersionText = getAppVersionText();
+        },
+        onVersionStorageChange(event) {
+            if (event?.key && event.key !== APP_VERSION_STORAGE_KEY) {
+                return;
+            }
+            this.refrescarVersionApp();
+        },
         initializeBackgroundImages() {
             this.loginBackgroundImages = Object.values(loginBackgroundModules).filter(Boolean);
             const count = this.loginBackgroundImages.length;
@@ -201,12 +214,18 @@ export default {
     },
 
     mounted() {
-        this.appVersionText = getAppVersionText();
+        this.refrescarVersionApp();
+        window.addEventListener(APP_VERSION_UPDATED_EVENT, this.refrescarVersionApp);
+        window.addEventListener("storage", this.onVersionStorageChange);
         this.initializeBackgroundImages();
         const token = localStorage.getItem("token");
         if (token) {
             this.$router.push("/homeviews");
         }
+    },
+    beforeUnmount() {
+        window.removeEventListener(APP_VERSION_UPDATED_EVENT, this.refrescarVersionApp);
+        window.removeEventListener("storage", this.onVersionStorageChange);
     },
 };
 </script>

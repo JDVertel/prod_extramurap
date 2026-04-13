@@ -3247,7 +3247,10 @@ export default createStore({
      */
     async userLogout({ commit }) {
       commit("CLEAR_ALL_STATE");
-      localStorage.clear();
+      // Limpiar solo datos de autenticación/sesión para evitar borrar configuraciones globales.
+      localStorage.removeItem("token");
+      localStorage.removeItem("uid");
+      localStorage.removeItem("userData");
       sessionStorage.clear();
       commit("clearAuth");
       commit("clearUserData");
