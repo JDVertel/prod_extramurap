@@ -344,6 +344,7 @@ import {
     mapState
 } from "vuex";
 import { caracterizacionApi } from "@/api/modulesApi";
+import realtime_api from "@/api/realtimeApi.js";
 
 /* ----------------------------------------------------------------------------------------------- */
 export default {
@@ -779,6 +780,127 @@ export default {
             "cerrarEncuesta",
             "getAsignacionesByEncuesta",
         ]),
+
+        tieneActividadesPersistidas(payload) {
+            if (!payload || typeof payload !== "object") return false;
+
+            const tipoActividad = payload?.tipoActividad && typeof payload.tipoActividad === "object"
+                ? payload.tipoActividad
+                : payload;
+
+            return Object.keys(tipoActividad || {}).length > 0;
+        },
+
+        async obtenerCatalogoActividadesPorDefecto() {
+            let catalogo = Array.isArray(this.actividadesExtra) ? this.actividadesExtra.filter(Boolean) : [];
+
+            if (!catalogo.length) {
+                try {
+                    const cargadas = await this.getAllActividadesExtra();
+                    catalogo = Array.isArray(cargadas) ? cargadas.filter(Boolean) : [];
+                } catch (error) {
+                    console.warn("No se pudo cargar el catálogo de actividades extra:", error);
+                }
+            }
+
+            if (!catalogo.length) {
+                catalogo = Array.isArray(this.tipoActividadExtramural)
+                    ? this.tipoActividadExtramural.filter(Boolean)
+                    : [];
+            }
+
+            const mapa = new Map();
+            catalogo.forEach((actividad, index) => {
+                const key = String(
+                    actividad?.key ||
+                    actividad?.clave ||
+                    actividad?.id ||
+                    actividad?.actividadId ||
+                    `actividad_${index + 1}`
+                ).trim();
+
+                if (!key || mapa.has(key)) {
+                    return;
+                }
+
+                mapa.set(key, {
+                    ...actividad,
+                    key,
+                    nombre: actividad?.nombre || actividad?.descripcion || key,
+                });
+            });
+
+            return Array.from(mapa.values());
+        },
+
+        async restaurarActividadesPorDefectoEncuesta() {
+            const catalogo = await this.obtenerCatalogoActividadesPorDefecto();
+            if (!catalogo.length) {
+                return false;
+            }
+
+            for (const actividad of catalogo) {
+                try {
+                    await realtime_api.post(`/Actividades/${this.idEncuesta}/tipoActividad.json`, {
+                        key: actividad.key,
+                    });
+                } catch (error) {
+                    console.warn(`No se pudo restaurar la actividad ${actividad.key} para la encuesta ${this.idEncuesta}:`, error);
+                }
+            }
+
+            try {
+                const { data } = await realtime_api.get(`/Actividades/${this.idEncuesta}.json`);
+                if (this.tieneActividadesPersistidas(data)) {
+                    await this.getActividadesById(this.idEncuesta);
+                    await this.getEncuestaById(this.idEncuesta);
+                    return true;
+                }
+            } catch (error) {
+                console.warn("No se pudo validar la restauración de actividades por defecto:", error);
+            }
+
+            return false;
+        },
+
+        async devolverAAuxiliarSiActividadesVacias() {
+            if (this.cargoMostrado !== "Medico" || !this.idEncuesta) {
+                return false;
+            }
+
+            let actividadesPersistidas = null;
+            try {
+                const { data } = await realtime_api.get(`/Actividades/${this.idEncuesta}.json`);
+                actividadesPersistidas = data;
+            } catch (error) {
+                console.warn("No se pudo consultar el nodo real de actividades para validar devolución al auxiliar:", error);
+                actividadesPersistidas = null;
+            }
+
+            if (this.tieneActividadesPersistidas(actividadesPersistidas)) {
+                return false;
+            }
+
+            try {
+                const restauradas = await this.restaurarActividadesPorDefectoEncuesta();
+                if (!restauradas) {
+                    alert("La encuesta llegó al médico sin actividades y no fue posible restaurarlas automáticamente. No se devolvió al auxiliar para evitar que quede bloqueado.");
+                    return false;
+                }
+
+                await realtime_api.patch(`/Encuesta/${this.idEncuesta}.json`, {
+                    status_gest_aux: 0,
+                });
+
+                alert("La encuesta llegó al médico sin actividades registradas. Se restauraron las actividades por defecto y se devolvió al auxiliar para que vuelva a asociar los CUPS antes de cerrar nuevamente.");
+                await this.redirigirPostCierre("Medico");
+                return true;
+            } catch (error) {
+                console.error("No se pudo devolver la encuesta al auxiliar tras detectar actividades vacías:", error);
+                alert("La encuesta llegó sin actividades y no se pudo completar la restauración/devolución automática. Intente nuevamente o valide el registro.");
+                return false;
+            }
+        },
 
         normalizarTextoComparacion(valor) {
             return String(valor || "")
@@ -1935,6 +2057,12 @@ export default {
                 this.getEncuestaById(this.idEncuesta),
                 this.getActividadesById(this.idEncuesta),
             ]);
+
+            const fueDevueltaAAuxiliar = await this.devolverAAuxiliarSiActividadesVacias();
+            if (fueDevueltaAAuxiliar) {
+                this.cargandoDatos = false;
+                return;
+            }
 
             // Datos críticos cargados, ahora mostrar contenido
             this.cargandoDatos = false;

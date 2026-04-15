@@ -754,8 +754,28 @@ export default createStore({
     getEncuestasConActividadesAux: async ({ commit }, { idUsuario }) => {
       console.log("Obteniendo encuestas con actividades para auxiliar:", idUsuario);
       try {
+        const construirActividadesDesdeAsignaciones = (asignacion = {}) => {
+          const cups = asignacion?.cups;
+          const cupsLista = Array.isArray(cups)
+            ? cups
+            : (cups && typeof cups === "object" ? Object.values(cups) : []);
+
+          const tipoActividad = {};
+          cupsLista.forEach((cup) => {
+            const actividadId = String(cup?.actividadId ?? cup?.idActividad ?? "").trim();
+            if (!actividadId || tipoActividad[actividadId]) return;
+            tipoActividad[actividadId] = { key: actividadId };
+          });
+
+          return Object.keys(tipoActividad).length ? { tipoActividad } : {};
+        };
+
         // Obtener todas las encuestas
         const { data: encuestasData } = await realtime_api.get("/Encuesta.json");
+        const [{ data: actividadesGlobal }, { data: asignacionesGlobal }] = await Promise.all([
+          realtime_api.get("/Actividades.json").catch(() => ({ data: {} })),
+          realtime_api.get("/Asignaciones.json").catch(() => ({ data: {} })),
+        ]);
 
         if (!encuestasData) {
           return [];
@@ -777,18 +797,36 @@ export default createStore({
         const encuestasConActividades = await Promise.all(
           encuestas.map(async (encuesta) => {
             try {
-              const { data: actividadesData } = await realtime_api.get(
+              let { data: actividadesData } = await realtime_api.get(
                 `/Actividades/${encuesta.id}.json`
               );
+
+              if (!actividadesData && actividadesGlobal && typeof actividadesGlobal === "object") {
+                actividadesData = actividadesGlobal[encuesta.id] || null;
+              }
+
+              if (!actividadesData && asignacionesGlobal && typeof asignacionesGlobal === "object") {
+                actividadesData = construirActividadesDesdeAsignaciones(asignacionesGlobal[encuesta.id] || {});
+              }
+
               return {
                 ...encuesta,
                 actividades: actividadesData || {},
+                tipoActividad: actividadesData?.tipoActividad || actividadesData || {},
               };
             } catch (error) {
               console.warn(`No se encontraron actividades para encuesta ${encuesta.id}`);
+              const actividadesFallback = (actividadesGlobal && typeof actividadesGlobal === "object"
+                ? actividadesGlobal[encuesta.id]
+                : null) || construirActividadesDesdeAsignaciones(
+                asignacionesGlobal && typeof asignacionesGlobal === "object"
+                  ? (asignacionesGlobal[encuesta.id] || {})
+                  : {}
+              );
               return {
                 ...encuesta,
-                actividades: {},
+                actividades: actividadesFallback || {},
+                tipoActividad: actividadesFallback?.tipoActividad || actividadesFallback || {},
               };
             }
           })
@@ -807,8 +845,28 @@ export default createStore({
     getEncuestasConActividadesMedico: async ({ commit }, { idUsuario }) => {
       console.log("Obteniendo encuestas con actividades para médico:", idUsuario);
       try {
+        const construirActividadesDesdeAsignaciones = (asignacion = {}) => {
+          const cups = asignacion?.cups;
+          const cupsLista = Array.isArray(cups)
+            ? cups
+            : (cups && typeof cups === "object" ? Object.values(cups) : []);
+
+          const tipoActividad = {};
+          cupsLista.forEach((cup) => {
+            const actividadId = String(cup?.actividadId ?? cup?.idActividad ?? "").trim();
+            if (!actividadId || tipoActividad[actividadId]) return;
+            tipoActividad[actividadId] = { key: actividadId };
+          });
+
+          return Object.keys(tipoActividad).length ? { tipoActividad } : {};
+        };
+
         // Obtener todas las encuestas
         const { data: encuestasData } = await realtime_api.get("/Encuesta.json");
+        const [{ data: actividadesGlobal }, { data: asignacionesGlobal }] = await Promise.all([
+          realtime_api.get("/Actividades.json").catch(() => ({ data: {} })),
+          realtime_api.get("/Asignaciones.json").catch(() => ({ data: {} })),
+        ]);
 
         if (!encuestasData) {
           return [];
@@ -843,18 +901,36 @@ export default createStore({
         const encuestasConActividades = await Promise.all(
           encuestas.map(async (encuesta) => {
             try {
-              const { data: actividadesData } = await realtime_api.get(
+              let { data: actividadesData } = await realtime_api.get(
                 `/Actividades/${encuesta.id}.json`
               );
+
+              if (!actividadesData && actividadesGlobal && typeof actividadesGlobal === "object") {
+                actividadesData = actividadesGlobal[encuesta.id] || null;
+              }
+
+              if (!actividadesData && asignacionesGlobal && typeof asignacionesGlobal === "object") {
+                actividadesData = construirActividadesDesdeAsignaciones(asignacionesGlobal[encuesta.id] || {});
+              }
+
               return {
                 ...encuesta,
                 actividades: actividadesData || {},
+                tipoActividad: actividadesData?.tipoActividad || actividadesData || {},
               };
             } catch (error) {
               console.warn(`No se encontraron actividades para encuesta ${encuesta.id}`);
+              const actividadesFallback = (actividadesGlobal && typeof actividadesGlobal === "object"
+                ? actividadesGlobal[encuesta.id]
+                : null) || construirActividadesDesdeAsignaciones(
+                asignacionesGlobal && typeof asignacionesGlobal === "object"
+                  ? (asignacionesGlobal[encuesta.id] || {})
+                  : {}
+              );
               return {
                 ...encuesta,
-                actividades: {},
+                actividades: actividadesFallback || {},
+                tipoActividad: actividadesFallback?.tipoActividad || actividadesFallback || {},
               };
             }
           })
