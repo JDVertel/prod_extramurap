@@ -1171,12 +1171,48 @@ export default createStore({
           }
         };
 
+        const resolverEncuestaFallback = async (encuestaId) => {
+          const encuestasGlobal = await safeGet(`/Encuesta.json`);
+          if (!encuestasGlobal || typeof encuestasGlobal !== "object") {
+            return null;
+          }
+
+          const encontrada = encuestasGlobal[String(encuestaId)];
+          if (encontrada && typeof encontrada === "object") {
+            return encontrada;
+          }
+
+          return null;
+        };
+
+        const resolverActividadesFallback = async (encuestaId) => {
+          const actividadesGlobal = await safeGet(`/Actividades.json`);
+          if (!actividadesGlobal || typeof actividadesGlobal !== "object") {
+            return null;
+          }
+
+          const encontradas = actividadesGlobal[String(encuestaId)];
+          if (encontradas && typeof encontradas === "object") {
+            return encontradas;
+          }
+
+          return null;
+        };
+
         // Consultar asignaciones, datos de encuesta y actividades (tolerando 404 por recurso inexistente)
-        const [asignacionesData, encuestaData, actividadesData] = await Promise.all([
+        let [asignacionesData, encuestaData, actividadesData] = await Promise.all([
           safeGet(`/Asignaciones/${idEncuesta}.json`),
           safeGet(`/Encuesta/${idEncuesta}.json`),
           safeGet(`/Actividades/${idEncuesta}.json`),
         ]);
+
+        if (!encuestaData) {
+          encuestaData = await resolverEncuestaFallback(idEncuesta);
+        }
+
+        if (!actividadesData) {
+          actividadesData = await resolverActividadesFallback(idEncuesta);
+        }
 
         if (!encuestaData) {
           console.warn(`Encuesta ${idEncuesta} no encontrada`);
@@ -1272,7 +1308,15 @@ export default createStore({
      */
     getActividadesById: async ({ commit }, idEncuesta) => {
       try {
-        const { data } = await realtime_api.get(`/Actividades/${idEncuesta}.json`);
+        let { data } = await realtime_api.get(`/Actividades/${idEncuesta}.json`);
+
+        if (!data) {
+          const { data: actividadesGlobal } = await realtime_api.get(`/Actividades.json`);
+          if (actividadesGlobal && typeof actividadesGlobal === "object") {
+            data = actividadesGlobal[String(idEncuesta)] || null;
+          }
+        }
+
         commit("setActividades", data);
         return data;
       } catch (error) {

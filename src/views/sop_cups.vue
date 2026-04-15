@@ -124,7 +124,7 @@
                     </div>
                 </div>
             </div>
-            <div v-if="InfoEncuestasById && InfoEncuestasById[0]" class="mb-1" :aria-busy="guardando">
+            <div v-if="userEncuesta" class="mb-1" :aria-busy="guardando">
                 <div>
                     <div class="cups-main-scroll">
                     <div class="container-fluid bg-light rounded shadow-sm p-2" style="min-width: 700px;">
@@ -191,7 +191,7 @@
                         <i class="bi bi-arrow-left-circle"></i> Volver al listado
                     </button>
                     <button class="btn btn-success rounded-pill" @click="cerrarVisita()"
-                        v-if="InfoEncuestasById !== ''">
+                        v-if="userEncuesta">
                         <i class="bi bi-clipboard2-check"></i> Cerrar Visita
                     </button>
                 </div>
