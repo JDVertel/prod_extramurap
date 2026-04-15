@@ -302,6 +302,10 @@ export default createStore({
           return Array.from(mapa.values());
         })();
 
+        if (!actividadesNormalizadas.length) {
+          throw new Error("La encuesta debe tener al menos una actividad válida antes de guardarse.");
+        }
+
         const DataToSaveE = {
           tiporegistro: tiporegistro || tipoRegistro,
           idMedicoAtiende,
@@ -346,6 +350,10 @@ export default createStore({
         const { data } = await realtime_api.post(`/${bd}.json`, DataToSaveE);
         mainId = data.name;
 
+        if (!mainId) {
+          throw new Error("No se pudo generar el identificador de la encuesta.");
+        }
+
         // 2. Guardar actividades
         const esperadas = actividadesNormalizadas.map((actividad) => actividad.key);
 
@@ -363,17 +371,27 @@ export default createStore({
         }
 
         const leerKeysPersistidas = async () => {
-          const { data: actividadesPersistidas } = await realtime_api.get(
-            `/Actividades/${mainId}/tipoActividad.json`
-          );
+          const { data: actividadesPersistidas } = await realtime_api.get(`/Actividades/${mainId}.json`);
 
           if (!actividadesPersistidas || typeof actividadesPersistidas !== "object") {
             return [];
           }
 
-          return Object.values(actividadesPersistidas)
-            .map((item) => String(item?.key || "").trim())
-            .filter(Boolean);
+          const tipoActividad = actividadesPersistidas?.tipoActividad && typeof actividadesPersistidas.tipoActividad === "object"
+            ? actividadesPersistidas.tipoActividad
+            : actividadesPersistidas;
+
+          return Array.from(new Set(
+            Object.values(tipoActividad)
+              .map((item) => {
+                if (typeof item === "string") return String(item).trim();
+                if (item && typeof item === "object") {
+                  return String(item.key || item.clave || item.actividadId || "").trim();
+                }
+                return "";
+              })
+              .filter(Boolean)
+          ));
         };
 
         let persistidas = await leerKeysPersistidas();

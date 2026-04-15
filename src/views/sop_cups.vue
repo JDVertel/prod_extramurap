@@ -800,16 +800,6 @@ export default {
             "getAsignacionesByEncuesta",
         ]),
 
-        tieneActividadesPersistidas(payload) {
-            if (!payload || typeof payload !== "object") return false;
-
-            const tipoActividad = payload?.tipoActividad && typeof payload.tipoActividad === "object"
-                ? payload.tipoActividad
-                : payload;
-
-            return Object.keys(tipoActividad || {}).length > 0;
-        },
-
         async obtenerCatalogoActividadesPorDefecto() {
             let catalogo = Array.isArray(this.actividadesExtra) ? this.actividadesExtra.filter(Boolean) : [];
 
@@ -852,93 +842,25 @@ export default {
             return Array.from(mapa.values());
         },
 
-        extraerActividadesHistoricasDesdeAsignaciones(asignaciones = {}) {
-            const actividades = new Map();
-
-            const registrarActividad = (valor) => {
-                const key = String(valor || "").trim();
-                if (!key || actividades.has(key)) {
-                    return;
-                }
-
-                actividades.set(key, { key, nombre: this.obtenerNombreActividadDelContrato(key) });
-            };
-
-            const cupsDirectos = asignaciones?.cups;
-            if (cupsDirectos && typeof cupsDirectos === "object") {
-                Object.values(cupsDirectos).forEach((cup) => {
-                    if (!cup || typeof cup !== "object") return;
-                    registrarActividad(cup.actividadId ?? cup.idActividad);
-                });
+        async sembrarActividadesPorDefectoParaAuxiliar() {
+            const esAuxiliar = String(this.cargoMostrado || "").trim() === "Auxiliar de enfermeria";
+            if (!esAuxiliar || !this.idEncuesta || this.actividadesPaciente.length > 0) {
+                return;
             }
 
-            const tipoActividad = asignaciones?.tipoActividad;
-            if (tipoActividad && typeof tipoActividad === "object") {
-                Object.entries(tipoActividad).forEach(([actividadId, actividadNode]) => {
-                    registrarActividad(actividadId);
-
-                    if (!actividadNode || typeof actividadNode !== "object") return;
-
-                    const cupsPorRol = actividadNode?.cups;
-                    if (!cupsPorRol || typeof cupsPorRol !== "object") return;
-
-                    Object.values(cupsPorRol).forEach((rolNode) => {
-                        if (!rolNode || typeof rolNode !== "object") return;
-
-                        const cupsNodo = rolNode?.cups;
-                        if (!cupsNodo || typeof cupsNodo !== "object") return;
-
-                        Object.values(cupsNodo).forEach((cup) => {
-                            if (!cup || typeof cup !== "object") return;
-                            registrarActividad(cup.actividadId ?? cup.idActividad ?? actividadId);
-                        });
-                    });
-                });
-            }
-
-            return Array.from(actividades.values());
-        },
-
-        async restaurarActividadesPorDefectoEncuesta() {
-            let catalogo = [];
-
-            try {
-                const asignaciones = await this.getAsignacionesByEncuesta(this.idEncuesta);
-                catalogo = this.extraerActividadesHistoricasDesdeAsignaciones(asignaciones || {});
-            } catch (error) {
-                console.warn("No se pudieron obtener asignaciones históricas para reconstruir actividades:", error);
-            }
-
+            const catalogo = await this.obtenerCatalogoActividadesPorDefecto();
             if (!catalogo.length) {
-                catalogo = await this.obtenerCatalogoActividadesPorDefecto();
-            }
-
-            if (!catalogo.length) {
-                return false;
+                return;
             }
 
             for (const actividad of catalogo) {
-                try {
-                    await realtime_api.post(`/Actividades/${this.idEncuesta}/tipoActividad.json`, {
-                        key: actividad.key,
-                    });
-                } catch (error) {
-                    console.warn(`No se pudo restaurar la actividad ${actividad.key} para la encuesta ${this.idEncuesta}:`, error);
-                }
+                await realtime_api.post(`/Actividades/${this.idEncuesta}/tipoActividad.json`, {
+                    key: actividad.key,
+                });
             }
 
-            try {
-                const { data } = await realtime_api.get(`/Actividades/${this.idEncuesta}.json`);
-                if (this.tieneActividadesPersistidas(data)) {
-                    await this.getActividadesById(this.idEncuesta);
-                    await this.getEncuestaById(this.idEncuesta);
-                    return true;
-                }
-            } catch (error) {
-                console.warn("No se pudo validar la restauración de actividades por defecto:", error);
-            }
-
-            return false;
+            await this.getActividadesById(this.idEncuesta);
+            await this.getEncuestaById(this.idEncuesta);
         },
 
         async devolverEncuestaCorruptaAAuxiliar() {
@@ -946,24 +868,23 @@ export default {
                 return;
             }
 
-            const confirmar = confirm("Esta encuesta se marcará como corrupta, se restaurarán las actividades y se devolverá al auxiliar para que vuelva a asignar CUPS antes de cerrar nuevamente. ¿Desea continuar?");
+            const confirmar = confirm("Se eliminarán las actividades y los CUPS asignados para devolver la encuesta al auxiliar. El auxiliar volverá a cargar las actividades por defecto y reasignará los CUPS desde cero. ¿Desea continuar?");
             if (!confirmar) {
                 return;
             }
 
             this.guardando = true;
             try {
-                const restauradas = await this.restaurarActividadesPorDefectoEncuesta();
-                if (!restauradas) {
-                    alert("No fue posible reconstruir las actividades automáticamente para esta encuesta.");
-                    return;
-                }
+                await Promise.all([
+                    realtime_api.delete(`/Asignaciones/${this.idEncuesta}.json`),
+                    realtime_api.delete(`/Actividades/${this.idEncuesta}.json`),
+                ]);
 
                 await realtime_api.patch(`/Encuesta/${this.idEncuesta}.json`, {
                     status_gest_aux: 0,
                 });
 
-                alert("La encuesta se devolvió al auxiliar. Las actividades quedaron restauradas para que vuelva a asignar los CUPS y cierre nuevamente.");
+                alert("La encuesta se devolvió al auxiliar. Se limpiaron actividades y CUPS para reasignar el caso desde cero.");
                 await this.redirigirPostCierre(this.cargoMostrado);
             } catch (error) {
                 console.error("No se pudo devolver la encuesta corrupta al auxiliar:", error);
@@ -1969,6 +1890,7 @@ export default {
                 if (!this.isComponentActive) return;
 
                 await this.cargarAsignaciones();
+                await this.sembrarActividadesPorDefectoParaAuxiliar();
             } catch (error) {
                 console.error("Error en recargar:", error);
             }
@@ -2029,6 +1951,11 @@ export default {
         async cerrarVisita() {
             // Confirmar que el usuario quiere cerrar la visita
             if (confirm("¿Estás seguro de que deseas cerrar las actividades de la visita?")) {
+                if (!this.actividadesPaciente.length) {
+                    alert("No se puede cerrar la visita sin actividades asignadas.");
+                    return;
+                }
+
                 try {
                     await caracterizacionApi.getByEncuestaId(this.idEncuesta);
                 } catch (_error) {
@@ -2123,25 +2050,18 @@ export default {
         this.cargandoDatos = true;
 
         try {
-            // Cargar datos críticos primero (necesarios para renderizar)
             await Promise.all([
                 this.getEncuestaById(this.idEncuesta),
                 this.getActividadesById(this.idEncuesta),
-            ]);
-
-            // Datos críticos cargados, ahora mostrar contenido
-            this.cargandoDatos = false;
-
-            // Cargar datos complementarios en background (sin esperar)
-            Promise.all([
                 this.getAllCups(),
                 this.getAllContratos(),
                 this.getAllEpss(),
                 this.getAllActividadesExtra(),
                 this.cargarAsignaciones()
-            ]).catch(error => {
-                console.error("Error al cargar datos complementarios:", error);
-            });
+            ]);
+
+            await this.sembrarActividadesPorDefectoParaAuxiliar();
+            this.cargandoDatos = false;
         } catch (error) {
             console.error("Error en mounted:", error);
             this.cargandoDatos = false;
