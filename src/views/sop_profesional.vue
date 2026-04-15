@@ -65,6 +65,7 @@
                                 <div class="col-10 col-md-10">
                                     <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong></small> |
                                     <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                                    <small>Auxiliar: {{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</small>
                                     <small>Nac: {{ formatearFechaSoloDia(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaSoloDia(encuesta.fecha) }}</small>
                                 </div>
 
@@ -100,6 +101,7 @@
                                 <div class="col-10 col-md-10">
                                     <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong></small> |
                                     <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                                    <small>Auxiliar: {{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</small>
                                     <small>Nac: {{ formatearFechaSoloDia(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaSoloDia(encuesta.fecha) }}</small>
                                     <div class="devolucion-nota mt-2">
                                         <div class="devolucion-titulo"><i class="bi bi-arrow-counterclockwise me-1"></i> Paciente devuelto para corrección</div>
@@ -162,6 +164,7 @@
 import { mapActions, mapState } from "vuex";
 import moment from "moment";
 import realtime_api from "@/api/realtimeApi";
+import { getAllUsers } from "@/api/usersApi";
 import { contarCierresPorPeriodo } from "@/utils/gestionCounters";
 export default {
     data() {
@@ -171,6 +174,7 @@ export default {
             mostrarModalEnProceso: false,
             cargandoEnProcesoModal: false,
             registrosEnProcesoModal: [],
+            auxiliaresPorDocumento: {},
         };
     },
     methods: {
@@ -265,6 +269,27 @@ export default {
             }
 
             return texto;
+        },
+        async cargarAuxiliares() {
+            try {
+                const usuarios = await getAllUsers();
+                const mapa = {};
+
+                usuarios.forEach((user) => {
+                    const documento = String(user?.numDocumento || "").trim();
+                    if (!documento) return;
+                    mapa[documento] = user?.nombre || documento;
+                });
+
+                this.auxiliaresPorDocumento = mapa;
+            } catch (error) {
+                console.error("Error cargando auxiliares:", error);
+            }
+        },
+        obtenerNombreAuxiliar(idEncuestador) {
+            const id = String(idEncuestador || "").trim();
+            if (!id) return "Sin asignar";
+            return this.auxiliaresPorDocumento[id] || id;
         },
         getStatusKeyBandeja() {
             return "status_gest_medica";
@@ -446,6 +471,7 @@ export default {
     async mounted() {
         this.fechaActual = moment().format("YYYY-MM-DD");
         try {
+            await this.cargarAuxiliares();
             const documentoObjetivo = this.getDocumentoObjetivo();
             if (!documentoObjetivo) {
                 throw new Error("No se encontro el documento del profesional a consultar");
