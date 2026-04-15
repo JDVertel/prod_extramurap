@@ -1793,6 +1793,15 @@ export default {
             return Array.isArray(profesionales) && profesionales.includes(cargo);
         },
 
+        obtenerActividadesPendientesPorCups() {
+            return (this.actividadesPaciente || []).filter((actividad) => {
+                if (!actividad?.key) return false;
+                if (!this.puedeMostrarActividad(actividad)) return false;
+                if (!this.tieneCupsDisponiblesActividad(actividad.key)) return false;
+                return this.obtenerCupsArrayPorActividad(actividad.key).length === 0;
+            });
+        },
+
         normalizarProfesionales(profesionales) {
             return Array.from(new Set(
                 (Array.isArray(profesionales) ? profesionales : [profesionales])
@@ -1954,6 +1963,21 @@ export default {
                 if (!this.actividadesPaciente.length) {
                     alert("No se puede cerrar la visita sin actividades asignadas.");
                     return;
+                }
+
+                if (this.cargoMostrado === "Auxiliar de enfermeria") {
+                    const actividadesPendientes = this.obtenerActividadesPendientesPorCups();
+                    if (actividadesPendientes.length > 0) {
+                        const nombresPendientes = actividadesPendientes
+                            .map((actividad) => this.obtenerNombreActividadDelContrato(actividad.key))
+                            .filter(Boolean)
+                            .join(", ");
+
+                        alert(
+                            `No se puede cerrar la gestión del auxiliar mientras existan actividades sin CUPS asignados. Pendientes: ${nombresPendientes}`
+                        );
+                        return;
+                    }
                 }
 
                 try {
