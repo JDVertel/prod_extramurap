@@ -495,18 +495,33 @@ export default {
 
         //logica para obtener los cups filtrados por EPS y profesional
         dataencuesta() {
-            return this.InfoEncuestasById.length > 0 ? this.InfoEncuestasById[0] : null;
+            return this.userEncuesta;
         },
 
         userEncuesta() {
-            // Primero intentar con InfoEncuestasById (datos actuales de la encuesta)
-            if (this.InfoEncuestasById && this.InfoEncuestasById.length > 0) {
-                return this.InfoEncuestasById[0];
+            const infoEncuesta = this.InfoEncuestasById && this.InfoEncuestasById.length > 0
+                ? this.InfoEncuestasById[0]
+                : null;
+            const encuestaStore = (this.encuestas || []).find(
+                (enc) => String(enc.id) === String(this.idEncuesta)
+            ) || null;
+
+            if (!infoEncuesta && !encuestaStore) {
+                return null;
             }
 
-            // Si no, buscar en encuestas como respaldo
-            const encuestas = this.encuestas || [];
-            return encuestas.find((enc) => String(enc.id) === String(this.idEncuesta)) || null;
+            const tipoActividadInfo = infoEncuesta?.tipoActividad;
+            const tipoActividadStore = encuestaStore?.tipoActividad
+                || encuestaStore?.actividades?.tipoActividad;
+            const actividadesInfo = infoEncuesta?.actividades;
+            const actividadesStore = encuestaStore?.actividades;
+
+            return {
+                ...(encuestaStore || {}),
+                ...(infoEncuesta || {}),
+                actividades: actividadesInfo || actividadesStore || {},
+                tipoActividad: tipoActividadInfo || tipoActividadStore || {},
+            };
         },
 
         userEncuestaNormalizada() {
