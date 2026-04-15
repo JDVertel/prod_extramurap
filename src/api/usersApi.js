@@ -5,6 +5,11 @@ export async function bulkCreateUsers(usersArray) {
 }
 import http from "./http";
 
+const USERS_CACHE_TTL_MS = 60 * 1000;
+let usersCacheData = null;
+let usersCacheExpiresAt = 0;
+let usersCachePending = null;
+
 export async function emailExists(email) {
   const encoded = encodeURIComponent(String(email || "").trim().toLowerCase());
   const { data } = await http.get(`/users/exists/email/${encoded}`);
@@ -22,9 +27,30 @@ export async function getUserById(id) {
   return data;
 }
 
-export async function getAllUsers() {
-  const { data } = await http.get("/users");
-  return Array.isArray(data) ? data : [];
+export async function getAllUsers(options = {}) {
+  const forceRefresh = Boolean(options?.forceRefresh);
+  const now = Date.now();
+
+  if (!forceRefresh && usersCacheData && usersCacheExpiresAt > now) {
+    return usersCacheData;
+  }
+
+  if (!forceRefresh && usersCachePending) {
+    return usersCachePending;
+  }
+
+  usersCachePending = http.get("/users")
+    .then(({ data }) => {
+      const users = Array.isArray(data) ? data : [];
+      usersCacheData = users;
+      usersCacheExpiresAt = Date.now() + USERS_CACHE_TTL_MS;
+      return users;
+    })
+    .finally(() => {
+      usersCachePending = null;
+    });
+
+  return usersCachePending;
 }
 
 export async function getDelegatedProfessionals() {

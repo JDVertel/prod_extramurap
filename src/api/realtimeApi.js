@@ -279,6 +279,15 @@ function buildActividadesMap(rows = []) {
     return out;
 }
 
+function buildActividadesNode(rows = []) {
+    const map = buildActividadesMap(rows);
+    const encuestaIds = Object.keys(map);
+    if (!encuestaIds.length) {
+        return null;
+    }
+    return map[encuestaIds[0]] || null;
+}
+
 function buildAsignacionesMap(rows = []) {
     const out = {};
     rows.forEach((row) => {
@@ -978,15 +987,17 @@ realtime_api2.get = async (url, config) => {
     }
 
     if (root === 'Actividades') {
-        const rows = await encuestaActividadesApi.list({ limit: 10000, offset: 0 });
-        const map = buildActividadesMap(rows);
         if (!id) {
+            const rows = await encuestaActividadesApi.list({ limit: 10000, offset: 0 });
+            const map = buildActividadesMap(rows);
             return { data: map };
         }
+        const rows = await encuestaActividadesApi.list({ encuestaId: id, limit: 200, offset: 0 });
+        const encuestaNode = buildActividadesNode(rows) || { tipoActividad: {} };
         if (!rest.length) {
-            return { data: map[id] || null };
+            return { data: rows.length ? encuestaNode : null };
         }
-        const nested = getBySegments(map[id] || {}, rest);
+        const nested = getBySegments(encuestaNode, rest);
         return { data: nested === undefined ? null : nested };
     }
 
@@ -1388,8 +1399,7 @@ realtime_api2.delete = async (url, config) => {
     }
 
     if (root === 'Actividades' && id && !rest.length) {
-        const rows = await encuestaActividadesApi.list({ limit: 10000, offset: 0 });
-        const related = rows.filter((r) => String(r.encuesta_id) === String(id));
+        const related = await encuestaActividadesApi.list({ encuestaId: id, limit: 200, offset: 0 });
         await Promise.all(related.map((r) => encuestaActividadesApi.remove(r.id)));
         return { data: null };
     }
