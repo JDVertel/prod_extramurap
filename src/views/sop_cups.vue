@@ -124,17 +124,6 @@
                     </div>
                 </div>
             </div>
-            <div v-if="userEncuesta" class="alert alert-secondary small py-2 px-3 mb-2 diagnostico-flags">
-                <div class="fw-semibold mb-1">Banderas de diagnóstico</div>
-                <div><strong>Cargo evaluado:</strong> {{ diagnosticFlags.cargoEvaluado || 'N/A' }}</div>
-                <div><strong>Lectura actividades:</strong> {{ diagnosticFlags.lecturaActividadesIntentada ? 'Intentada' : 'No' }} / {{ diagnosticFlags.lecturaActividadesOk ? 'Con datos' : 'Sin datos' }}</div>
-                <div><strong>Reconstrucción desde asignaciones:</strong> {{ diagnosticFlags.reconstruccionAsignacionesIntentada ? 'Intentada' : 'No' }} / {{ diagnosticFlags.reconstruccionAsignacionesOk ? 'Con histórico' : 'Sin histórico' }}</div>
-                <div><strong>Reconstrucción desde catálogo:</strong> {{ diagnosticFlags.reconstruccionCatalogoIntentada ? 'Intentada' : 'No' }} / {{ diagnosticFlags.reconstruccionCatalogoOk ? 'Con catálogo' : 'Sin catálogo' }}</div>
-                <div><strong>Persistencia restauración:</strong> {{ diagnosticFlags.restauracionPersistenciaIntentada ? 'Intentada' : 'No' }} / {{ diagnosticFlags.restauracionPersistenciaOk ? 'OK' : 'Falló o vacía' }}</div>
-                <div><strong>Devolución al auxiliar:</strong> {{ diagnosticFlags.devolucionAuxIntentada ? 'Intentada' : 'No' }} / {{ diagnosticFlags.devolucionAuxOk ? 'OK' : 'No ejecutada' }}</div>
-                <div><strong>Mensaje final:</strong> {{ diagnosticFlags.mensajeFinal || 'Sin mensaje' }}</div>
-                <div v-if="diagnosticFlags.ultimoError"><strong>Último error:</strong> {{ diagnosticFlags.ultimoError }}</div>
-            </div>
             <div v-if="userEncuesta" class="mb-1" :aria-busy="guardando">
                 <div>
                     <div class="cups-main-scroll">
@@ -189,6 +178,19 @@
                                         <span v-else class="text-muted">Sin CUPS</span>
                                     </td>
 
+                                </tr>
+                                <tr v-if="actividadesPaciente.length === 0">
+                                    <td colspan="3" class="text-center py-4">
+                                        <div class="text-muted mb-3">La encuesta no tiene actividades disponibles.</div>
+                                        <button
+                                            v-if="puedeDevolverEncuestaCorrupta"
+                                            class="btn btn-outline-danger rounded-pill"
+                                            @click="devolverEncuestaCorruptaAAuxiliar"
+                                            :disabled="guardando"
+                                        >
+                                            <i class="bi bi-exclamation-triangle"></i> Encuesta corrupta, devolver a auxiliar
+                                        </button>
+                                    </td>
                                 </tr>
 
                             </tbody>
@@ -384,21 +386,6 @@ export default {
             caracterizacionCargada: false,
             isComponentActive: true, // Bandera para cancelar operaciones al desmontar
             filtroTextoCups: "",
-            diagnosticFlags: {
-                cargoEvaluado: "",
-                lecturaActividadesIntentada: false,
-                lecturaActividadesOk: false,
-                reconstruccionAsignacionesIntentada: false,
-                reconstruccionAsignacionesOk: false,
-                reconstruccionCatalogoIntentada: false,
-                reconstruccionCatalogoOk: false,
-                restauracionPersistenciaIntentada: false,
-                restauracionPersistenciaOk: false,
-                devolucionAuxIntentada: false,
-                devolucionAuxOk: false,
-                mensajeFinal: "",
-                ultimoError: "",
-            },
 
             /*  */
             tipoActividadExtramural: [{
@@ -791,6 +778,12 @@ export default {
                 );
             });
         },
+
+        puedeDevolverEncuestaCorrupta() {
+            return !!this.userEncuesta
+                && String(this.cargoMostrado || "").trim() !== "Auxiliar de enfermeria"
+                && this.actividadesPaciente.length === 0;
+        },
     },
     /* ----------------------------------------------------------------------------------------------- */
     methods: {
@@ -807,31 +800,6 @@ export default {
             "getAsignacionesByEncuesta",
         ]),
 
-        resetDiagnosticFlags() {
-            this.diagnosticFlags = {
-                cargoEvaluado: String(this.cargoMostrado || "").trim(),
-                lecturaActividadesIntentada: false,
-                lecturaActividadesOk: false,
-                reconstruccionAsignacionesIntentada: false,
-                reconstruccionAsignacionesOk: false,
-                reconstruccionCatalogoIntentada: false,
-                reconstruccionCatalogoOk: false,
-                restauracionPersistenciaIntentada: false,
-                restauracionPersistenciaOk: false,
-                devolucionAuxIntentada: false,
-                devolucionAuxOk: false,
-                mensajeFinal: "",
-                ultimoError: "",
-            };
-        },
-
-        setDiagnosticFlag(key, value) {
-            this.diagnosticFlags = {
-                ...this.diagnosticFlags,
-                [key]: value,
-            };
-        },
-
         tieneActividadesPersistidas(payload) {
             if (!payload || typeof payload !== "object") return false;
 
@@ -846,12 +814,10 @@ export default {
             let catalogo = Array.isArray(this.actividadesExtra) ? this.actividadesExtra.filter(Boolean) : [];
 
             if (!catalogo.length) {
-                this.setDiagnosticFlag("reconstruccionCatalogoIntentada", true);
                 try {
                     const cargadas = await this.getAllActividadesExtra();
                     catalogo = Array.isArray(cargadas) ? cargadas.filter(Boolean) : [];
                 } catch (error) {
-                    this.setDiagnosticFlag("ultimoError", error?.message || String(error));
                     console.warn("No se pudo cargar el catálogo de actividades extra:", error);
                 }
             }
@@ -861,8 +827,6 @@ export default {
                     ? this.tipoActividadExtramural.filter(Boolean)
                     : [];
             }
-
-            this.setDiagnosticFlag("reconstruccionCatalogoOk", catalogo.length > 0);
 
             const mapa = new Map();
             catalogo.forEach((actividad, index) => {
@@ -939,12 +903,9 @@ export default {
             let catalogo = [];
 
             try {
-                this.setDiagnosticFlag("reconstruccionAsignacionesIntentada", true);
                 const asignaciones = await this.getAsignacionesByEncuesta(this.idEncuesta);
                 catalogo = this.extraerActividadesHistoricasDesdeAsignaciones(asignaciones || {});
-                this.setDiagnosticFlag("reconstruccionAsignacionesOk", catalogo.length > 0);
             } catch (error) {
-                this.setDiagnosticFlag("ultimoError", error?.message || String(error));
                 console.warn("No se pudieron obtener asignaciones históricas para reconstruir actividades:", error);
             }
 
@@ -953,18 +914,15 @@ export default {
             }
 
             if (!catalogo.length) {
-                this.setDiagnosticFlag("mensajeFinal", "No hubo histórico ni catálogo para reconstruir actividades");
                 return false;
             }
 
-            this.setDiagnosticFlag("restauracionPersistenciaIntentada", true);
             for (const actividad of catalogo) {
                 try {
                     await realtime_api.post(`/Actividades/${this.idEncuesta}/tipoActividad.json`, {
                         key: actividad.key,
                     });
                 } catch (error) {
-                    this.setDiagnosticFlag("ultimoError", error?.message || String(error));
                     console.warn(`No se pudo restaurar la actividad ${actividad.key} para la encuesta ${this.idEncuesta}:`, error);
                 }
             }
@@ -972,69 +930,46 @@ export default {
             try {
                 const { data } = await realtime_api.get(`/Actividades/${this.idEncuesta}.json`);
                 if (this.tieneActividadesPersistidas(data)) {
-                    this.setDiagnosticFlag("restauracionPersistenciaOk", true);
-                    this.setDiagnosticFlag("mensajeFinal", "Actividades restauradas correctamente");
                     await this.getActividadesById(this.idEncuesta);
                     await this.getEncuestaById(this.idEncuesta);
                     return true;
                 }
             } catch (error) {
-                this.setDiagnosticFlag("ultimoError", error?.message || String(error));
                 console.warn("No se pudo validar la restauración de actividades por defecto:", error);
             }
 
-            this.setDiagnosticFlag("mensajeFinal", "Se intentó restaurar, pero el nodo Actividades siguió vacío");
             return false;
         },
 
-        async devolverAAuxiliarSiActividadesVacias() {
-            this.resetDiagnosticFlags();
-            if (this.cargoMostrado !== "Medico" || !this.idEncuesta) {
-                this.setDiagnosticFlag("mensajeFinal", "No aplica devolución automática para este cargo");
-                return false;
+        async devolverEncuestaCorruptaAAuxiliar() {
+            if (!this.puedeDevolverEncuestaCorrupta || !this.idEncuesta) {
+                return;
             }
 
-            let actividadesPersistidas = null;
-            try {
-                this.setDiagnosticFlag("lecturaActividadesIntentada", true);
-                const { data } = await realtime_api.get(`/Actividades/${this.idEncuesta}.json`);
-                actividadesPersistidas = data;
-                this.setDiagnosticFlag("lecturaActividadesOk", this.tieneActividadesPersistidas(data));
-            } catch (error) {
-                this.setDiagnosticFlag("ultimoError", error?.message || String(error));
-                console.warn("No se pudo consultar el nodo real de actividades para validar devolución al auxiliar:", error);
-                actividadesPersistidas = null;
+            const confirmar = confirm("Esta encuesta se marcará como corrupta, se restaurarán las actividades y se devolverá al auxiliar para que vuelva a asignar CUPS antes de cerrar nuevamente. ¿Desea continuar?");
+            if (!confirmar) {
+                return;
             }
 
-            if (this.tieneActividadesPersistidas(actividadesPersistidas)) {
-                this.setDiagnosticFlag("mensajeFinal", "La encuesta ya tenía actividades persistidas");
-                return false;
-            }
-
+            this.guardando = true;
             try {
                 const restauradas = await this.restaurarActividadesPorDefectoEncuesta();
                 if (!restauradas) {
-                    this.setDiagnosticFlag("mensajeFinal", "No fue posible restaurar actividades automáticamente");
-                    alert("La encuesta llegó al médico sin actividades y no fue posible restaurarlas automáticamente. No se devolvió al auxiliar para evitar que quede bloqueado.");
-                    return false;
+                    alert("No fue posible reconstruir las actividades automáticamente para esta encuesta.");
+                    return;
                 }
 
-                this.setDiagnosticFlag("devolucionAuxIntentada", true);
                 await realtime_api.patch(`/Encuesta/${this.idEncuesta}.json`, {
                     status_gest_aux: 0,
                 });
-                this.setDiagnosticFlag("devolucionAuxOk", true);
-                this.setDiagnosticFlag("mensajeFinal", "Se restauraron actividades y se devolvió al auxiliar");
 
-                alert("La encuesta llegó al médico sin actividades registradas. Se restauraron las actividades por defecto y se devolvió al auxiliar para que vuelva a asociar los CUPS antes de cerrar nuevamente.");
-                await this.redirigirPostCierre("Medico");
-                return true;
+                alert("La encuesta se devolvió al auxiliar. Las actividades quedaron restauradas para que vuelva a asignar los CUPS y cierre nuevamente.");
+                await this.redirigirPostCierre(this.cargoMostrado);
             } catch (error) {
-                this.setDiagnosticFlag("ultimoError", error?.message || String(error));
-                this.setDiagnosticFlag("mensajeFinal", "Falló la devolución al auxiliar después de restaurar actividades");
-                console.error("No se pudo devolver la encuesta al auxiliar tras detectar actividades vacías:", error);
-                alert("La encuesta llegó sin actividades y no se pudo completar la restauración/devolución automática. Intente nuevamente o valide el registro.");
-                return false;
+                console.error("No se pudo devolver la encuesta corrupta al auxiliar:", error);
+                alert("No se pudo devolver la encuesta al auxiliar.");
+            } finally {
+                this.guardando = false;
             }
         },
 
@@ -2186,7 +2121,6 @@ export default {
         // Reiniciar la bandera cuando el componente se monta
         this.isComponentActive = true;
         this.cargandoDatos = true;
-        this.resetDiagnosticFlags();
 
         try {
             // Cargar datos críticos primero (necesarios para renderizar)
@@ -2194,12 +2128,6 @@ export default {
                 this.getEncuestaById(this.idEncuesta),
                 this.getActividadesById(this.idEncuesta),
             ]);
-
-            const fueDevueltaAAuxiliar = await this.devolverAAuxiliarSiActividadesVacias();
-            if (fueDevueltaAAuxiliar) {
-                this.cargandoDatos = false;
-                return;
-            }
 
             // Datos críticos cargados, ahora mostrar contenido
             this.cargandoDatos = false;
