@@ -16,9 +16,12 @@
         <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
             Visualizando como admin: {{ nombreProfesionalSeleccionado }}
         </p>
-        <div v-if="cantCerradosHoy > 0" class="text-center mb-2">
+        <div class="text-center mb-2">
             <span class="badge bg-success">
                 <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
+            </span>
+            <span class="badge bg-primary ms-2">
+                <i class="bi bi-calendar-week"></i> {{ cantCerradosSemana }} acumulado{{ cantCerradosSemana !== 1 ? 's' : '' }} semana
             </span>
         </div>
         <nav>
@@ -225,6 +228,7 @@ import moment from "moment";
 import { getAllUsers } from "@/api/usersApi";
 import * as XLSX from "xlsx";
 import realtime_api from "@/api/realtimeApi";
+import { contarCierresPorPeriodo } from "@/utils/gestionCounters";
 export default {
     data() {
         return {
@@ -884,13 +888,27 @@ export default {
             return this.encuestas.length;
         },
         cantCerradosHoy() {
-            if (!this.encuestas || !this.fechaActual) return 0;
-            const doc = this.getDocumentoObjetivo();
-            return this.encuestas.filter(e =>
-                String(e.idEnfermeroAtiende || "").trim() === doc &&
-                e.status_gest_enfermera === true &&
-                String(e.fechagestEnfermera || "").startsWith(this.fechaActual)
-            ).length;
+            return contarCierresPorPeriodo(this.encuestas, {
+                documentoObjetivo: this.getDocumentoObjetivo(),
+                docKeys: ["idEnfermeroAtiende"],
+                statusKey: "status_gest_enfermera",
+                fechaKey: "fechagestEnfermera",
+                fechaInicio: this.fechaActual,
+                fechaFin: this.fechaActual,
+                esEstadoCerrado: this.esEstadoCerrado,
+            });
+        },
+        cantCerradosSemana() {
+            if (!this.fechaActual) return 0;
+            return contarCierresPorPeriodo(this.encuestas, {
+                documentoObjetivo: this.getDocumentoObjetivo(),
+                docKeys: ["idEnfermeroAtiende"],
+                statusKey: "status_gest_enfermera",
+                fechaKey: "fechagestEnfermera",
+                fechaInicio: moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD"),
+                fechaFin: moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD"),
+                esEstadoCerrado: this.esEstadoCerrado,
+            });
         },
     },
     async mounted() {

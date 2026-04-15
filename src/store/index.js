@@ -1508,12 +1508,19 @@ export default createStore({
       try {
         const response = await realtime_api.get(`/agendas/${key}.json`);
         let tomademuestrasExistentes = [];
+        let visitasExistentes = null;
 
         if (response.data && response.data.tomademuestras) {
           tomademuestrasExistentes = response.data.tomademuestras;
           if (!Array.isArray(tomademuestrasExistentes)) {
             tomademuestrasExistentes = [tomademuestrasExistentes];
           }
+        }
+
+        if (response.data && response.data.visitamedica) {
+          visitasExistentes = Array.isArray(response.data.visitamedica)
+            ? response.data.visitamedica
+            : [response.data.visitamedica];
         }
 
         const existe = tomademuestrasExistentes.some(
@@ -1529,18 +1536,15 @@ export default createStore({
           console.warn("Cita de toma de muestras duplicada detectada, no se agrega.");
         }
 
-        if (response.data) {
-          await realtime_api.patch(`/agendas/${key}.json`, {
-            tomademuestras: tomademuestrasExistentes,
-          });
-          console.log("Agenda actualizada:", key, tomademuestrasExistentes);
-        } else {
-          await realtime_api.put(`/agendas/${key}.json`, {
-            ...agenda,
-            tomademuestras: [agenda.tomademuestras],
-          });
-          console.log("Agenda creada:", key, agenda);
-        }
+        await realtime_api.put(`/agendas/${key}.json`, {
+          idAgenda: agenda.idAgenda,
+          idEncuesta: agenda.idEncuesta,
+          fecha: agenda.tomademuestras.fechaAgenda,
+          grupo: agenda.tomademuestras.grupo,
+          tomademuestras: tomademuestrasExistentes,
+          visitamedica: visitasExistentes,
+        });
+        console.log(response.data ? "Agenda actualizada:" : "Agenda creada:", key, tomademuestrasExistentes);
 
         await realtime_api.patch(`/Encuesta/${agenda.idEncuesta}.json`, {
           Agenda_tomademuestras: {
@@ -1610,12 +1614,19 @@ export default createStore({
       try {
         const response = await realtime_api.get(`/agendas/${key}.json`);
         let visitamedicaExistentes = [];
+        let tomademuestrasExistentes = null;
 
         if (response.data && response.data.visitamedica) {
           visitamedicaExistentes = response.data.visitamedica;
           if (!Array.isArray(visitamedicaExistentes)) {
             visitamedicaExistentes = [visitamedicaExistentes];
           }
+        }
+
+        if (response.data && response.data.tomademuestras) {
+          tomademuestrasExistentes = Array.isArray(response.data.tomademuestras)
+            ? response.data.tomademuestras
+            : [response.data.tomademuestras];
         }
 
         const existe = visitamedicaExistentes.some(
@@ -1631,22 +1642,19 @@ export default createStore({
           console.warn("Cita de visita médica duplicada detectada, no se agrega.");
         }
 
-        if (response.data) {
-          await realtime_api.patch(`/agendas/${key}.json`, {
-            visitamedica: visitamedicaExistentes,
-          });
-          console.log(
-            "Agenda de visita médica actualizada:",
-            key,
-            visitamedicaExistentes
-          );
-        } else {
-          await realtime_api.put(`/agendas/${key}.json`, {
-            ...agenda,
-            visitamedica: [agenda.visitamedica],
-          });
-          console.log("Agenda de visita médica creada:", key, agenda);
-        }
+        await realtime_api.put(`/agendas/${key}.json`, {
+          idAgenda: agenda.idAgenda,
+          idEncuesta: agenda.idEncuesta,
+          fecha: agenda.visitamedica.fechaAgenda,
+          grupo: agenda.visitamedica.grupo,
+          tomademuestras: tomademuestrasExistentes,
+          visitamedica: visitamedicaExistentes,
+        });
+        console.log(
+          response.data ? "Agenda de visita médica actualizada:" : "Agenda de visita médica creada:",
+          key,
+          visitamedicaExistentes
+        );
 
         await realtime_api.patch(`/Encuesta/${agenda.idEncuesta}.json`, {
           Agenda_Visitamedica: {

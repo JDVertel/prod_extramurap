@@ -30,7 +30,7 @@ const routes = [
     path: "/sop_agendas",
     name: "sop_agendas",
     component: () => import("../views/sop_agendas.vue"),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresExtramural: true },
   },
   {
     path: "/sop_facturacion",
@@ -49,7 +49,7 @@ const routes = [
     path: "/sop_agendamiento/:idEncuesta/:tipo",
     name: "sop_agendamiento",
     component: () => import("../views/sop_agendamiento.vue"),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresExtramural: true },
   },
   {
     path: "/sop_profesional",
@@ -281,6 +281,21 @@ router.beforeEach((to, from, next) => {
 
           if (!isAdmin) {
             console.warn(`[Router] Acceso denegado a ${to.name}: requiere admin`);
+            return next("/");
+          }
+        } catch (_) {
+          return next("/");
+        }
+      }
+
+      if (to.matched.some((record) => record.meta.requiresExtramural)) {
+        try {
+          const raw = localStorage.getItem("userData");
+          const userData = raw ? JSON.parse(raw) : {};
+          const convenio = String(userData?.convenio || "").trim().toLowerCase();
+
+          if (convenio !== "extramural") {
+            console.warn(`[Router] Acceso denegado a ${to.name}: requiere convenio Extramural`);
             return next("/");
           }
         } catch (_) {

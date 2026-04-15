@@ -16,6 +16,26 @@
                             Debes asignar una contraseña permanente para continuar.
                         </div>
 
+                        <div v-if="!esPrimerIngreso" class="mb-3">
+                            <label class="form-label fw-medium">
+                                <i class="bi bi-shield-lock me-1"></i> Contraseña actual
+                            </label>
+                            <div class="input-group">
+                                <input
+                                    v-model="currentPassword"
+                                    :type="mostrarActual ? 'text' : 'password'"
+                                    class="form-control"
+                                    placeholder="Ingresa tu contraseña actual"
+                                    autocomplete="current-password"
+                                    @keyup.enter="handleSubmit"
+                                />
+                                <button class="btn btn-outline-secondary" type="button"
+                                    @click="mostrarActual = !mostrarActual">
+                                    <i :class="mostrarActual ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label fw-medium">
                                 <i class="bi bi-key me-1"></i> Nueva contraseña
@@ -98,8 +118,10 @@ export default {
     name: "CambiarPassword",
     data() {
         return {
+            currentPassword: "",
             newPassword: "",
             confirmPassword: "",
+            mostrarActual: false,
             mostrarNew: false,
             mostrarConfirm: false,
             guardando: false,
@@ -109,14 +131,28 @@ export default {
     },
     computed: {
         esPrimerIngreso() {
-            // Viene del query param ?required=true cuando el router lo fuerza
-            return this.$route.query.required === "true";
+            if (this.$route.query.required === "true") {
+                return true;
+            }
+
+            try {
+                const raw = localStorage.getItem("userData");
+                const userData = raw ? JSON.parse(raw) : null;
+                return Boolean(userData?.mustChangePassword);
+            } catch (_) {
+                return false;
+            }
         },
     },
     methods: {
         async handleSubmit() {
             this.error = "";
             this.exito = "";
+
+            if (!this.esPrimerIngreso && !this.currentPassword) {
+                this.error = "Debes ingresar tu contraseña actual para cambiar la clave.";
+                return;
+            }
 
             if (!this.newPassword || this.newPassword.length < 6) {
                 this.error = "La contraseña debe tener al menos 6 caracteres.";
@@ -130,7 +166,10 @@ export default {
             this.guardando = true;
             try {
                 const token = localStorage.getItem("token");
-                await changePassword(this.newPassword, token);
+                await changePassword({
+                    newPassword: this.newPassword,
+                    currentPassword: this.esPrimerIngreso ? undefined : this.currentPassword,
+                }, token);
 
                 // Actualizar userData local para quitar el flag
                 const raw = localStorage.getItem("userData");
@@ -142,6 +181,7 @@ export default {
                 }
 
                 this.exito = "Contraseña actualizada correctamente.";
+                this.currentPassword = "";
                 this.newPassword = "";
                 this.confirmPassword = "";
 

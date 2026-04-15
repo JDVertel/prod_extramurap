@@ -42,7 +42,7 @@
                   <i class="bi bi-person-circle"></i> Auxiliar
                 </router-link>
               </li>
-              <li class="nav-item" v-if="userData && userData.cargo === 'Auxiliar de enfermeria' && userData.convenio !== 'E Basicos'">
+              <li class="nav-item" v-if="userData && userData.cargo === 'Auxiliar de enfermeria' && esConvenioExtramural">
                 <router-link class="nav-link" to="/sop_agendas" @click="onNavLinkClick">
                   <i class="bi bi-calendar2-date"></i> Agendas
                 </router-link>
@@ -234,6 +234,9 @@ export default {
     },
   },
   computed: {
+        esConvenioExtramural() {
+          return String(this.userData?.convenio || "").trim().toLowerCase() === "extramural";
+        },
     ...mapState(["userData"]),
     convenioThemeClass() {
       const convenio = String(this.userData?.convenio || "").trim().toLowerCase();

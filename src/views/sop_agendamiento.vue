@@ -29,7 +29,7 @@
                                         <option value="">Disponibles</option>
                                         <option v-for="(fecha, index) in agendas"
                                             :value="{ id: fecha.id, fecha: fecha.fecha }" :key="index">
-                                            {{ fecha.grupo }} - {{ fecha.fecha }}
+                                            {{ fecha.grupo }} - {{ formatFechaCorta(fecha.fecha) }}
                                         </option>
                                     </select>
                                 </div>
@@ -37,12 +37,8 @@
 
                             <div class="col-6">
                                 <label for="horalab" class="form-label">Hora:</label>
-                                <select class="form-control" id="horalab" v-model="horalab">
-                                    <option value="">Disponibles</option>
-                                    <option v-for="hora in horasValidasLab" :key="hora" :value="hora">
-                                        {{ hora }}
-                                    </option>
-                                </select>
+                                <input class="form-control" id="horalab" v-model="horalab" type="time" step="1800" min="06:00" max="08:30" />
+                                <small v-if="horalab" class="text-white d-block mt-1">{{ formatHora12(horalab) }}</small>
                             </div>
 
                             <button class="btn btn-warning mb-3 mt-3" @click="guardarAgendamientoTomaLab"
@@ -67,7 +63,7 @@
                                     :key="item?.id + '-' + index">
                                     <tr v-for="(muestra, i) in (item?.tomademuestras || [])" :key="i">
                                         <td>{{ i }}</td>
-                                        <td>{{ muestra?.horalab || '-' }}</td>
+                                        <td>{{ formatHora12(muestra?.horalab) || '-' }}</td>
                                         <td>{{ muestra?.grupo || '-' }}</td>
                                         <td>
                                             <button class="btn btn-danger rounded-circle"
@@ -103,7 +99,7 @@
                                         <option value="">Disponibles</option>
                                         <option v-for="(fecha, index) in FechasVisitasGrupo"
                                             :value="{ id: fecha.id, fecha: fecha.fecha }" :key="index">
-                                            {{ fecha.grupo }} - {{ fecha.fecha }}
+                                            {{ fecha.grupo }} - {{ formatFechaCorta(fecha.fecha) }}
                                         </option>
                                     </select>
                                 </div>
@@ -111,12 +107,8 @@
 
                             <div class="col-6">
                                 <label for="horaconsulta" class="form-label">Hora</label>
-                                <select class="form-control" id="horavisita" v-model="horavisita">
-                                    <option value="">Disponibles</option>
-                                    <option v-for="hora in horasValidasVisita" :key="hora" :value="hora">
-                                        {{ hora }}
-                                    </option>
-                                </select>
+                                <input class="form-control" id="horavisita" v-model="horavisita" type="time" step="1800" min="09:00" max="11:30" />
+                                <small v-if="horavisita" class="text-white d-block mt-1">{{ formatHora12(horavisita) }}</small>
                             </div>
                             <button class="btn btn-warning mb-3 mt-3" @click="guardarAgendamientoVisitas"
                                 v-if="userData.grupo && dateIDvisita && horavisita !== ''" :disabled="guardando">
@@ -140,7 +132,7 @@
                                     :key="iten?.id + '-' + index">
                                     <tr v-for="(muestras, i) in (iten?.visitamedica || [])" :key="i">
                                         <td>{{ i }}</td>
-                                        <td>{{ muestras?.horavisita || '-' }}</td>
+                                        <td>{{ formatHora12(muestras?.horavisita) || '-' }}</td>
                                         <td>{{ muestras?.grupo || '-' }}</td>
                                         <td>
                                             <button class="btn btn-danger rounded-circle"
@@ -198,28 +190,35 @@ export default {
 
         ]),
 
-        generarHorasValidasLab() {
-            const horas = [];
-            for (let i = 6; i <= 8; i++) {
-                for (let j = 0; j < 60; j += 30) {
-                    // Incrementos de 30 minutos
-                    const hora = `${String(i).padStart(2, "0")}:${String(j).padStart(2, "0")}`;
-                    horas.push(hora);
-                }
-            }
-            return horas;
+        formatFechaCorta(valor) {
+            if (!valor) return "";
+            const parsed = moment(valor, ["YYYY-MM-DD", "YYYY-MM-DD HH:mm:ss", moment.ISO_8601], true);
+            return parsed.isValid() ? parsed.format("DD/MM/YYYY") : String(valor);
         },
-
-        generarHorasValidasVisita() {
-            const horas = [];
-            for (let i = 9; i <= 11; i++) {
-                for (let j = 0; j < 60; j += 30) {
-                    // Incrementos de 30 minutos
-                    const hora = `${String(i).padStart(2, "0")}:${String(j).padStart(2, "0")}`;
-                    horas.push(hora);
-                }
-            }
-            return horas;
+        formatHora12(valor) {
+            if (!valor) return "";
+            const parsed = moment(String(valor), ["HH:mm", "HH:mm:ss", moment.ISO_8601], true);
+            return parsed.isValid() ? parsed.format("hh:mm A") : String(valor);
+        },
+        horaEnRango(hora, min, max) {
+            if (!hora) return false;
+            const actual = moment(hora, ["HH:mm", "HH:mm:ss"], true);
+            const minimo = moment(min, "HH:mm", true);
+            const maximo = moment(max, "HH:mm", true);
+            return actual.isValid() && minimo.isValid() && maximo.isValid() && actual.isBetween(minimo, maximo, undefined, "[]");
+        },
+        obtenerPacienteNombre() {
+            if (!this.encuestaFiltrada) return "";
+            return [this.encuestaFiltrada.nombre1, this.encuestaFiltrada.nombre2, this.encuestaFiltrada.apellido1, this.encuestaFiltrada.apellido2]
+                .map((item) => String(item || "").trim())
+                .filter(Boolean)
+                .join(" ");
+        },
+        obtenerBarrio() {
+            const barrio = this.encuestaFiltrada?.barrioVeredacomuna?.barrio
+                ?? this.encuestaFiltrada?.barrio
+                ?? this.encuestaFiltrada?.barrioVeredacomuna;
+            return String(barrio || "Sin barrio").trim();
         },
         /* --------------------------------------------------------------------------------------------------------- */
 
@@ -239,6 +238,11 @@ export default {
                 return;
             }
 
+            if (!this.horaEnRango(this.horalab, "06:00", "08:30")) {
+                alert("La hora de laboratorio debe estar entre 06:00 AM y 08:30 AM.");
+                return;
+            }
+
             // Validación: verificar si ya existe un agendamiento idéntico
             const agendamientoExistente = this.encuestasFiltradasLabById.some(item => {
                 return (item?.tomademuestras || []).some(muestra =>
@@ -255,16 +259,17 @@ export default {
 
             this.guardando = true; // Activar flag
             try {
+                const agendaSeleccionada = { ...this.dateIDAgenda };
                 let datos = {
-                    idAgenda: this.dateIDAgenda.id,
-                    fechaAgenda: this.dateIDAgenda.fecha,
+                    idAgenda: agendaSeleccionada.id,
+                    fechaAgenda: agendaSeleccionada.fecha,
                     idEncuesta: this.idEncuesta,
                     horalab: this.horalab,
                     grupo: this.userData.grupo,
-                    paciente: this.encuestaFiltrada.nombre1 + " " + this.encuestaFiltrada.apellido1,
+                    paciente: this.obtenerPacienteNombre(),
                     encuestador: this.userData.nombre,
-                    barrio: this.encuestaFiltrada.barrioVeredacomuna.barrio,
-                    direccion: this.encuestaFiltrada.direccion,
+                    barrio: this.obtenerBarrio(),
+                    direccion: String(this.encuestaFiltrada?.direccion || "Sin dirección").trim(),
                 };
                 console.log("Guardando agendamiento de laboratorio:", datos);
                 await this.guardarAgendaT(datos);
@@ -281,7 +286,7 @@ export default {
                 // Recargar datos desde API
                 console.log("Recargando agendas desde API...");
                 await this.getListAgendas(this.fechaActual);
-                await this.getAgendasTomaLabById(this.dateIDAgenda);
+                await this.getAgendasTomaLabById({ id: agendaSeleccionada.id });
 
                 // Volver
                 await this.$router.push("/sop_aux");
@@ -309,6 +314,11 @@ export default {
                 return;
             }
 
+            if (!this.horaEnRango(this.horavisita, "09:00", "11:30")) {
+                alert("La hora de visita debe estar entre 09:00 AM y 11:30 AM.");
+                return;
+            }
+
             // Validación: verificar si ya existe un agendamiento idéntico
             const agendamientoExistente = this.encuestasFiltradasVisitaById.some(iten => {
                 return (iten?.visitamedica || []).some(muestras =>
@@ -325,16 +335,17 @@ export default {
 
             this.guardando = true; // Activar flag
             try {
+                const agendaSeleccionada = { ...this.dateIDvisita };
                 let datos = {
-                    idAgenda: this.dateIDvisita.id,
-                    fechaAgenda: this.dateIDvisita.fecha,
+                    idAgenda: agendaSeleccionada.id,
+                    fechaAgenda: agendaSeleccionada.fecha,
                     idEncuesta: this.idEncuesta,
                     horavisita: this.horavisita,
                     grupo: this.userData.grupo,
-                    paciente: this.encuestaFiltrada.nombre1 + " " + this.encuestaFiltrada.apellido1,
+                    paciente: this.obtenerPacienteNombre(),
                     encuestador: this.userData.nombre,
-                    barrio: this.encuestaFiltrada.barrioVeredacomuna.barrio,
-                    direccion: this.encuestaFiltrada.direccion,
+                    barrio: this.obtenerBarrio(),
+                    direccion: String(this.encuestaFiltrada?.direccion || "Sin dirección").trim(),
                 };
                 console.log("Guardando agendamiento de visita:", datos);
                 await this.guardarAgendaV(datos);
@@ -351,7 +362,7 @@ export default {
                 // Recargar datos desde API
                 console.log("Recargando agendas desde API...");
                 await this.getListAgendas(this.fechaActual);
-                await this.getAgendasVisitaById(this.dateIDvisita);
+                await this.getAgendasVisitaById({ id: agendaSeleccionada.id });
 
                 // Volver
                 await this.$router.push("/sop_aux");
@@ -373,13 +384,19 @@ export default {
         //consulta las citas  de toma de muestra del dia seleccionado
         agendaActualTomaLab(id) {
             console.log("Cargando agendas de toma de laboratorio para:", id);
-            this.getAgendasTomaLabById(id);
+            if (!id || !id.id) {
+                return;
+            }
+            this.getAgendasTomaLabById({ id: id.id });
         },
         //consulta las citas de visita del dia seleccionado
         //se usa el id de la agenda seleccionada para consultar las citas de visita
         agendaActualVisita(id) {
             console.log("Cargando agendas de visita para:", id);
-            this.getAgendasVisitaById(id);
+            if (!id || !id.id) {
+                return;
+            }
+            this.getAgendasVisitaById({ id: id.id });
         },
 
         eliminarItemAgenda(indice, encuestaID, lista) {
@@ -430,13 +447,6 @@ export default {
 
         getAllAgendasbyDate(datelab) {
             return this.agendas.filter((item) => item.fecha == this.dateConsulta);
-        },
-        horasValidasLab() {
-            return this.generarHorasValidasLab();
-        },
-
-        horasValidasVisita() {
-            return this.generarHorasValidasVisita();
         },
     },
     mounted() {

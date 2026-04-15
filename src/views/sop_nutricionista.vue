@@ -24,45 +24,98 @@
             </p>
 
             <h4>
-                Detalle de Actividades ({{ cantEncuestasFiltradasPorConvenio }}) <small>Pendientes</small>
+                Detalle de Actividades
                 <span v-if="cantEncuestasEnProceso > 0" class="badge bg-warning text-dark ms-2"
                     style="cursor: pointer;"
                     @click="abrirModalEnProceso"
                     title="Encuestas asignadas pero pendientes de cierre por el auxiliar">
                     <i class="bi bi-hourglass-split"></i> {{ cantEncuestasEnProceso }} en proceso
                 </span>
-                <span v-if="cantCerradosHoy > 0" class="badge bg-success ms-2">
+                <span class="badge bg-success ms-2">
                     <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
+                </span>
+                <span class="badge bg-primary ms-2">
+                    <i class="bi bi-calendar-week"></i> {{ cantCerradosSemana }} acumulado{{ cantCerradosSemana !== 1 ? 's' : '' }} semana
                 </span>
             </h4>
 
-            <div v-if="!encuestasFiltradasPorConvenio || encuestasFiltradasPorConvenio.length === 0"
-                class="alert alert-success shadow-sm text-center" role="alert">
-                <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
-                <h5 class="mt-3">¡Todo OK!</h5>
-                <p class="mb-0">No hay registros pendientes en este momento.</p>
-            </div>
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#nut-pendientes" type="button" role="tab">
+                        Pendientes ({{ cantEncuestasPendientes }})
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#nut-devueltos" type="button" role="tab">
+                        Devueltos ({{ cantEncuestasDevueltas }})
+                    </button>
+                </li>
+            </ul>
 
-            <div v-for="(encuesta, index) in encuestasFiltradasPorConvenio" :key="index"
-                class="container rounded-lg p-2 mb-2">
-                <div class="row paciente shadow-sm">
-                    <div class="col-7 col-md-6">
-                        <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{
-                            encuesta.apellido1 }} {{
-                                    encuesta.apellido2 }}</strong></small>
-                        <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
-                        <small>Nac: {{ encuesta.fechaNac }} | Enc: {{ encuesta.fecha }}</small>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="nut-pendientes" role="tabpanel">
+                    <div v-if="!encuestasPendientes || encuestasPendientes.length === 0"
+                        class="alert alert-success shadow-sm text-center" role="alert">
+                        <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3">¡Todo OK!</h5>
+                        <p class="mb-0">No hay registros pendientes en este momento.</p>
                     </div>
 
-                    <div class="col-5 col-md-6 acciones-col">
-                        <div class="btn-grid">
-                            <div class="btn-row">
-                                <div v-if="mostrarBotonCups(encuesta)">
-                                    <button type="button" class="btn btn-primary agendar-btn"
-                                        @click="cupsGestion(encuesta.id)">
-                                        <i class="bi bi-calendar2-heart-fill"></i>
-                                        <span class="agendar-label">Cups</span>
-                                    </button>
+                    <div v-for="(encuesta, index) in encuestasPendientes" :key="`pend-${encuesta.id || index}`"
+                        class="container rounded-lg p-2 mb-2">
+                        <div :class="['row', 'paciente', 'shadow-sm', pacienteClass(encuesta)]">
+                            <div class="col-7 col-md-6">
+                                <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
+                                <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                                <small>Nac: {{ encuesta.fechaNac }} | Enc: {{ encuesta.fecha }}</small>
+                            </div>
+
+                            <div class="col-5 col-md-6 acciones-col">
+                                <div class="btn-grid">
+                                    <div class="btn-row">
+                                        <div v-if="mostrarBotonCups(encuesta)">
+                                            <button type="button" class="btn btn-primary agendar-btn" @click="cupsGestion(encuesta.id)">
+                                                <i class="bi bi-calendar2-heart-fill"></i>
+                                                <span class="agendar-label">Cups</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="nut-devueltos" role="tabpanel">
+                    <div v-if="!encuestasDevueltas || encuestasDevueltas.length === 0"
+                        class="alert alert-success shadow-sm text-center" role="alert">
+                        <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3">Sin devoluciones</h5>
+                        <p class="mb-0">No hay pacientes devueltos para corrección.</p>
+                    </div>
+
+                    <div v-for="(encuesta, index) in encuestasDevueltas" :key="`dev-${encuesta.id || index}`"
+                        class="container rounded-lg p-2 mb-2">
+                        <div class="row paciente paciente-devuelto shadow-sm">
+                            <div class="col-7 col-md-6">
+                                <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
+                                <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                                <small>Nac: {{ encuesta.fechaNac }} | Enc: {{ encuesta.fecha }}</small>
+                                <div class="devolucion-nota mt-2">
+                                    <div class="devolucion-titulo"><i class="bi bi-arrow-counterclockwise me-1"></i> Paciente devuelto para corrección</div>
+                                </div>
+                            </div>
+
+                            <div class="col-5 col-md-6 acciones-col">
+                                <div class="btn-grid">
+                                    <div class="btn-row">
+                                        <div v-if="mostrarBotonCups(encuesta)">
+                                            <button type="button" class="btn btn-primary agendar-btn" @click="cupsGestion(encuesta.id)">
+                                                <i class="bi bi-calendar2-heart-fill"></i>
+                                                <span class="agendar-label">Cups</span>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -108,6 +161,7 @@
 import { mapActions, mapState } from "vuex";
 import moment from "moment";
 import realtime_api from "@/api/realtimeApi";
+import { contarCierresPorPeriodo } from "@/utils/gestionCounters";
 
 export default {
     data() {
@@ -178,6 +232,20 @@ export default {
         mostrarBotonCups() {
             const cargo = (this.cargoMostrado || "").toString().trim().toLowerCase();
             return cargo === "nutricionista";
+        },
+        getStatusKeyBandeja() {
+            return "status_gest_nutricionista";
+        },
+        getFechaKeyBandeja() {
+            return "fechagestNutricionista";
+        },
+        esPacienteDevuelto(encuesta) {
+            const statusKey = this.getStatusKeyBandeja();
+            const fechaKey = this.getFechaKeyBandeja();
+            return !this.esEstadoCerrado(encuesta?.[statusKey]) && Boolean(String(encuesta?.[fechaKey] || "").trim());
+        },
+        pacienteClass(encuesta) {
+            return this.esPacienteDevuelto(encuesta) ? "paciente-devuelto" : "";
         },
 
         cerrarModalEnProceso() {
@@ -318,17 +386,43 @@ export default {
                 this.esEstadoCerrado(encuesta.status_gest_aux)
             );
         },
+        encuestasPendientes() {
+            return this.encuestasFiltradasPorConvenio.filter((encuesta) => !this.esPacienteDevuelto(encuesta));
+        },
+        encuestasDevueltas() {
+            return this.encuestasFiltradasPorConvenio.filter((encuesta) => this.esPacienteDevuelto(encuesta));
+        },
+        cantEncuestasPendientes() {
+            return this.encuestasPendientes.length;
+        },
+        cantEncuestasDevueltas() {
+            return this.encuestasDevueltas.length;
+        },
         cantEncuestasFiltradasPorConvenio() {
             return this.encuestasFiltradasPorConvenio.length;
         },
         cantCerradosHoy() {
-            if (!this.encuestas || !this.fechaActual) return 0;
-            const doc = this.getDocumentoObjetivo();
-            return this.encuestas.filter(e =>
-                String(e.idNutricionistaAtiende || "").trim() === doc &&
-                e.status_gest_nutricionista === true &&
-                String(e.fechagestNutricionista || "").startsWith(this.fechaActual)
-            ).length;
+            return contarCierresPorPeriodo(this.encuestas, {
+                documentoObjetivo: this.getDocumentoObjetivo(),
+                docKeys: ["idNutricionistaAtiende", "idNutriAtiende", "idNutricionista", "idNutricionAtiende"],
+                statusKey: "status_gest_nutricionista",
+                fechaKey: "fechagestNutricionista",
+                fechaInicio: this.fechaActual,
+                fechaFin: this.fechaActual,
+                esEstadoCerrado: this.esEstadoCerrado,
+            });
+        },
+        cantCerradosSemana() {
+            if (!this.fechaActual) return 0;
+            return contarCierresPorPeriodo(this.encuestas, {
+                documentoObjetivo: this.getDocumentoObjetivo(),
+                docKeys: ["idNutricionistaAtiende", "idNutriAtiende", "idNutricionista", "idNutricionAtiende"],
+                statusKey: "status_gest_nutricionista",
+                fechaKey: "fechagestNutricionista",
+                fechaInicio: moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD"),
+                fechaFin: moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD"),
+                esEstadoCerrado: this.esEstadoCerrado,
+            });
         },
     },
 
@@ -354,7 +448,7 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
 .spinner-overlay {
     position: fixed;
     top: 0;
@@ -439,6 +533,22 @@ export default {
 .row.paciente strong {
     color: #ffffff;
     font-size: 0.9rem;
+}
+
+.row.paciente.paciente-devuelto {
+    background: linear-gradient(90deg, #7f1d1d 0%, #b91c1c 30%, #ef4444 65%, #b91c1c 85%, #7f1d1d 100%);
+}
+
+.devolucion-nota {
+    margin-top: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.devolucion-titulo {
+    font-weight: 700;
 }
 
 .enproceso-modal-overlay {

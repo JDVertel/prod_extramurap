@@ -28,88 +28,136 @@
         </RouterLink>
       </div>
 
-      <h4>Detalle de Actividades ({{ cantEncuestasFiltradasPorConvenio }}) <small>Pendientes</small>
-        <span v-if="cantCerradosHoy > 0" class="badge bg-success ms-2">
+      <h4>Detalle de Actividades
+        <span class="badge bg-success ms-2">
           <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
+        </span>
+        <span class="badge bg-primary ms-2">
+          <i class="bi bi-calendar-week"></i> {{ cantCerradosSemana }} acumulado{{ cantCerradosSemana !== 1 ? 's' : '' }} semana
         </span>
       </h4>
 
-      <!-- Mensaje cuando no hay registros -->
-      <div v-if="!encuestasFiltradasPorConvenio || encuestasFiltradasPorConvenio.length === 0"
-        class="alert alert-success shadow-sm text-center" role="alert">
-        <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
-        <h5 class="mt-3">¡Todo OK!</h5>
-        <p class="mb-0">No hay registros pendientes en este momento.</p>
-      </div>
+      <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#aux-pendientes" type="button" role="tab">
+            Pendientes ({{ cantEncuestasPendientes }})
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#aux-devueltos" type="button" role="tab">
+            Devueltos ({{ cantEncuestasDevueltas }})
+          </button>
+        </li>
+      </ul>
 
-      <div v-for="(encuesta, index) in encuestasFiltradasPorConvenio" :key="index"
-        class="container rounded-lg p-2 mb-2">
-        <div class="row paciente shadow-sm">
-          <div class="col-7 col-md-6">
-            <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{
-              encuesta.apellido2 }}</strong></small>
-            <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
-            <small>Nac: {{ encuesta.fechaNac }} | Enc: {{ encuesta.fecha }}</small>
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="aux-pendientes" role="tabpanel">
+          <div v-if="!encuestasPendientes || encuestasPendientes.length === 0"
+            class="alert alert-success shadow-sm text-center" role="alert">
+            <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
+            <h5 class="mt-3">¡Todo OK!</h5>
+            <p class="mb-0">No hay registros pendientes en este momento.</p>
           </div>
 
-          <div class="col-5 col-md-6 acciones-col">
-            <div class="btn-grid">
-              <div class="btn-row">
-                <!-- Auxiliar: Visita -->
-                <template v-if="esAuxiliarMostrado">
-                  <template v-if="esConvenioExtramural(encuesta.convenio)">
-                    <div
-                      v-if="encuesta.Agenda_Visitamedica?.cita_visitamedica === false || encuesta.Agenda_Visitamedica?.cita_visitamedica === undefined">
-                      <button type="button" class="btn btn-info  agendar-btn"
-                        @click="Agendar(encuesta.id, 'visitamedica')">
-                        <i class="bi bi-houses"></i>
-                        <span class="agendar-label">Visita</span>
+          <div v-for="(encuesta, index) in encuestasPendientes" :key="`pend-${encuesta.id || index}`"
+            class="container rounded-lg p-2 mb-2">
+            <div :class="['row', 'paciente', 'shadow-sm', pacienteClass(encuesta)]">
+              <div class="col-7 col-md-6">
+                <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
+                <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                <small>Nac: {{ encuesta.fechaNac }} | Enc: {{ encuesta.fecha }}</small>
+              </div>
+
+              <div class="col-5 col-md-6 acciones-col">
+                <div class="btn-grid">
+                  <div class="btn-row">
+                    <template v-if="esAuxiliarMostrado">
+                      <template v-if="esConvenioExtramural(encuesta.convenio)">
+                        <div v-if="encuesta.Agenda_Visitamedica?.cita_visitamedica === false || encuesta.Agenda_Visitamedica?.cita_visitamedica === undefined">
+                          <button type="button" class="btn btn-info agendar-btn" @click="Agendar(encuesta.id, 'visitamedica')">
+                            <i class="bi bi-houses"></i>
+                            <span class="agendar-label">Visita</span>
+                          </button>
+                        </div>
+                        <div v-else>
+                          <button type="button" class="btn btn-secondary agendar-btn" disabled>
+                            <i class="bi bi-check2-circle"></i>
+                            <span class="agendar-label">Visita</span>
+                          </button>
+                        </div>
+                      </template>
+                    </template>
+
+                    <template v-if="esAuxiliarMostrado">
+                      <div v-if="encuesta.status_caracterizacion === false">
+                        <button type="button" class="btn btn-warning agendar-btn" @click="Caracterizar(encuesta.id)">
+                          <i class="bi bi-calendar2-check"></i>
+                          <span class="agendar-label">Caract</span>
+                        </button>
+                      </div>
+                      <div v-else>
+                        <button type="button" class="btn btn-secondary agendar-btn" disabled>
+                          <i class="bi bi-check2-circle"></i>
+                          <span class="agendar-label">Caract</span>
+                        </button>
+                      </div>
+                    </template>
+
+                    <div v-if="esAuxiliarMostrado || esMedicoMostrado">
+                      <button type="button" class="btn btn-primary agendar-btn" @click="cupsGestion(encuesta.id)">
+                        <i class="bi bi-calendar2-heart-fill"></i>
+                        <span class="agendar-label">Cups</span>
                       </button>
                     </div>
-                    <div v-else>
-                      <button type="button" class="btn btn-secondary  agendar-btn" disabled>
-                        <i class="bi bi-check2-circle"></i>
-                        <span class="agendar-label">Visita</span>
-                      </button>
-                    </div>
-                  </template>
-                </template>
 
-                <!-- Auxiliar: Caracterización -->
-                <template v-if="esAuxiliarMostrado">
-                  <div v-if="encuesta.status_caracterizacion === false">
-                    <button type="button" class="btn btn-warning  agendar-btn" @click="Caracterizar(encuesta.id)">
-                      <i class="bi bi-calendar2-check"></i>
-                      <span class="agendar-label">Caract</span>
-                    </button>
+                    <template v-if="esAuxiliarMostrado">
+                      <div>
+                        <button type="button" class="btn btn-danger agendar-btn" @click="eliminarRegistro(encuesta.id)"
+                          :disabled="eliminandoRegistro === encuesta.id" :title="'Eliminar registro'">
+                          <i class="bi bi-trash" v-if="eliminandoRegistro !== encuesta.id"></i>
+                          <i class="bi bi-hourglass-split" v-else></i>
+                          <span class="agendar-label">{{ eliminandoRegistro === encuesta.id ? 'Verif' : 'Elim' }}</span>
+                        </button>
+                      </div>
+                    </template>
                   </div>
-                  <div v-else>
-                    <button type="button" class="btn btn-secondary agendar-btn" disabled>
-                      <i class="bi bi-check2-circle"></i>
-                      <span class="agendar-label">Caract</span>
-                    </button>
-                  </div>
-                </template>
-
-                <!-- CUPS -->
-                <div v-if="esAuxiliarMostrado || esMedicoMostrado">
-                  <button type="button" class="btn btn-primary  agendar-btn" @click="cupsGestion(encuesta.id)">
-                    <i class="bi bi-calendar2-heart-fill"></i>
-                    <span class="agendar-label">Cups</span>
-                  </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-                <!-- Eliminar -->
-                <template v-if="esAuxiliarMostrado">
-                  <div>
-                    <button type="button" class="btn btn-danger  agendar-btn" @click="eliminarRegistro(encuesta.id)"
-                      :disabled="eliminandoRegistro === encuesta.id" :title="'Eliminar registro'">
-                      <i class="bi bi-trash" v-if="eliminandoRegistro !== encuesta.id"></i>
-                      <i class="bi bi-hourglass-split" v-else></i>
-                      <span class="agendar-label">{{ eliminandoRegistro === encuesta.id ? 'Verif' : 'Elim' }}</span>
-                    </button>
+        <div class="tab-pane fade" id="aux-devueltos" role="tabpanel">
+          <div v-if="!encuestasDevueltas || encuestasDevueltas.length === 0"
+            class="alert alert-success shadow-sm text-center" role="alert">
+            <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
+            <h5 class="mt-3">Sin devoluciones</h5>
+            <p class="mb-0">No hay pacientes devueltos para corrección.</p>
+          </div>
+
+          <div v-for="(encuesta, index) in encuestasDevueltas" :key="`dev-${encuesta.id || index}`"
+            class="container rounded-lg p-2 mb-2">
+            <div class="row paciente paciente-devuelto shadow-sm">
+              <div class="col-7 col-md-6">
+                <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
+                <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                <small>Nac: {{ encuesta.fechaNac }} | Enc: {{ encuesta.fecha }}</small>
+                <div class="devolucion-nota mt-2">
+                  <div class="devolucion-titulo"><i class="bi bi-arrow-counterclockwise me-1"></i> Paciente devuelto para corrección</div>
+                </div>
+              </div>
+
+              <div class="col-5 col-md-6 acciones-col">
+                <div class="btn-grid">
+                  <div class="btn-row">
+                    <div v-if="esAuxiliarMostrado || esMedicoMostrado">
+                      <button type="button" class="btn btn-primary agendar-btn" @click="cupsGestion(encuesta.id)">
+                        <i class="bi bi-calendar2-heart-fill"></i>
+                        <span class="agendar-label">Cups</span>
+                      </button>
+                    </div>
                   </div>
-                </template>
+                </div>
               </div>
             </div>
           </div>
@@ -122,6 +170,7 @@
 <script>
 import { mapActions, mapState } from "vuex";
 import moment from "moment";
+import { contarCierresPorPeriodo } from "@/utils/gestionCounters";
 
 export default {
   data() {
@@ -208,6 +257,32 @@ export default {
         params: { idEncuesta: id },
         query,
       });
+    },
+    getStatusKeyBandeja() {
+      return this.esMedicoMostrado ? "status_gest_medica" : "status_gest_aux";
+    },
+    getFechaKeyBandeja() {
+      return this.esMedicoMostrado ? "fechagestMedica" : "fechagestAuxiliar";
+    },
+    getDocKeysBandeja() {
+      return this.esMedicoMostrado ? ["idMedicoAtiende"] : ["idEncuestador"];
+    },
+    esEstadoCerrado(valor) {
+      if (valor === true || valor === 1 || valor === 2) return true;
+      if (typeof valor === "string") {
+        const limpio = valor.trim().toLowerCase();
+        return limpio === "true" || limpio === "1" || limpio === "2";
+      }
+      if (typeof valor === "number") return valor >= 1;
+      return false;
+    },
+    esPacienteDevuelto(encuesta) {
+      const statusKey = this.getStatusKeyBandeja();
+      const fechaKey = this.getFechaKeyBandeja();
+      return !this.esEstadoCerrado(encuesta?.[statusKey]) && Boolean(String(encuesta?.[fechaKey] || "").trim());
+    },
+    pacienteClass(encuesta) {
+      return this.esPacienteDevuelto(encuesta) ? "paciente-devuelto" : "";
     },
 
     async cargarEncuestas() {
@@ -303,17 +378,43 @@ export default {
         String(encuesta.convenio || "").trim().toLowerCase() === convenioUsuario
       );
     },
+    encuestasPendientes() {
+      return this.encuestasFiltradasPorConvenio.filter((encuesta) => !this.esPacienteDevuelto(encuesta));
+    },
+    encuestasDevueltas() {
+      return this.encuestasFiltradasPorConvenio.filter((encuesta) => this.esPacienteDevuelto(encuesta));
+    },
+    cantEncuestasPendientes() {
+      return this.encuestasPendientes.length;
+    },
+    cantEncuestasDevueltas() {
+      return this.encuestasDevueltas.length;
+    },
     cantEncuestasFiltradasPorConvenio() {
       return this.encuestasFiltradasPorConvenio.length;
     },
     cantCerradosHoy() {
-      if (!this.encuestas || !this.fechaActual) return 0;
-      const doc = String(this.documentoObjetivo || "").trim();
-      return this.encuestas.filter(e =>
-        String(e.idEncuestador || "").trim() === doc &&
-        e.status_gest_aux === true &&
-        String(e.fechagestAuxiliar || "").startsWith(this.fechaActual)
-      ).length;
+      return contarCierresPorPeriodo(this.encuestas, {
+        documentoObjetivo: this.documentoObjetivo,
+        docKeys: this.getDocKeysBandeja(),
+        statusKey: this.getStatusKeyBandeja(),
+        fechaKey: this.getFechaKeyBandeja(),
+        fechaInicio: this.fechaActual,
+        fechaFin: this.fechaActual,
+        esEstadoCerrado: this.esEstadoCerrado,
+      });
+    },
+    cantCerradosSemana() {
+      if (!this.fechaActual) return 0;
+      return contarCierresPorPeriodo(this.encuestas, {
+        documentoObjetivo: this.documentoObjetivo,
+        docKeys: this.getDocKeysBandeja(),
+        statusKey: this.getStatusKeyBandeja(),
+        fechaKey: this.getFechaKeyBandeja(),
+        fechaInicio: moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD"),
+        fechaFin: moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD"),
+        esEstadoCerrado: this.esEstadoCerrado,
+      });
     },
   },
 
@@ -341,7 +442,7 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
 .spinner-overlay {
   position: fixed;
   top: 0;
@@ -435,5 +536,21 @@ export default {
 .row.paciente strong {
   color: #ffffff;
   font-size: 0.9rem;
+}
+
+.row.paciente.paciente-devuelto {
+  background: linear-gradient(90deg, #7f1d1d 0%, #b91c1c 30%, #ef4444 65%, #b91c1c 85%, #7f1d1d 100%);
+}
+
+.devolucion-nota {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.devolucion-titulo {
+  font-weight: 700;
 }
 </style>

@@ -15,10 +15,10 @@ export async function resetPassword(token, newPassword) {
   return data;
 }
 
-export async function changePassword(newPassword, token) {
+export async function changePassword({ newPassword, currentPassword }, token) {
   const { data } = await http.post(
     "/auth/change-password",
-    { newPassword },
+    { newPassword, currentPassword },
     { headers: { Authorization: `Bearer ${token}` } }
   );
   return data;
