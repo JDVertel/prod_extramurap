@@ -605,25 +605,34 @@ export default {
 
             const convertirALista = (fuente) => {
                 const lista = Array.isArray(fuente)
-                    ? fuente
-                    : (fuente && typeof fuente === 'object' ? Object.values(fuente) : []);
+                    ? fuente.map((actividad, index) => [String(index), actividad])
+                    : (fuente && typeof fuente === 'object' ? Object.entries(fuente) : []);
 
                 return lista
-                    .map((actividad) => {
-                        if (!actividad) return null;
+                    .map(([sourceKey, actividad]) => {
+                        const sourceKeyNormalizado = String(sourceKey || '').trim();
 
                         if (typeof actividad === 'string') {
-                            const key = actividad.trim();
-                            return key ? { key, nombre: key, Profesional: [] } : null;
+                            const key = actividad.trim() || sourceKeyNormalizado;
+                            return key ? { key, nombre: this.obtenerNombreActividadDelContrato(key), Profesional: this.obtenerProfesionalesActividad(key) } : null;
                         }
 
-                        if (typeof actividad === 'object') {
+                        if (typeof actividad === 'boolean') {
+                            if (!actividad || !sourceKeyNormalizado) return null;
+                            return {
+                                key: sourceKeyNormalizado,
+                                nombre: this.obtenerNombreActividadDelContrato(sourceKeyNormalizado),
+                                Profesional: this.obtenerProfesionalesActividad(sourceKeyNormalizado),
+                            };
+                        }
+
+                        if (actividad && typeof actividad === 'object') {
                             const key = String(
                                 actividad.key ||
                                 actividad.clave ||
                                 actividad.id ||
                                 actividad.actividadId ||
-                                ""
+                                sourceKeyNormalizado
                             ).trim();
 
                             if (!key) return null;
@@ -631,7 +640,18 @@ export default {
                             return {
                                 ...actividad,
                                 key,
-                                nombre: actividad.nombre || actividad.descripcion || key,
+                                nombre: actividad.nombre || actividad.descripcion || this.obtenerNombreActividadDelContrato(key),
+                                Profesional: Array.isArray(actividad.Profesional) && actividad.Profesional.length > 0
+                                    ? actividad.Profesional
+                                    : this.obtenerProfesionalesActividad(key),
+                            };
+                        }
+
+                        if (!actividad && sourceKeyNormalizado) {
+                            return {
+                                key: sourceKeyNormalizado,
+                                nombre: this.obtenerNombreActividadDelContrato(sourceKeyNormalizado),
+                                Profesional: this.obtenerProfesionalesActividad(sourceKeyNormalizado),
                             };
                         }
 
@@ -1278,7 +1298,7 @@ export default {
 
             // Establecer idItem PRIMERO
             this.idItem = obj.key;
-            this.actividadSeleccionadaNombre = this.obtenerNombreActividad(obj.key);
+            this.actividadSeleccionadaNombre = this.obtenerNombreActividadDelContrato(obj.key);
 
             // Luego limpiar el resto
             this.clear();

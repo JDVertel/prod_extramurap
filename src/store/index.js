@@ -1291,6 +1291,90 @@ export default createStore({
      */
     getAllByPacientesID: async ({ commit }, { tipodoc, numdoc }) => {
       try {
+        const normalizarIdRelacion = (valor) => String(valor ?? "").trim();
+        const extraerCupsAsignaciones = (asignaciones = {}) => {
+          const cupsOut = {};
+
+          const cupsDirectos = asignaciones?.cups;
+          if (cupsDirectos && typeof cupsDirectos === "object") {
+            Object.entries(cupsDirectos).forEach(([cupId, cup]) => {
+              if (!cup || typeof cup !== "object") return;
+              cupsOut[String(cupId)] = { ...cup };
+            });
+          }
+
+          const tipoActividad = asignaciones?.tipoActividad;
+          if (tipoActividad && typeof tipoActividad === "object") {
+            Object.entries(tipoActividad).forEach(([actividadId, actividadNode]) => {
+              if (!actividadNode || typeof actividadNode !== "object") return;
+
+              const cupsPorRol = actividadNode?.cups;
+              if (!cupsPorRol || typeof cupsPorRol !== "object") return;
+
+              Object.entries(cupsPorRol).forEach(([rolKey, rolNode]) => {
+                if (!rolNode || typeof rolNode !== "object") return;
+
+                const cupsNodo = rolNode?.cups;
+                if (!cupsNodo || typeof cupsNodo !== "object") return;
+
+                Object.entries(cupsNodo).forEach(([cupId, cup]) => {
+                  if (!cup || typeof cup !== "object") return;
+
+                  cupsOut[String(cupId)] = {
+                    ...cup,
+                    actividadId: cup.actividadId ?? actividadId,
+                    key: cup.key ?? rolKey,
+                    nombreProf: cup.nombreProf ?? rolNode?.nombreProf ?? rolKey,
+                  };
+                });
+              });
+            });
+          }
+
+          return cupsOut;
+        };
+
+        const normalizarActividadesEncuesta = (actividadesEncuesta = {}, cupsAsignados = {}) => {
+          const tipoActividad = actividadesEncuesta?.tipoActividad || actividadesEncuesta;
+          if (!tipoActividad || typeof tipoActividad !== "object") return [];
+
+          const listaCups = Object.values(cupsAsignados || {}).filter(
+            (cup) => cup && typeof cup === "object"
+          );
+
+          return Object.entries(tipoActividad)
+            .filter(([, actividad]) => actividad && typeof actividad === "object")
+            .map(([actividadId, actividad]) => {
+              const sourceId = normalizarIdRelacion(actividadId);
+              const actividadKey = normalizarIdRelacion(
+                actividad.key ?? actividad.clave ?? actividad.actividadKey ?? actividad.actividadId
+              );
+              const referenciaActividad = actividadKey || sourceId;
+              const idsActividad = new Set(
+                [actividadKey, sourceId, referenciaActividad]
+                  .map((valor) => normalizarIdRelacion(valor))
+                  .filter(Boolean)
+              );
+              const asignacionesActividad = listaCups.filter((cup) => {
+                const cupActividadId = normalizarIdRelacion(cup?.actividadId ?? cup?.idActividad ?? "");
+                return cupActividadId && idsActividad.has(cupActividadId);
+              });
+
+              return {
+                ...actividad,
+                id: sourceId,
+                sourceId,
+                key: actividadKey,
+                nombre:
+                  actividad.nombre ||
+                  actividad.descripcion ||
+                  referenciaActividad ||
+                  "Actividad",
+                asignaciones: asignacionesActividad,
+              };
+            });
+        };
+
         // Obtener todas las encuestas (contienen datos básicos del paciente)
         const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
 
@@ -1332,7 +1416,11 @@ export default createStore({
 
             try {
               // Obtener caracterización buscando por idEncuesta
-              const caracResp = await realtime_api.get(`/caracterizacion.json`);
+              const [caracResp, asignResp, actividadesResp] = await Promise.all([
+                realtime_api.get(`/caracterizacion.json`),
+                realtime_api.get(`/Asignaciones/${encuestaId}.json`),
+                realtime_api.get(`/Actividades/${encuestaId}.json`),
+              ]);
               let caracterizacion = {};
               if (caracResp.data) {
                 const caracterizacionEncontrada = Object.values(caracResp.data).find(
@@ -1341,15 +1429,19 @@ export default createStore({
                 caracterizacion = caracterizacionEncontrada || {};
               }
 
-              // Obtener asignaciones usando encuestaId
-              const asignResp = await realtime_api.get(`/Asignaciones/${encuestaId}.json`);
               const asignaciones = asignResp.data || {};
+              const cupsAsignados = extraerCupsAsignaciones(asignaciones);
+              const seguimientoActividades = normalizarActividadesEncuesta(
+                actividadesResp.data || {},
+                cupsAsignados
+              );
 
               // Crear un nuevo objeto con todas las propiedades para garantizar reactividad
               const pacienteCompleto = {
                 ...paciente,
                 caracterizacion,
-                asignaciones
+                asignaciones,
+                seguimientoActividades,
               };
               return pacienteCompleto;
             } catch (err) {
