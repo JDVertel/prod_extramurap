@@ -600,7 +600,10 @@ export default {
         },
 
         actividadesPaciente() {
-            const desdeEncuesta = this.InfoEncuestasById?.[0]?.tipoActividad;
+            const desdeInfoEncuesta = this.InfoEncuestasById?.[0]?.tipoActividad;
+            const desdeInfoActividades = this.InfoEncuestasById?.[0]?.actividades?.tipoActividad || this.InfoEncuestasById?.[0]?.actividades;
+            const desdeUserEncuesta = this.userEncuesta?.tipoActividad;
+            const desdeUserActividades = this.userEncuesta?.actividades?.tipoActividad || this.userEncuesta?.actividades;
             const desdeStore = this.actividades?.tipoActividad || this.actividades;
 
             const convertirALista = (fuente) => {
@@ -660,11 +663,20 @@ export default {
                     .filter((actividad) => actividad && actividad.key);
             };
 
-            const listaEncuesta = convertirALista(desdeEncuesta);
+            const listaInfoEncuesta = convertirALista(desdeInfoEncuesta);
+            const listaInfoActividades = convertirALista(desdeInfoActividades);
+            const listaUserEncuesta = convertirALista(desdeUserEncuesta);
+            const listaUserActividades = convertirALista(desdeUserActividades);
             const listaStore = convertirALista(desdeStore);
 
             const mapa = new Map();
-            [...listaStore, ...listaEncuesta].forEach((actividad) => {
+            [
+                ...listaStore,
+                ...listaInfoEncuesta,
+                ...listaInfoActividades,
+                ...listaUserEncuesta,
+                ...listaUserActividades,
+            ].forEach((actividad) => {
                 if (!actividad?.key) return;
                 if (!mapa.has(actividad.key)) {
                     mapa.set(actividad.key, actividad);

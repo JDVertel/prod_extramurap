@@ -1291,6 +1291,7 @@ export default createStore({
             id: idEncuesta,
             ...encuestaData,
             cups: cupsPaciente,
+            actividades: actividadesData || (Object.keys(tipoActividad).length ? { tipoActividad } : {}),
             tipoActividad,
           };
         }
@@ -1380,11 +1381,31 @@ export default createStore({
 
         const normalizarActividadesEncuesta = (actividadesEncuesta = {}, cupsAsignados = {}) => {
           const tipoActividad = actividadesEncuesta?.tipoActividad || actividadesEncuesta;
-          if (!tipoActividad || typeof tipoActividad !== "object") return [];
-
           const listaCups = Object.values(cupsAsignados || {}).filter(
             (cup) => cup && typeof cup === "object"
           );
+
+          if (!tipoActividad || typeof tipoActividad !== "object") {
+            const actividadesDerivadas = new Map();
+
+            listaCups.forEach((cup) => {
+              const actividadId = normalizarIdRelacion(cup?.actividadId ?? cup?.idActividad ?? "");
+              if (!actividadId) return;
+
+              const actual = actividadesDerivadas.get(actividadId) || {
+                id: actividadId,
+                sourceId: actividadId,
+                key: actividadId,
+                nombre: actividadId,
+                asignaciones: [],
+              };
+
+              actual.asignaciones.push(cup);
+              actividadesDerivadas.set(actividadId, actual);
+            });
+
+            return Array.from(actividadesDerivadas.values());
+          }
 
           return Object.entries(tipoActividad)
             .filter(([, actividad]) => actividad && typeof actividad === "object")
