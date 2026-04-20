@@ -6,6 +6,7 @@
 // IMPORTS
 // ============================================================================
 import realtime_api from "@/api/realtimeApi.js";
+import { workflowApi } from "@/api/workflowApi";
 import persistedState from "./persistedstate";
 import { createStore } from "vuex";
 import { getAllUsers, getUserById } from "@/api/usersApi";
@@ -1700,14 +1701,7 @@ export default createStore({
       };
 
       try {
-        const response = await realtime_api.post(`caracterizacion.json`, caracterizacion);
-        console.log("caracterizacion guardada correctamente");
-
-        await realtime_api.patch(`/Encuesta/${caracterizacion.idEncuesta}.json`, {
-          status_caracterizacion: true,
-        });
-
-        return response.data;
+        return await workflowApi.saveCaracterizacion(caracterizacion);
       } catch (error) {
         console.error("Error al guardar caracterización:", error);
         throw error;
@@ -2911,95 +2905,36 @@ export default createStore({
           key,
           cups: nuevosCups,
           idEncuesta,
+          nombreProf,
           nombrePtof,
           convenio,
         } = entradasC;
 
         if (!key) throw new Error("El identificador 'key' es obligatorio");
+        if (!idEncuesta) throw new Error("El identificador 'idEncuesta' es obligatorio");
 
         const Ruta = `/Asignaciones/${idEncuesta}.json`;
 
-        // 1. Leer datos existentes
-        const response = await realtime_api.get(Ruta);
-        const datosExistentes = response.data || {};
-
-        // 2. Normalizar cups existentes sin sobrescribir por cup.id
-        let cupsExistentesObj = {};
-        if (Array.isArray(datosExistentes.cups)) {
-          datosExistentes.cups.forEach((cup) => {
-            if (cup) {
-              const key = generarId();
-              cupsExistentesObj[key] = cup;
-            }
-          });
-        } else if (
-          typeof datosExistentes.cups === "object" &&
-          datosExistentes.cups !== null
-        ) {
-          const valores = Object.values(datosExistentes.cups);
-          const esNested = valores.some(
-            (val) =>
-              val &&
-              typeof val === "object" &&
-              !("id" in val) &&
-              !("cupsNombre" in val) &&
-              !("DescripcionCUP" in val) &&
-              !("codigo" in val)
-          );
-
-          if (esNested) {
-            Object.entries(datosExistentes.cups).forEach(
-              ([actividadId, cupsPorActividad]) => {
-                if (cupsPorActividad && typeof cupsPorActividad === "object") {
-                  Object.values(cupsPorActividad).forEach((cup) => {
-                    if (cup) {
-                      const key = generarId();
-                      cupsExistentesObj[key] = {
-                        ...cup,
-                        actividadId: cup.actividadId ?? actividadId,
-                      };
-                    }
-                  });
-                }
-              }
-            );
-          } else {
-            Object.entries(datosExistentes.cups).forEach(([key, cup]) => {
-              if (cup) {
-                cupsExistentesObj[key] = cup;
-              }
-            });
-          }
-        }
-
-        // 3. Crear entradas nuevas con llave unica
-        const nuevosCupsObj = {};
-        nuevosCups.forEach((cup) => {
-          const id = cup.id || generarId();
-          const key = generarId();
-          nuevosCupsObj[key] = {
-            ...cup,
-            id,
-            convenio: cup?.convenio ?? convenio ?? "",
-          };
+        await realtime_api.patch(Ruta, {
+          key,
+          nombreProf: nombreProf ?? nombrePtof ?? "",
+          nombrePtof: nombrePtof ?? nombreProf ?? "",
+          idEncuesta,
+          convenio: convenio ?? "",
         });
 
-        // 4. Combinar cups existentes con los nuevos
-        const cupsActualizadosObj = { ...cupsExistentesObj, ...nuevosCupsObj };
+        for (const cup of Array.isArray(nuevosCups) ? nuevosCups : []) {
+          const cupId = cup?.id || generarId();
+          const cupKey = generarId();
+          await realtime_api.patch(`/Asignaciones/${idEncuesta}/cups/${cupKey}.json`, {
+            ...cup,
+            id: cupId,
+            cupsId: cup?.cupsId || cupId,
+            convenio: cup?.convenio ?? convenio ?? "",
+          });
+        }
 
-        // 5. Crear objeto actualizado para guardar
-        const datacups = {
-          ...datosExistentes,
-          key,
-          nombrePtof,
-          idEncuesta,
-          convenio: convenio ?? datosExistentes.convenio ?? "",
-          cups: cupsActualizadosObj,
-        };
-
-        // 6. Guardar datos actualizados
-        const { data } = await realtime_api.put(Ruta, datacups);
-
+        const { data } = await realtime_api.get(Ruta);
         return data;
       } catch (error) {
         console.error("Error en Action_adicionarCups:", error);
@@ -3194,11 +3129,6 @@ export default createStore({
           return [];
         }
 
-        console.log("📋 Parámetros de búsqueda:");
-        console.log("   finicial:", inicio, "| tipo:", typeof inicio);
-        console.log("   ffinal:", fin, "| tipo:", typeof fin);
-        console.log("   convenio:", convenioFiltro, "| tipo:", typeof convenioFiltro);
-
         // Obtener actividades, encuestas y asignaciones (CUPS)
         const { data: actividades } = await realtime_api.get("/Actividades.json");
         const { data: encuestas } = await realtime_api.get("/Encuesta.json");
@@ -3274,9 +3204,6 @@ export default createStore({
             });
           }
         });
-
-        console.log(`✅ Registros de actividades filtradas por fecha y convenio: ${resultados.length}`);
-        console.log("📄 JSON de resultados:", JSON.stringify(resultados, null, 2));
 
         commit("setEncuestasFact", resultados);
         return resultados;

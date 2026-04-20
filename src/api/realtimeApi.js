@@ -951,7 +951,13 @@ function resolveCupsByActividad(datosAsignaciones, actividadId = null) {
 
     const cupsArray = Array.isArray(cupsRaw)
         ? cupsRaw
-        : (typeof cupsRaw === 'object' ? Object.values(cupsRaw) : []);
+        : (typeof cupsRaw === 'object'
+            ? Object.entries(cupsRaw).map(([rowKey, cup]) => (
+                cup && typeof cup === 'object'
+                    ? { ...cup, _rowKey: cup._rowKey ?? rowKey }
+                    : cup
+            ))
+            : []);
 
     if (actividadId) {
         return cupsArray.filter((cup) => cup && String(cup.actividadId) === String(actividadId));
@@ -1002,15 +1008,20 @@ realtime_api2.get = async (url, config) => {
     }
 
     if (root === 'Asignaciones') {
-        const rows = await asignacionesApi.list({ limit: 5000, offset: 0 });
-        const map = buildAsignacionesMap(rows);
         if (!id) {
+            const rows = await asignacionesApi.list({ limit: 5000, offset: 0 });
+            const map = buildAsignacionesMap(rows);
             return { data: map };
         }
+
+        const row = await asignacionesApi.getById(id).catch(() => null);
+        const mapped = row ? toLegacyAsignacionPayload(row) : null;
+
         if (!rest.length) {
-            return { data: map[id] || null };
+            return { data: mapped };
         }
-        const nested = getBySegments(map[id] || {}, rest);
+
+        const nested = getBySegments(mapped || {}, rest);
         return { data: nested === undefined ? null : nested };
     }
 

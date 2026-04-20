@@ -338,7 +338,8 @@
                                     <i class="bi bi-x-square"></i> Cancelar
                                 </button>
                                 <button type="button" class="btn btn-primary rounded-pill"
-                                    @click="confirmarSeleccion(userEncuesta?.id)" data-bs-dismiss="modal"
+                                    @click="confirmarSeleccion(userEncuesta?.id)"
+                                    :disabled="guardando"
                                     v-if="cupsArray.length !== 0">
                                     <i class="bi bi-floppy"></i> Guardar Listado
                                 </button>
@@ -358,6 +359,7 @@ import {
 } from "vuex";
 import { caracterizacionApi } from "@/api/modulesApi";
 import realtime_api from "@/api/realtimeApi.js";
+import { workflowApi } from "@/api/workflowApi";
 
 /* ----------------------------------------------------------------------------------------------- */
 export default {
@@ -875,14 +877,7 @@ export default {
 
             this.guardando = true;
             try {
-                await Promise.all([
-                    realtime_api.delete(`/Asignaciones/${this.idEncuesta}.json`),
-                    realtime_api.delete(`/Actividades/${this.idEncuesta}.json`),
-                ]);
-
-                await realtime_api.patch(`/Encuesta/${this.idEncuesta}.json`, {
-                    status_gest_aux: 0,
-                });
+                await workflowApi.returnEncuestaToAuxiliar(this.idEncuesta);
 
                 alert("La encuesta se devolvió al auxiliar. Se limpiaron actividades y CUPS para reasignar el caso desde cero.");
                 await this.redirigirPostCierre(this.cargoMostrado);
@@ -1481,6 +1476,13 @@ export default {
                 console.error('Error al abrir modal de CUPS:', error);
             }
         },
+        cerrarModalCups() {
+            const modalRef = this.modalEl || document.getElementById('cupsModal');
+            const instancia = modalRef ? window.bootstrap?.Modal?.getInstance(modalRef) : null;
+            if (instancia) {
+                instancia.hide();
+            }
+        },
         async cargarCupsGuardados(idActividad) {
             try {
                 const response = await this.selectCupsByActividad({
@@ -1498,7 +1500,22 @@ export default {
         async cargarAsignaciones() {
             try {
                 const asignacionesData = await this.getAsignacionesByEncuesta(this.idEncuesta);
-                this.asignaciones = asignacionesData || {};
+                const cups = asignacionesData?.cups;
+                this.asignaciones = {
+                    ...(asignacionesData || {}),
+                    cups: Array.isArray(cups)
+                        ? cups
+                        : (cups && typeof cups === 'object'
+                            ? Object.fromEntries(
+                                Object.entries(cups).map(([rowKey, cup]) => [
+                                    rowKey,
+                                    cup && typeof cup === 'object'
+                                        ? { ...cup, _rowKey: cup._rowKey ?? rowKey }
+                                        : cup,
+                                ])
+                            )
+                            : cups),
+                };
             } catch (error) {
                 console.error("Error al cargar asignaciones:", error);
                 this.asignaciones = {};
@@ -1554,55 +1571,40 @@ export default {
                     default: realtime_api
                 } = await import('../api/realtimeApi.js');
 
-                const cupsOrigen = this.asignaciones?.cups;
-                const cupsActuales = Array.isArray(cupsOrigen)
-                    ? [...cupsOrigen]
-                    : (cupsOrigen && typeof cupsOrigen === 'object' ? Object.values(cupsOrigen) : []);
+                let rowKey = cup?._rowKey || null;
 
-                if (cupsActuales.length === 0) {
-                    alert('No hay CUPS para eliminar en esta actividad.');
-                    return;
-                }
+                if (!rowKey) {
+                    const cupsOrigen = this.asignaciones?.cups;
+                    const cupsEntries = Array.isArray(cupsOrigen)
+                        ? cupsOrigen.map((item, index) => [String(index), item])
+                        : (cupsOrigen && typeof cupsOrigen === 'object' ? Object.entries(cupsOrigen) : []);
 
-                const cupId = this.obtenerIdCup(cup);
-
-                // Eliminar solo el CUPS exacto del mismo autor, no los de otros profesionales.
-                let indiceCup = cupsActuales.findIndex((c) => {
-                    if (!c) return false;
-                    const mismoCupId = this.obtenerIdCup(c) === cupId;
-                    const mismaActividad = String(c.actividadId || '') === String(actividadId || '');
-                    const mismoAutor = this.esMismoAutorRegistro(c, cup);
-                    const mismoDetalle = String(c.detalle || '') === String(cup.detalle || '');
-                    const mismaCantidad = String(c.cantidad ?? '') === String(cup.cantidad ?? '');
-                    return mismoCupId && mismaActividad && mismoAutor && mismoDetalle && mismaCantidad;
-                });
-
-                if (indiceCup === -1) {
-                    indiceCup = cupsActuales.findIndex((c) => {
-                        if (!c) return false;
-                        const mismoCupId = this.obtenerIdCup(c) === cupId;
-                        const mismaActividad = String(c.actividadId || '') === String(actividadId || '');
-                        const mismoAutor = this.esMismoAutorRegistro(c, cup);
+                    const cupId = this.obtenerIdCup(cup);
+                    const matched = cupsEntries.find(([, currentCup]) => {
+                        if (!currentCup) return false;
+                        const mismoCupId = this.obtenerIdCup(currentCup) === cupId;
+                        const mismaActividad = String(currentCup.actividadId || '') === String(actividadId || '');
+                        const mismoAutor = this.esMismoAutorRegistro(currentCup, cup);
+                        const mismoDetalle = String(currentCup.detalle || '') === String(cup.detalle || '');
+                        const mismaCantidad = String(currentCup.cantidad ?? '') === String(cup.cantidad ?? '');
+                        return mismoCupId && mismaActividad && mismoAutor && mismoDetalle && mismaCantidad;
+                    }) || cupsEntries.find(([, currentCup]) => {
+                        if (!currentCup) return false;
+                        const mismoCupId = this.obtenerIdCup(currentCup) === cupId;
+                        const mismaActividad = String(currentCup.actividadId || '') === String(actividadId || '');
+                        const mismoAutor = this.esMismoAutorRegistro(currentCup, cup);
                         return mismoCupId && mismaActividad && mismoAutor;
                     });
+
+                    rowKey = matched?.[0] || null;
                 }
 
-                if (indiceCup === -1) {
+                if (!rowKey) {
                     alert('No se encontro un CUPS propio para eliminar en esta actividad.');
                     return;
                 }
 
-                const cupsActualizados = [...cupsActuales];
-                cupsActualizados.splice(indiceCup, 1);
-
-                const datosActualizados = {
-                    ...this.asignaciones,
-                    cups: cupsActualizados,
-                    key: this.cargoMostrado,
-                    nombreProf: this.nombreProfesionalObjetivo,
-                };
-
-                await realtime_api.put(`/Asignaciones/${this.idEncuesta}.json`, datosActualizados);
+                await realtime_api.delete(`/Asignaciones/${this.idEncuesta}/cups/${rowKey}.json`);
 
                 await this.cargarAsignaciones();
                 alert('CUPS eliminado correctamente');
@@ -1615,6 +1617,10 @@ export default {
         },
         //confirma la seleccion de cups arma paquete para entregar al storage
         async confirmarSeleccion(encuestasId) {
+            if (this.guardando) {
+                return;
+            }
+
             this.guardando = true;
             const idEncuesta = encuestasId || this.idEncuesta;
 
@@ -1653,8 +1659,12 @@ export default {
 
             try {
                 await this.adicionarCups(data);
+                this.cerrarModalCups();
                 this.clear();
                 await this.recargar();
+            } catch (error) {
+                console.error('Error al guardar CUPS:', error);
+                alert('No se pudieron guardar los CUPS. Intente nuevamente.');
             } finally {
                 this.guardando = false;
                 this.programarRescateScroll();
