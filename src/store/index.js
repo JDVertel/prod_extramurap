@@ -657,7 +657,7 @@ export default createStore({
     /**
      * Obtiene registros pendientes para psicologo
      */
-    getEncuestasPendientesPsicologo: async ({ commit }, { idUsuario }) => {
+    getEncuestasPendientesPsicologo: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
       console.log("Obteniendo encuestas pendientes para psicologo:", idUsuario);
       try {
         const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
@@ -665,7 +665,7 @@ export default createStore({
         if (!data) {
           commit("setEncuestas", []);
           commit("setcantEncuestas", 0);
-          return [];
+          return includeSource ? { filtered: [], source: [] } : [];
         }
 
         const encuestas = Object.entries(data).map(([key, value]) => ({
@@ -690,6 +690,13 @@ export default createStore({
         commit("setcantEncuestas", encuestasFiltradas.length);
         commit("setCantEncuestasEnProceso", enProcesoCount);
 
+        if (includeSource) {
+          return {
+            filtered: encuestasFiltradas,
+            source: encuestas,
+          };
+        }
+
         return encuestasFiltradas;
       } catch (error) {
         console.error("Error en getEncuestasPendientesPsicologo:", error);
@@ -700,7 +707,7 @@ export default createStore({
     /**
      * Obtiene registros pendientes para trabajador social
      */
-    getEncuestasPendientesTsocial: async ({ commit }, { idUsuario }) => {
+    getEncuestasPendientesTsocial: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
       console.log("Obteniendo encuestas pendientes para trabajador social:", idUsuario);
       try {
         const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
@@ -708,7 +715,7 @@ export default createStore({
         if (!data) {
           commit("setEncuestas", []);
           commit("setcantEncuestas", 0);
-          return [];
+          return includeSource ? { filtered: [], source: [] } : [];
         }
 
         const encuestas = Object.entries(data).map(([key, value]) => ({
@@ -733,6 +740,13 @@ export default createStore({
         commit("setcantEncuestas", encuestasFiltradas.length);
         commit("setCantEncuestasEnProceso", enProcesoCount);
 
+        if (includeSource) {
+          return {
+            filtered: encuestasFiltradas,
+            source: encuestas,
+          };
+        }
+
         return encuestasFiltradas;
       } catch (error) {
         console.error("Error en getEncuestasPendientesTsocial:", error);
@@ -743,7 +757,7 @@ export default createStore({
     /**
      * Obtiene registros pendientes para nutricionista
      */
-    getEncuestasPendientesNutricionista: async ({ commit }, { idUsuario }) => {
+    getEncuestasPendientesNutricionista: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
       console.log("Obteniendo encuestas pendientes para nutricionista:", idUsuario);
       try {
         const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
@@ -751,7 +765,7 @@ export default createStore({
         if (!data) {
           commit("setEncuestas", []);
           commit("setcantEncuestas", 0);
-          return [];
+          return includeSource ? { filtered: [], source: [] } : [];
         }
 
         const encuestas = Object.entries(data).map(([key, value]) => ({
@@ -803,6 +817,13 @@ export default createStore({
         commit("setEncuestas", encuestasFiltradas);
         commit("setcantEncuestas", encuestasFiltradas.length);
         commit("setCantEncuestasEnProceso", enProcesoCount);
+
+        if (includeSource) {
+          return {
+            filtered: encuestasFiltradas,
+            source: encuestas,
+          };
+        }
 
         return encuestasFiltradas;
       } catch (error) {
@@ -961,44 +982,23 @@ export default createStore({
         ).length;
         commit("setCantEncuestasEnProceso", enProcesoCount);
 
-        // Para cada encuesta, obtener sus actividades
-        const encuestasConActividades = await Promise.all(
-          encuestas.map(async (encuesta) => {
-            try {
-              let { data: actividadesData } = await realtime_api.get(
-                `/Actividades/${encuesta.id}.json`
-              );
+        const encuestasConActividades = encuestas.map((encuesta) => {
+          const actividadesDirectas =
+            actividadesGlobal && typeof actividadesGlobal === "object"
+              ? actividadesGlobal[encuesta.id] || null
+              : null;
+          const actividadesFallback = actividadesDirectas || construirActividadesDesdeAsignaciones(
+            asignacionesGlobal && typeof asignacionesGlobal === "object"
+              ? (asignacionesGlobal[encuesta.id] || {})
+              : {}
+          );
 
-              if (!actividadesData && actividadesGlobal && typeof actividadesGlobal === "object") {
-                actividadesData = actividadesGlobal[encuesta.id] || null;
-              }
-
-              if (!actividadesData && asignacionesGlobal && typeof asignacionesGlobal === "object") {
-                actividadesData = construirActividadesDesdeAsignaciones(asignacionesGlobal[encuesta.id] || {});
-              }
-
-              return {
-                ...encuesta,
-                actividades: actividadesData || {},
-                tipoActividad: actividadesData?.tipoActividad || actividadesData || {},
-              };
-            } catch (error) {
-              console.warn(`No se encontraron actividades para encuesta ${encuesta.id}`);
-              const actividadesFallback = (actividadesGlobal && typeof actividadesGlobal === "object"
-                ? actividadesGlobal[encuesta.id]
-                : null) || construirActividadesDesdeAsignaciones(
-                asignacionesGlobal && typeof asignacionesGlobal === "object"
-                  ? (asignacionesGlobal[encuesta.id] || {})
-                  : {}
-              );
-              return {
-                ...encuesta,
-                actividades: actividadesFallback || {},
-                tipoActividad: actividadesFallback?.tipoActividad || actividadesFallback || {},
-              };
-            }
-          })
-        );
+          return {
+            ...encuesta,
+            actividades: actividadesFallback || {},
+            tipoActividad: actividadesFallback?.tipoActividad || actividadesFallback || {},
+          };
+        });
 
         return encuestasConActividades;
       } catch (error) {
@@ -1078,13 +1078,13 @@ export default createStore({
     /**
      * Obtiene registros por ID de usuario enfermero
      */
-    getAllRegistersByIduserEnfer: async ({ commit }, { idUsuario, convenio }) => {
+    getAllRegistersByIduserEnfer: async ({ commit }, { idUsuario, convenio, includeSource = false } = {}) => {
       console.log("datos que entran enfermero", idUsuario, convenio);
       try {
         const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
         if (!data) {
           commit("setcantEncuestas", 0);
-          return 0;
+          return includeSource ? { filtered: [], source: [] } : 0;
         }
 
         const convenioNormalizado = String(convenio ?? "").trim();
@@ -1109,6 +1109,13 @@ export default createStore({
         const cantidad = encuestasFiltradas.length;
         commit("setEncuestas", encuestasFiltradas);
         commit("setcantEncuestas", cantidad);
+
+        if (includeSource) {
+          return {
+            filtered: encuestasFiltradas,
+            source: encuestas,
+          };
+        }
 
         return cantidad;
       } catch (error) {

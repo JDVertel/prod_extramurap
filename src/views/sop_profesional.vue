@@ -188,7 +188,6 @@ export default {
             "getAllRegistersByFecha",
             " SelectExistenteAgendas",
             "getEncuestasConActividadesMedico",
-            "getConteoCierresMedicoPorRango",
         ]),
 
         removeRegEncuesta(id) {
@@ -368,6 +367,41 @@ export default {
             this.encuestasContador = data
                 ? Object.entries(data).map(([id, value]) => ({ id, ...value }))
                 : [];
+
+            this.actualizarMetricasDesdeFuente();
+        },
+        actualizarMetricasDesdeFuente() {
+            const documentoObjetivo = String(this.getDocumentoObjetivo() || "").trim();
+            if (!documentoObjetivo) {
+                this.cantCerradosHoyValor = 0;
+                this.cantCerradosSemanaValor = 0;
+                this.$store.commit("setCantEncuestasEnProceso", 0);
+                return;
+            }
+
+            const inicioSemana = this.fechaActual
+                ? moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD")
+                : "";
+            const finSemana = this.fechaActual
+                ? moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD")
+                : "";
+
+            this.cantCerradosHoyValor = this.contarCerradosMedicoPorRango(
+                this.encuestasContador,
+                this.fechaActual,
+                this.fechaActual
+            );
+            this.cantCerradosSemanaValor = this.contarCerradosMedicoPorRango(
+                this.encuestasContador,
+                inicioSemana,
+                finSemana
+            );
+
+            const enProcesoCount = this.encuestasContador.filter((encuesta) =>
+                String(encuesta?.idMedicoAtiende || "").trim() === documentoObjetivo &&
+                encuesta?.status_gest_aux !== true
+            ).length;
+            this.$store.commit("setCantEncuestasEnProceso", enProcesoCount);
         },
         normalizarConvenioEncuesta(encuesta) {
             return String(encuesta?.convenio || "").trim().toLowerCase();
@@ -405,35 +439,12 @@ export default {
             }).length;
         },
         async cargarContadoresCerrados() {
-            const documentoObjetivo = this.getDocumentoObjetivo();
-            const cargoObjetivo = this.esEstadoView
-                ? String(this.$route?.query?.profesionalCargo || this.userData?.cargo || "").trim()
-                : String(this.userData?.cargo || "").trim();
+            if (!this.encuestasContador.length) {
+                await this.cargarFuenteContadores();
+                return;
+            }
 
-            const cierresHoy = await this.getConteoCierresMedicoPorRango({
-                fechaInicio: this.fechaActual,
-                fechaFin: this.fechaActual,
-                idempleado: documentoObjetivo,
-                cargo: cargoObjetivo || "Medico",
-            });
-
-            this.cantCerradosHoyValor = cierresHoy.length;
-
-            const inicioSemana = this.fechaActual
-                ? moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD")
-                : "";
-            const finSemana = this.fechaActual
-                ? moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD")
-                : "";
-
-            const cierresSemana = await this.getConteoCierresMedicoPorRango({
-                fechaInicio: inicioSemana,
-                fechaFin: finSemana,
-                idempleado: documentoObjetivo,
-                cargo: cargoObjetivo || "Medico",
-            });
-
-            this.cantCerradosSemanaValor = cierresSemana.length;
+            this.actualizarMetricasDesdeFuente();
         },
 
         async cargarEncuestas() {
@@ -458,7 +469,7 @@ export default {
                         this.getEncuestasConActividadesMedico({
                             idUsuario: documentoObjetivo,
                         }),
-                        this.cargarContadoresCerrados(),
+                        this.cargarFuenteContadores(),
                     ]),
                     new Promise((_, reject) =>
                         setTimeout(() => reject(new Error("Timeout - tardó más de 10 segundos")), 10000)
@@ -486,8 +497,11 @@ export default {
 
             try {
                 const documentoObjetivo = this.getDocumentoObjetivo();
-                const { data } = await realtime_api.get("/Encuesta.json");
-                const lista = Object.entries(data || {}).map(([id, value]) => ({ id, ...value }));
+                if (!this.encuestasContador.length) {
+                    await this.cargarFuenteContadores();
+                }
+
+                const lista = this.encuestasContador;
 
                 this.registrosEnProcesoModal = lista
                     .filter((e) => {

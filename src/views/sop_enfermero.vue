@@ -336,10 +336,13 @@ export default {
 
                 const documentoObjetivo = this.getDocumentoObjetivo();
                 const convenioObjetivo = this.getConvenioObjetivo();
-                await this.getAllRegistersByIduserEnfer({
+                const resultado = await this.getAllRegistersByIduserEnfer({
                     idUsuario: documentoObjetivo,
                     convenio: convenioObjetivo,
+                    includeSource: true,
                 });
+                this.encuestasContador = Array.isArray(resultado?.source) ? resultado.source : [];
+                this.actualizarMetricasDesdeFuente();
 
                 alert(`Registro regresado a ${destino.rolLabel} para correccion de CUPS.`);
             } catch (error) {
@@ -475,6 +478,37 @@ export default {
             this.encuestasContador = data
                 ? Object.entries(data).map(([id, value]) => ({ id, ...value }))
                 : [];
+
+            this.actualizarMetricasDesdeFuente();
+        },
+
+        actualizarMetricasDesdeFuente() {
+            const documentoObjetivo = String(this.getDocumentoObjetivo() || "").trim();
+            const convenioObjetivo = String(this.getConvenioObjetivo() || "").trim().toLowerCase();
+
+            if (!documentoObjetivo) {
+                this.cantCerradosHoyValor = 0;
+                this.cantCerradosSemanaValor = 0;
+                return;
+            }
+
+            const fuente = Array.isArray(this.encuestasContador)
+                ? this.encuestasContador.filter((encuesta) => {
+                    if (!convenioObjetivo) return true;
+                    return this.normalizarConvenioEncuesta(encuesta) === convenioObjetivo;
+                })
+                : [];
+
+            this.cantCerradosHoyValor = this.contarCerradosEnfermeriaPorRango(fuente, this.fechaActual, this.fechaActual);
+
+            const inicioSemana = this.fechaActual
+                ? moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD")
+                : "";
+            const finSemana = this.fechaActual
+                ? moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD")
+                : "";
+
+            this.cantCerradosSemanaValor = this.contarCerradosEnfermeriaPorRango(fuente, inicioSemana, finSemana);
         },
 
         normalizarConvenioEncuesta(encuesta) {
@@ -514,25 +548,12 @@ export default {
         },
 
         async cargarContadoresCerrados() {
-            const { data } = await realtime_api.get("/Encuesta.json", {
-                params: { _ts: Date.now(), contador: "cierres-enfermero" },
-            });
+            if (!this.encuestasContador.length) {
+                await this.cargarFuenteContadores();
+                return;
+            }
 
-            const encuestas = data
-                ? Object.entries(data).map(([id, value]) => ({ id, ...value }))
-                : [];
-
-            this.encuestasContador = encuestas;
-            this.cantCerradosHoyValor = this.contarCerradosEnfermeriaPorRango(encuestas, this.fechaActual, this.fechaActual);
-
-            const inicioSemana = this.fechaActual
-                ? moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD")
-                : "";
-            const finSemana = this.fechaActual
-                ? moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD")
-                : "";
-
-            this.cantCerradosSemanaValor = this.contarCerradosEnfermeriaPorRango(encuestas, inicioSemana, finSemana);
+            this.actualizarMetricasDesdeFuente();
         },
 
         async cargarEncuestas() {
@@ -546,14 +567,17 @@ export default {
                     throw new Error("No se encontro el documento del profesional a consultar");
                 }
 
-                await Promise.all([
+                const [resultadoEnfermero] = await Promise.all([
                     this.getAllRegistersByIduserEnfer({
                         idUsuario: documentoObjetivo,
                         convenio: convenioObjetivo,
+                        includeSource: true,
                     }),
                     this.cargarAuxiliares(),
-                    this.cargarContadoresCerrados(),
                 ]);
+
+                this.encuestasContador = Array.isArray(resultadoEnfermero?.source) ? resultadoEnfermero.source : [];
+                this.actualizarMetricasDesdeFuente();
             } catch (error) {
                 console.error("Error cargando encuestas en sop_enfermero:", error);
                 alert("Error cargando encuestas: " + (error?.message || error));

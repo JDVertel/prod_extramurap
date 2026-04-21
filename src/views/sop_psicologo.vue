@@ -312,8 +312,10 @@ export default {
 
             try {
                 const documentoObjetivo = this.getDocumentoObjetivo();
-                const { data } = await realtime_api.get("/Encuesta.json");
-                const lista = Object.entries(data || {}).map(([id, value]) => ({ id, ...value }));
+                if (!this.encuestasContador.length) {
+                    await this.cargarFuenteContadores();
+                }
+                const lista = this.encuestasContador;
 
                 this.registrosEnProcesoModal = lista
                     .filter((e) => {
@@ -362,17 +364,19 @@ export default {
                     throw new Error('Usuario no disponible despues de esperar');
                 }
 
-                await Promise.race([
+                const [resultadoPsicologo] = await Promise.race([
                     Promise.all([
                         this.getEncuestasPendientesPsicologo({
                             idUsuario: documentoObjetivo,
+                            includeSource: true,
                         }),
-                        this.cargarFuenteContadores(),
                     ]),
                     new Promise((_, reject) =>
                         setTimeout(() => reject(new Error('Timeout - tardo mas de 10 segundos')), 10000)
                     )
                 ]);
+
+                this.encuestasContador = Array.isArray(resultadoPsicologo?.source) ? resultadoPsicologo.source : [];
             } catch (error) {
                 console.error("Error cargando encuestas:", error.message);
                 this.errorCarga = error.message || 'Error al cargar encuestas';
