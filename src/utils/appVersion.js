@@ -1,6 +1,6 @@
 export const APP_VERSION_STORAGE_KEY = "extramurapp_version_text";
 export const APP_VERSION_UPDATED_EVENT = "extramurapp:version-updated";
-const DEFAULT_VERSION_TEXT = "Version 2.6 | 25/03/2026";
+const DEFAULT_VERSION_TEXT = "Version 3.1 | 20/04/2026";
 
 export function getAppVersionText() {
   try {

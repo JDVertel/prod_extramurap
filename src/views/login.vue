@@ -58,7 +58,7 @@
         <footer class="login-footer-version" role="contentinfo">
             <span class="login-footer-brand">ExtramurApp ®</span>
             <span class="login-footer-separator">|</span>
-            <span>Version 3.0 - 13/04/2026</span>
+            <span>{{ appVersionText }}</span>
         </footer>
     </div>
 </template>
@@ -78,6 +78,7 @@ const loginBackgroundModules = import.meta.glob("@/assets/images/ramdom/*.{jpg,j
 });
 
 const LAST_LOGIN_BACKGROUND_KEY = "extramurapp_last_login_background";
+const MAX_LOGIN_ATTEMPTS = 5;
 
 export default {
     name: "App",
@@ -91,7 +92,7 @@ export default {
             cambiandoPassword: false,
             errorCambio: "",
             errorMessage: "",
-            intentosRestantes: 3,
+            intentosRestantes: MAX_LOGIN_ATTEMPTS,
             logueado: false,
             appVersionText: "",
             loginBackgroundImages: [],
@@ -112,6 +113,9 @@ export default {
         },
     },
     methods: {
+        esApiFueraDeLinea(error) {
+            return !error?.response && Boolean(error?.request || error?.message);
+        },
         refrescarVersionApp() {
             this.appVersionText = getAppVersionText();
         },
@@ -162,7 +166,9 @@ export default {
                     return;
                 }
             } catch (error) {
-                this.errorMessage = "No fue posible validar el correo en la base de datos. Intenta nuevamente.";
+                this.errorMessage = this.esApiFueraDeLinea(error)
+                    ? "Aplicacion fuera de linea."
+                    : "No fue posible validar el correo en la base de datos. Intenta nuevamente.";
                 console.error("Error validando correo en BD:", error);
                 return;
             }
@@ -185,7 +191,7 @@ export default {
                     localStorage.setItem("userData", JSON.stringify(userData));
                     this.$store.commit("setUserData", userData);
                 }
-                this.intentosRestantes = 3;
+                this.intentosRestantes = MAX_LOGIN_ATTEMPTS;
                 this.$router.push("/homeviews");
             } catch (error) {
                 const status = error?.response?.status;
@@ -193,10 +199,10 @@ export default {
                 if (status === 401) {
                     if (typeof detail?.attemptsRemaining === "number") {
                         this.intentosRestantes = detail.attemptsRemaining;
-                        this.errorMessage = `Credenciales incorrectas. Verifica tu correo y contraseña. Te quedan ${detail.attemptsRemaining} intento(s); se bloqueará el usuario al agotar los 3 intentos.`;
+                        this.errorMessage = `Credenciales incorrectas. Verifica tu correo y contraseña. Te quedan ${detail.attemptsRemaining} intento(s); se bloqueará el usuario al agotar los ${MAX_LOGIN_ATTEMPTS} intentos.`;
                     } else {
-                        this.intentosRestantes = Math.max(0, Number(this.intentosRestantes || 3) - 1);
-                        this.errorMessage = `Credenciales incorrectas. Verifica tu correo y contraseña. Te quedan ${this.intentosRestantes} intento(s); se bloqueará el usuario al agotar los 3 intentos.`;
+                        this.intentosRestantes = Math.max(0, Number(this.intentosRestantes || MAX_LOGIN_ATTEMPTS) - 1);
+                        this.errorMessage = `Credenciales incorrectas. Verifica tu correo y contraseña. Te quedan ${this.intentosRestantes} intento(s); se bloqueará el usuario al agotar los ${MAX_LOGIN_ATTEMPTS} intentos.`;
                     }
                 } else if (status === 423) {
                     this.intentosRestantes = 0;
@@ -209,6 +215,8 @@ export default {
                     }
                 } else if (status === 403) {
                     this.errorMessage = "Tu usuario está inactivo. Contacta al administrador.";
+                } else if (this.esApiFueraDeLinea(error)) {
+                    this.errorMessage = "Aplicacion fuera de linea.";
                 } else {
                     this.errorMessage = error?.response?.data?.message || "Error al iniciar sesión. Intenta de nuevo.";
                 }
