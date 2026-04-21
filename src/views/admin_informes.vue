@@ -941,8 +941,16 @@ export default {
         },
 
         async actualizarDatosFacturacionInforme() {
+            const paramsEncuesta = {
+                status_facturacion: 1,
+            };
+
+            if (String(this.convenioInforme || "").trim()) {
+                paramsEncuesta.convenio = String(this.convenioInforme || "").trim();
+            }
+
             const [respEncuestas, respAsignaciones, respActividadesExtra] = await Promise.all([
-                realtime_api.get("/Encuesta.json"),
+                realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
                 realtime_api.get("/Asignaciones.json"),
                 realtime_api.get("/actividadesExtra.json"),
             ]);

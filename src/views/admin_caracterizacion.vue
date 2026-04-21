@@ -250,9 +250,17 @@ export default {
             this.consultado = true;
 
             try {
+                const paramsEncuesta = {};
+                const paramsCaracterizacion = {};
+
+                if (String(this.convenioInforme || "").trim()) {
+                    paramsEncuesta.convenio = String(this.convenioInforme || "").trim();
+                    paramsCaracterizacion.convenio = String(this.convenioInforme || "").trim();
+                }
+
                 const [caracterizacionResp, encuestaResp] = await Promise.all([
-                    realtime_api.get("/caracterizacion.json"),
-                    realtime_api.get("/Encuesta.json"),
+                    realtime_api.get("/caracterizacion.json", { params: paramsCaracterizacion }),
+                    realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
                 ]);
 
                 const caracterizaciones = caracterizacionResp.data || {};

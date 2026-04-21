@@ -296,8 +296,19 @@ export default {
     },
 
     async cargarFuenteContadores() {
+      const docKey = this.esMedicoMostrado ? "idMedicoAtiende" : "idEncuestador";
+      const params = {
+        _ts: Date.now(),
+        [docKey]: this.documentoObjetivo,
+      };
+
+      const convenioObjetivo = String(this.convenioObjetivo || "").trim();
+      if (convenioObjetivo) {
+        params.convenio = convenioObjetivo;
+      }
+
       const { data } = await realtime_api.get("/Encuesta.json", {
-        params: { _ts: Date.now() },
+        params,
       });
 
       this.encuestasContador = data

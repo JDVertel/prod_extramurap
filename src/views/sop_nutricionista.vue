@@ -314,8 +314,18 @@ export default {
         },
 
         async cargarFuenteContadores() {
+            const params = {
+                _ts: Date.now(),
+                idNutricionistaAtiende: this.getDocumentoObjetivo(),
+            };
+
+            const convenioObjetivo = String(this.getConvenioObjetivo() || "").trim();
+            if (convenioObjetivo) {
+                params.convenio = convenioObjetivo;
+            }
+
             const { data } = await realtime_api.get("/Encuesta.json", {
-                params: { _ts: Date.now() },
+                params,
             });
 
             this.encuestasContador = data

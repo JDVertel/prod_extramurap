@@ -87,6 +87,17 @@ function getNoCacheRequestConfig() {
   };
 }
 
+function buildNoCacheRequestConfig(extraParams = {}) {
+  const base = getNoCacheRequestConfig();
+  return {
+    ...base,
+    params: {
+      ...(base.params || {}),
+      ...(extraParams || {}),
+    },
+  };
+}
+
 function userBelongsToGroup(userGroupValue, targetGroup) {
   const target = String(targetGroup || "").trim();
   if (!target) return false;
@@ -616,7 +627,12 @@ export default createStore({
     getAllRegistersByFechaStatus: async ({ commit }, { idUsuario }) => {
       console.log("parametro de consulta abiertas aux", idUsuario);
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const { data } = await realtime_api.get(
+          "/Encuesta.json",
+          buildNoCacheRequestConfig({
+            idEncuestador: idUsuario,
+          })
+        );
 
         if (!data) {
           commit("setEncuestas", []);
@@ -660,7 +676,12 @@ export default createStore({
     getEncuestasPendientesPsicologo: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
       console.log("Obteniendo encuestas pendientes para psicologo:", idUsuario);
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const { data } = await realtime_api.get(
+          "/Encuesta.json",
+          buildNoCacheRequestConfig({
+            idPsicologoAtiende: idUsuario,
+          })
+        );
 
         if (!data) {
           commit("setEncuestas", []);
@@ -710,7 +731,12 @@ export default createStore({
     getEncuestasPendientesTsocial: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
       console.log("Obteniendo encuestas pendientes para trabajador social:", idUsuario);
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const { data } = await realtime_api.get(
+          "/Encuesta.json",
+          buildNoCacheRequestConfig({
+            idTsocialAtiende: idUsuario,
+          })
+        );
 
         if (!data) {
           commit("setEncuestas", []);
@@ -760,7 +786,12 @@ export default createStore({
     getEncuestasPendientesNutricionista: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
       console.log("Obteniendo encuestas pendientes para nutricionista:", idUsuario);
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const { data } = await realtime_api.get(
+          "/Encuesta.json",
+          buildNoCacheRequestConfig({
+            idNutricionistaAtiende: idUsuario,
+          })
+        );
 
         if (!data) {
           commit("setEncuestas", []);
@@ -855,7 +886,12 @@ export default createStore({
         };
 
         // Obtener todas las encuestas
-        const { data: encuestasData } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const { data: encuestasData } = await realtime_api.get(
+          "/Encuesta.json",
+          buildNoCacheRequestConfig({
+            idEncuestador: idUsuario,
+          })
+        );
         const [{ data: actividadesGlobal }, { data: asignacionesGlobal }] = await Promise.all([
           realtime_api.get("/Actividades.json", getNoCacheRequestConfig()).catch(() => ({ data: {} })),
           realtime_api.get("/Asignaciones.json", getNoCacheRequestConfig()).catch(() => ({ data: {} })),
@@ -947,7 +983,12 @@ export default createStore({
         };
 
         // Obtener todas las encuestas
-        const { data: encuestasData } = await realtime_api.get("/Encuesta.json");
+        const { data: encuestasData } = await realtime_api.get(
+          "/Encuesta.json",
+          buildNoCacheRequestConfig({
+            idMedicoAtiende: idUsuario,
+          })
+        );
         const [{ data: actividadesGlobal }, { data: asignacionesGlobal }] = await Promise.all([
           realtime_api.get("/Actividades.json").catch(() => ({ data: {} })),
           realtime_api.get("/Asignaciones.json").catch(() => ({ data: {} })),
@@ -1040,7 +1081,12 @@ export default createStore({
     getAllRegistersByIduserProf: async ({ commit }, { idUsuario }) => {
       console.log("datos que entran medico", idUsuario);
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const { data } = await realtime_api.get(
+          "/Encuesta.json",
+          buildNoCacheRequestConfig({
+            idMedicoAtiende: idUsuario,
+          })
+        );
         if (!data) {
           commit("setcantEncuestas", 0);
           return 0;
@@ -1081,7 +1127,18 @@ export default createStore({
     getAllRegistersByIduserEnfer: async ({ commit }, { idUsuario, convenio, includeSource = false } = {}) => {
       console.log("datos que entran enfermero", idUsuario, convenio);
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const params = {
+          idEnfermeroAtiende: idUsuario,
+        };
+
+        if (String(convenio ?? "").trim()) {
+          params.convenio = String(convenio ?? "").trim();
+        }
+
+        const { data } = await realtime_api.get(
+          "/Encuesta.json",
+          buildNoCacheRequestConfig(params)
+        );
         if (!data) {
           commit("setcantEncuestas", 0);
           return includeSource ? { filtered: [], source: [] } : 0;
@@ -1135,7 +1192,25 @@ export default createStore({
           throw new Error("Debes proporcionar ambas fechas para el filtro.");
         }
 
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const cargoNormalizado = String(cargo || "").trim().toLowerCase();
+        const params = {};
+
+        if (documentoEmpleado && cargoNormalizado === "auxiliar de enfermeria") {
+          params.idEncuestador = documentoEmpleado;
+          params.status_gest_aux = 1;
+        }
+
+        if (documentoEmpleado && (cargoNormalizado === "psicologo" || cargoNormalizado === "psicólogo")) {
+          params.idPsicologoAtiende = documentoEmpleado;
+          params.status_gest_psicologo = 1;
+        }
+
+        if (documentoEmpleado && (cargoNormalizado === "tsocial" || cargoNormalizado === "trabajador social")) {
+          params.idTsocialAtiende = documentoEmpleado;
+          params.status_gest_tsocial = 1;
+        }
+
+        const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(params));
         if (!data) {
           commit("setEncuestasfiltradas", []);
           return [];
@@ -1147,7 +1222,6 @@ export default createStore({
         }));
 
         const documentoEmpleado = String(idempleado || "").trim();
-        const cargoNormalizado = String(cargo || "").trim().toLowerCase();
 
         const encuestasFiltradas = encuestas.filter((encuesta) => {
           const fecha = String(encuesta.fecha || "").trim();
@@ -1206,7 +1280,16 @@ export default createStore({
           throw new Error("Debes proporcionar ambas fechas para el filtro.");
         }
 
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const params = {};
+        if (String(idempleado || "").trim()) {
+          params.idMedicoAtiende = String(idempleado || "").trim();
+        }
+        if (cargo) {
+          params.status_gest_medica = 1;
+          params.status_gest_aux = 1;
+        }
+
+        const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(params));
         if (!data) {
           commit("setEncuestasfiltradas", []);
           return [];
@@ -1233,13 +1316,22 @@ export default createStore({
     },
 
     getConteoCierresMedicoPorRango: async (_ctx, rango) => {
-      const { fechaInicio, fechaFin } = rango || {};
+      const { fechaInicio, fechaFin, idempleado, cargo } = rango || {};
       try {
         if (!fechaInicio || !fechaFin) {
           throw new Error("Debes proporcionar ambas fechas para el filtro.");
         }
 
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const params = {};
+        if (String(idempleado || "").trim()) {
+          params.idMedicoAtiende = String(idempleado || "").trim();
+        }
+        if (cargo) {
+          params.status_gest_medica = 1;
+          params.status_gest_aux = 1;
+        }
+
+        const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(params));
         if (!data) {
           return [];
         }
@@ -1267,7 +1359,17 @@ export default createStore({
           throw new Error("Debes proporcionar ambas fechas para el filtro.");
         }
 
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const params = {};
+        if (String(idempleado || "").trim()) {
+          params.idEnfermeroAtiende = String(idempleado || "").trim();
+        }
+        if (cargo) {
+          params.status_gest_medica = 1;
+          params.status_gest_aux = 1;
+          params.status_gest_enfermera = 1;
+        }
+
+        const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(params));
         if (!data) {
           commit("setEncuestasfiltradas", []);
           return [];
@@ -1622,7 +1724,15 @@ export default createStore({
         };
 
         // Obtener todas las encuestas (contienen datos básicos del paciente)
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const paramsEncuesta = {
+          numdoc,
+        };
+
+        if (String(tipodoc ?? "").trim()) {
+          paramsEncuesta.tipodoc = String(tipodoc ?? "").trim();
+        }
+
+        const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(paramsEncuesta));
 
         if (!data || data === null) {
           commit("setDatosPaciente", []);
@@ -1663,7 +1773,7 @@ export default createStore({
             try {
               // Obtener caracterización buscando por idEncuesta
               const [caracResp, asignResp, actividadesResp] = await Promise.all([
-                realtime_api.get(`/caracterizacion.json`),
+                realtime_api.get(`/caracterizacion.json`, { params: { encuestaId } }),
                 realtime_api.get(`/Asignaciones/${encuestaId}.json`),
                 realtime_api.get(`/Actividades/${encuestaId}.json`),
               ]);
@@ -1710,7 +1820,13 @@ export default createStore({
       console.log("datos que entran EB - tipodoc, numdoc, convenio:", tipodoc, numdoc, convenio);
       try {
         // Obtener todas las encuestas
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const paramsEncuesta = {
+          tipodoc: String(tipodoc ?? "").trim(),
+          numdoc: String(numdoc ?? "").trim(),
+          convenio: String(convenio ?? "").trim(),
+        };
+
+        const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(paramsEncuesta));
 
         if (!data || data === null) {
           console.log("No hay encuestas registradas");
