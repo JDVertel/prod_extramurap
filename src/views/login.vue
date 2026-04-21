@@ -85,6 +85,11 @@ export default {
         return {
             email: "",
             password: "",
+            mustChangePassword: false,
+            newPassword: "",
+            confirmPassword: "",
+            cambiandoPassword: false,
+            errorCambio: "",
             errorMessage: "",
             intentosRestantes: 3,
             logueado: false,
@@ -98,7 +103,7 @@ export default {
     },
     computed: {
         loginBackgroundStyle() {
-            const fallback = new URL("../assets/images/fondo_extramurapp.jpg", import.meta.url).href;
+            const fallback = new URL("../assets/images/papel_tapiz.jpg", import.meta.url).href;
             const imageUrl = this.currentBackgroundUrl || fallback;
 
             return {

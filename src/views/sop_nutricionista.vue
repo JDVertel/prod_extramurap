@@ -178,6 +178,7 @@ export default {
             cargandoEnProcesoModal: false,
             registrosEnProcesoModal: [],
             auxiliaresPorDocumento: {},
+            encuestasContador: [],
         };
     },
 
@@ -310,6 +311,16 @@ export default {
             }
         },
 
+        async cargarFuenteContadores() {
+            const { data } = await realtime_api.get("/Encuesta.json", {
+                params: { _ts: Date.now() },
+            });
+
+            this.encuestasContador = data
+                ? Object.entries(data).map(([id, value]) => ({ id, ...value }))
+                : [];
+        },
+
         getDocumentoObjetivo() {
             if (this.esEstadoView) {
                 const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
@@ -345,9 +356,12 @@ export default {
                 }
 
                 await Promise.race([
-                    this.getEncuestasPendientesNutricionista({
-                        idUsuario: documentoObjetivo,
-                    }),
+                    Promise.all([
+                        this.getEncuestasPendientesNutricionista({
+                            idUsuario: documentoObjetivo,
+                        }),
+                        this.cargarFuenteContadores(),
+                    ]),
                     new Promise((_, reject) =>
                         setTimeout(() => reject(new Error('Timeout - tardó más de 10 segundos')), 10000)
                     )
@@ -411,6 +425,18 @@ export default {
                 this.esEstadoCerrado(encuesta.status_gest_aux)
             );
         },
+        encuestasContadorFiltradasPorConvenio() {
+            if (!this.encuestasContador || this.encuestasContador.length === 0) return [];
+            const convenioObjetivo = this.getConvenioObjetivo();
+
+            if (!convenioObjetivo) {
+                return this.encuestasContador;
+            }
+
+            return this.encuestasContador.filter(encuesta =>
+                String(encuesta.convenio || "").trim().toLowerCase() === String(convenioObjetivo || "").trim().toLowerCase()
+            );
+        },
         encuestasPendientes() {
             return this.encuestasFiltradasPorConvenio.filter((encuesta) => !this.esPacienteDevuelto(encuesta));
         },
@@ -427,7 +453,7 @@ export default {
             return this.encuestasFiltradasPorConvenio.length;
         },
         cantCerradosHoy() {
-            return contarCierresPorPeriodo(this.encuestas, {
+            return contarCierresPorPeriodo(this.encuestasContadorFiltradasPorConvenio, {
                 documentoObjetivo: this.getDocumentoObjetivo(),
                 docKeys: ["idNutricionistaAtiende", "idNutriAtiende", "idNutricionista", "idNutricionAtiende"],
                 statusKey: "status_gest_nutricionista",
@@ -439,7 +465,7 @@ export default {
         },
         cantCerradosSemana() {
             if (!this.fechaActual) return 0;
-            return contarCierresPorPeriodo(this.encuestas, {
+            return contarCierresPorPeriodo(this.encuestasContadorFiltradasPorConvenio, {
                 documentoObjetivo: this.getDocumentoObjetivo(),
                 docKeys: ["idNutricionistaAtiende", "idNutriAtiende", "idNutricionista", "idNutricionAtiende"],
                 statusKey: "status_gest_nutricionista",

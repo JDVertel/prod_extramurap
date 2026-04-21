@@ -357,7 +357,7 @@ import {
     mapActions,
     mapState
 } from "vuex";
-import { caracterizacionApi } from "@/api/modulesApi";
+import { asignacionesApi, caracterizacionApi, encuestaActividadesApi, encuestasApi } from "@/api/modulesApi";
 import realtime_api from "@/api/realtimeApi.js";
 import { workflowApi } from "@/api/workflowApi";
 
@@ -631,11 +631,11 @@ export default {
         },
 
         actividadesPaciente() {
-            const desdeInfoEncuesta = this.InfoEncuestasById?.[0]?.tipoActividad;
+            const desdeStore = this.actividades?.tipoActividad || this.actividades;
+            const desdeUserActividades = this.userEncuesta?.actividades?.tipoActividad || this.userEncuesta?.actividades;
             const desdeInfoActividades = this.InfoEncuestasById?.[0]?.actividades?.tipoActividad || this.InfoEncuestasById?.[0]?.actividades;
             const desdeUserEncuesta = this.userEncuesta?.tipoActividad;
-            const desdeUserActividades = this.userEncuesta?.actividades?.tipoActividad || this.userEncuesta?.actividades;
-            const desdeStore = this.actividades?.tipoActividad || this.actividades;
+            const desdeInfoEncuesta = this.InfoEncuestasById?.[0]?.tipoActividad;
 
             const convertirALista = (fuente) => {
                 const lista = Array.isArray(fuente)
@@ -694,11 +694,15 @@ export default {
                     .filter((actividad) => actividad && actividad.key);
             };
 
-            const listaInfoEncuesta = convertirALista(desdeInfoEncuesta);
-            const listaInfoActividades = convertirALista(desdeInfoActividades);
-            const listaUserEncuesta = convertirALista(desdeUserEncuesta);
-            const listaUserActividades = convertirALista(desdeUserActividades);
             const listaStore = convertirALista(desdeStore);
+            const listaUserActividades = listaStore.length ? [] : convertirALista(desdeUserActividades);
+            const listaInfoActividades = (listaStore.length || listaUserActividades.length) ? [] : convertirALista(desdeInfoActividades);
+            const listaUserEncuesta = (listaStore.length || listaUserActividades.length || listaInfoActividades.length)
+                ? []
+                : convertirALista(desdeUserEncuesta);
+            const listaInfoEncuesta = (listaStore.length || listaUserActividades.length || listaInfoActividades.length || listaUserEncuesta.length)
+                ? []
+                : convertirALista(desdeInfoEncuesta);
 
             const mapa = new Map();
             [
@@ -845,24 +849,7 @@ export default {
         },
 
         async sembrarActividadesPorDefectoParaAuxiliar() {
-            const esAuxiliar = String(this.cargoMostrado || "").trim() === "Auxiliar de enfermeria";
-            if (!esAuxiliar || !this.idEncuesta || this.actividadesPaciente.length > 0) {
-                return;
-            }
-
-            const catalogo = await this.obtenerCatalogoActividadesPorDefecto();
-            if (!catalogo.length) {
-                return;
-            }
-
-            for (const actividad of catalogo) {
-                await realtime_api.post(`/Actividades/${this.idEncuesta}/tipoActividad.json`, {
-                    key: actividad.key,
-                });
-            }
-
-            await this.getActividadesById(this.idEncuesta);
-            await this.getEncuestaById(this.idEncuesta);
+            return;
         },
 
         async devolverEncuestaCorruptaAAuxiliar() {
@@ -1121,40 +1108,15 @@ export default {
 
             this.cargandoCaracterizacion = true;
             try {
-                const {
-                    default: realtime_api
-                } = await import('../api/realtimeApi.js');
+                const registro = await caracterizacionApi.getByEncuestaId(this.idEncuesta).catch(() => null);
 
-                const { data } = await realtime_api.get('/caracterizacion.json');
-
-                if (!data) {
+                if (!registro) {
                     this.caracterizacionEncuesta = {};
                     this.caracterizacionCargada = true;
                     return;
                 }
 
-                const registros = Object.entries(data)
-                    .map(([id, value]) => ({ id, ...(value || {}) }))
-                    .filter((item) => String(item.idEncuesta) === String(this.idEncuesta));
-
-                if (registros.length === 0) {
-                    this.caracterizacionEncuesta = {};
-                    this.caracterizacionCargada = true;
-                    return;
-                }
-
-                const ordenados = registros.sort((a, b) => {
-                    const fechaA = new Date(a.fechaCaracterizacion || a.fecha || 0).getTime() || 0;
-                    const fechaB = new Date(b.fechaCaracterizacion || b.fecha || 0).getTime() || 0;
-
-                    if (fechaA !== fechaB) {
-                        return fechaB - fechaA;
-                    }
-
-                    return String(b.id).localeCompare(String(a.id));
-                });
-
-                this.caracterizacionEncuesta = ordenados[0] || {};
+                this.caracterizacionEncuesta = registro || {};
                 this.caracterizacionCargada = true;
             } catch (error) {
                 console.error('Error al cargar caracterización por encuesta:', error);
@@ -1604,7 +1566,27 @@ export default {
                     return;
                 }
 
-                await realtime_api.delete(`/Asignaciones/${this.idEncuesta}/cups/${rowKey}.json`);
+                const asignacionActual = await asignacionesApi.getById(this.idEncuesta);
+                const cupsActuales = Array.isArray(asignacionActual?.cups)
+                    ? asignacionActual.cups
+                    : (asignacionActual?.cups && typeof asignacionActual.cups === 'object'
+                        ? Object.entries(asignacionActual.cups).map(([currentRowKey, currentCup]) => ({
+                            ...(currentCup || {}),
+                            _rowKey: currentCup?._rowKey ?? currentRowKey,
+                        }))
+                        : []);
+
+                const cupsSaneados = cupsActuales
+                    .filter((currentCup) => String(currentCup?._rowKey || '') !== String(rowKey))
+                    .map(({ _rowKey, localDraft, ...rest }) => rest);
+
+                await asignacionesApi.replace(this.idEncuesta, {
+                    encuestaId: this.idEncuesta,
+                    key: asignacionActual?.key ?? asignacionActual?.key_ref ?? this.asignaciones?.key ?? null,
+                    nombreProf: asignacionActual?.nombreProf ?? asignacionActual?.nombre_prof ?? this.asignaciones?.nombreProf ?? this.asignaciones?.nombrePtof ?? null,
+                    convenio: asignacionActual?.convenio ?? this.asignaciones?.convenio ?? null,
+                    cups: cupsSaneados,
+                });
 
                 await this.cargarAsignaciones();
                 alert('CUPS eliminado correctamente');
@@ -1900,7 +1882,6 @@ export default {
                 if (!this.isComponentActive) return;
 
                 await this.cargarAsignaciones();
-                await this.sembrarActividadesPorDefectoParaAuxiliar();
             } catch (error) {
                 console.error("Error en recargar:", error);
             }
@@ -1939,6 +1920,7 @@ export default {
         async redirigirPostCierre(cargo) {
             const rutaDestino = this.resolverRutaDestino(cargo);
             sessionStorage.removeItem("rutaAnterior");
+            const refreshToken = String(Date.now());
 
             const queryDestino = this.esEstadoView
                 ? {
@@ -1947,15 +1929,14 @@ export default {
                     profesionalCargo: this.cargoMostrado,
                     profesionalConvenio: this.convenioObjetivo,
                     profesionalNombre: this.nombreProfesionalObjetivo,
+                    refresh: refreshToken,
                 }
-                : null;
+                : {
+                    refresh: refreshToken,
+                };
 
             await this.$nextTick();
-            if (queryDestino) {
-                await this.$router.replace({ path: rutaDestino, query: queryDestino });
-                return;
-            }
-            await this.$router.replace(rutaDestino);
+            await this.$router.replace({ path: rutaDestino, query: queryDestino });
         },
 
         async cerrarVisita() {
@@ -1988,11 +1969,12 @@ export default {
                     // Si el usuario es Enfermero, verificar que las actividades de Auxiliar y Médico ya estén cerradas
                     else if (cargo === "Enfermero") {
                         const normalizarEstado = (valor) => {
-                            if (valor === true || valor === 1) return true;
+                            if (valor === true || valor === 1 || valor === 2) return true;
                             if (typeof valor === "string") {
                                 const limpio = valor.trim().toLowerCase();
-                                return limpio === "true" || limpio === "1";
+                                return limpio === "true" || limpio === "1" || limpio === "2";
                             }
+                            if (typeof valor === "number") return valor >= 1;
                             return false;
                         };
 
@@ -2000,8 +1982,7 @@ export default {
                         let statusMedica = null;
 
                         try {
-                            const { default: realtime_api } = await import('../api/realtimeApi.js');
-                            const { data: encuestaActual } = await realtime_api.get(`/Encuesta/${this.idEncuesta}.json`);
+                            const encuestaActual = await encuestasApi.getById(this.idEncuesta);
                             statusAux = encuestaActual?.status_gest_aux;
                             statusMedica = encuestaActual?.status_gest_medica;
                         } catch (error) {
@@ -2070,7 +2051,6 @@ export default {
                 this.cargarAsignaciones()
             ]);
 
-            await this.sembrarActividadesPorDefectoParaAuxiliar();
             this.cargandoDatos = false;
         } catch (error) {
             console.error("Error en mounted:", error);

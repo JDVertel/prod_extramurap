@@ -37,7 +37,7 @@
 
                             <div class="col-6">
                                 <label for="horalab" class="form-label">Hora:</label>
-                                <input class="form-control" id="horalab" v-model="horalab" type="time" step="1800" min="06:00" max="08:30" />
+                                <input class="form-control" id="horalab" v-model="horalab" type="time" step="1800" min="06:00" max="18:00" />
                                 <small v-if="horalab" class="text-white d-block mt-1">{{ formatHora12(horalab) }}</small>
                             </div>
 
@@ -107,7 +107,7 @@
 
                             <div class="col-6">
                                 <label for="horaconsulta" class="form-label">Hora</label>
-                                <input class="form-control" id="horavisita" v-model="horavisita" type="time" step="1800" min="09:00" max="11:30" />
+                                <input class="form-control" id="horavisita" v-model="horavisita" type="time" step="1800" min="06:00" max="18:00" />
                                 <small v-if="horavisita" class="text-white d-block mt-1">{{ formatHora12(horavisita) }}</small>
                             </div>
                             <button class="btn btn-warning mb-3 mt-3" @click="guardarAgendamientoVisitas"
@@ -238,8 +238,8 @@ export default {
                 return;
             }
 
-            if (!this.horaEnRango(this.horalab, "06:00", "08:30")) {
-                alert("La hora de laboratorio debe estar entre 06:00 AM y 08:30 AM.");
+            if (!this.horaEnRango(this.horalab, "06:00", "18:00")) {
+                alert("La hora de laboratorio debe estar entre 06:00 AM y 06:00 PM.");
                 return;
             }
 
@@ -314,8 +314,8 @@ export default {
                 return;
             }
 
-            if (!this.horaEnRango(this.horavisita, "09:00", "11:30")) {
-                alert("La hora de visita debe estar entre 09:00 AM y 11:30 AM.");
+            if (!this.horaEnRango(this.horavisita, "06:00", "18:00")) {
+                alert("La hora de visita debe estar entre 06:00 AM y 06:00 PM.");
                 return;
             }
 

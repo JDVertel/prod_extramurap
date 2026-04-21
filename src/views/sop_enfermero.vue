@@ -228,7 +228,7 @@ import moment from "moment";
 import { getAllUsers } from "@/api/usersApi";
 import * as XLSX from "xlsx";
 import realtime_api from "@/api/realtimeApi";
-import { contarCierresPorPeriodo } from "@/utils/gestionCounters";
+import { encuestasApi } from "@/api/modulesApi";
 export default {
     data() {
         return {
@@ -238,6 +238,9 @@ export default {
             filtroEstadoProfesional: "",
             auxiliaresPorDocumento: {},
             regresarDisabled: {},
+            encuestasContador: [],
+            cantCerradosHoyValor: 0,
+            cantCerradosSemanaValor: 0,
         };
     },
     methods: {
@@ -329,7 +332,7 @@ export default {
                     [destino.statusKey]: 0,
                 };
 
-                await realtime_api.patch(`/Encuesta/${encuesta.id}.json`, payload);
+                await encuestasApi.update(encuesta.id, payload);
 
                 const documentoObjetivo = this.getDocumentoObjetivo();
                 const convenioObjetivo = this.getConvenioObjetivo();
@@ -462,6 +465,101 @@ export default {
                 return String(this.$route?.query?.profesionalConvenio || "").trim();
             }
             return String(this.userData?.convenio || "").trim();
+        },
+
+        async cargarFuenteContadores() {
+            const { data } = await realtime_api.get("/Encuesta.json", {
+                params: { _ts: Date.now() },
+            });
+
+            this.encuestasContador = data
+                ? Object.entries(data).map(([id, value]) => ({ id, ...value }))
+                : [];
+        },
+
+        normalizarConvenioEncuesta(encuesta) {
+            return String(encuesta?.convenio || "").trim().toLowerCase();
+        },
+
+        obtenerFechaGestionEnfermeria(encuesta) {
+            return encuesta?.fechagestEnfermera ?? encuesta?.fecha_gest_enfermera ?? "";
+        },
+
+        esEstadoCerrado(valor) {
+            if (valor === true || valor === 1 || valor === 2) return true;
+            if (typeof valor === "string") {
+                const limpio = valor.trim().toLowerCase();
+                return limpio === "true" || limpio === "1" || limpio === "2";
+            }
+            if (typeof valor === "number") return valor >= 1;
+            return false;
+        },
+
+        contarCerradosEnfermeriaPorRango(encuestas, fechaInicio, fechaFin) {
+            const documentoObjetivo = String(this.getDocumentoObjetivo() || "").trim();
+            const convenioObjetivo = String(this.getConvenioObjetivo() || "").trim().toLowerCase();
+
+            if (!documentoObjetivo || !fechaInicio || !fechaFin) return 0;
+
+            return (encuestas || []).filter((encuesta) => {
+                if (String(encuesta?.idEnfermeroAtiende || "").trim() !== documentoObjetivo) return false;
+                if (convenioObjetivo && this.normalizarConvenioEncuesta(encuesta) !== convenioObjetivo) return false;
+                if (!this.esEstadoCerrado(encuesta?.status_gest_enfermera)) return false;
+
+                const fechaGestion = String(this.obtenerFechaGestionEnfermeria(encuesta) || "").trim().match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || "";
+                if (!fechaGestion) return false;
+
+                return fechaGestion >= fechaInicio && fechaGestion <= fechaFin;
+            }).length;
+        },
+
+        async cargarContadoresCerrados() {
+            const { data } = await realtime_api.get("/Encuesta.json", {
+                params: { _ts: Date.now(), contador: "cierres-enfermero" },
+            });
+
+            const encuestas = data
+                ? Object.entries(data).map(([id, value]) => ({ id, ...value }))
+                : [];
+
+            this.encuestasContador = encuestas;
+            this.cantCerradosHoyValor = this.contarCerradosEnfermeriaPorRango(encuestas, this.fechaActual, this.fechaActual);
+
+            const inicioSemana = this.fechaActual
+                ? moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD")
+                : "";
+            const finSemana = this.fechaActual
+                ? moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD")
+                : "";
+
+            this.cantCerradosSemanaValor = this.contarCerradosEnfermeriaPorRango(encuestas, inicioSemana, finSemana);
+        },
+
+        async cargarEncuestas() {
+            this.cargando = true;
+
+            try {
+                const documentoObjetivo = this.getDocumentoObjetivo();
+                const convenioObjetivo = this.getConvenioObjetivo();
+
+                if (!documentoObjetivo) {
+                    throw new Error("No se encontro el documento del profesional a consultar");
+                }
+
+                await Promise.all([
+                    this.getAllRegistersByIduserEnfer({
+                        idUsuario: documentoObjetivo,
+                        convenio: convenioObjetivo,
+                    }),
+                    this.cargarAuxiliares(),
+                    this.cargarContadoresCerrados(),
+                ]);
+            } catch (error) {
+                console.error("Error cargando encuestas en sop_enfermero:", error);
+                alert("Error cargando encuestas: " + (error?.message || error));
+            } finally {
+                this.cargando = false;
+            }
         },
 
         construirEstadosGestion(encuesta) {
@@ -722,7 +820,7 @@ export default {
             if (!convenioObjetivo) return this.encuestas;
 
             return this.encuestas.filter(encuesta =>
-                String(encuesta.convenio || "").trim() === convenioObjetivo
+                String(encuesta.convenio || "").trim().toLowerCase() === convenioObjetivo.toLowerCase()
             );
         },
         encuestasEnProcesoBase() {
@@ -731,7 +829,16 @@ export default {
             if (!convenioObjetivo) return this.encuestas;
 
             return this.encuestas.filter(encuesta =>
-                String(encuesta.convenio || "").trim() === convenioObjetivo
+                String(encuesta.convenio || "").trim().toLowerCase() === convenioObjetivo.toLowerCase()
+            );
+        },
+        encuestasContadorFiltradasPorConvenio() {
+            if (!this.encuestasContador || this.encuestasContador.length === 0) return [];
+            const convenioObjetivo = this.getConvenioObjetivo();
+            if (!convenioObjetivo) return this.encuestasContador;
+
+            return this.encuestasContador.filter((encuesta) =>
+                String(encuesta.convenio || "").trim().toLowerCase() === convenioObjetivo.toLowerCase()
             );
         },
         encuestasPendientes() {
@@ -888,53 +995,25 @@ export default {
             return this.encuestas.length;
         },
         cantCerradosHoy() {
-            return contarCierresPorPeriodo(this.encuestas, {
-                documentoObjetivo: this.getDocumentoObjetivo(),
-                docKeys: ["idEnfermeroAtiende"],
-                statusKey: "status_gest_enfermera",
-                fechaKey: "fechagestEnfermera",
-                fechaInicio: this.fechaActual,
-                fechaFin: this.fechaActual,
-                esEstadoCerrado: this.esEstadoCerrado,
-            });
+            return this.cantCerradosHoyValor;
         },
         cantCerradosSemana() {
-            if (!this.fechaActual) return 0;
-            return contarCierresPorPeriodo(this.encuestas, {
-                documentoObjetivo: this.getDocumentoObjetivo(),
-                docKeys: ["idEnfermeroAtiende"],
-                statusKey: "status_gest_enfermera",
-                fechaKey: "fechagestEnfermera",
-                fechaInicio: moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD"),
-                fechaFin: moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD"),
-                esEstadoCerrado: this.esEstadoCerrado,
-            });
+            return this.cantCerradosSemanaValor;
         },
+    },
+    watch: {
+        '$route': {
+            handler: function (to) {
+                if (to.name === 'sop_enfermero') {
+                    this.cargarEncuestas();
+                }
+            },
+            deep: true,
+        }
     },
     async mounted() {
         this.fechaActual = moment().format("YYYY-MM-DD");
-        try {
-            const documentoObjetivo = this.getDocumentoObjetivo();
-            const convenioObjetivo = this.getConvenioObjetivo();
-
-            if (!documentoObjetivo) {
-                throw new Error("No se encontro el documento del profesional a consultar");
-            }
-
-            // Obtener encuestas asignadas al enfermero; filtros por pestaña se aplican en computed
-            await Promise.all([
-                this.getAllRegistersByIduserEnfer({
-                idUsuario: documentoObjetivo,
-                convenio: convenioObjetivo,
-                }),
-                this.cargarAuxiliares(),
-            ]);
-        } catch (error) {
-            console.error("Error en mounted de sop_enfermero:", error);
-            alert("Error cargando encuestas: " + (error?.message || error));
-        } finally {
-            this.cargando = false;
-        }
+        await this.cargarEncuestas();
     },
 };
 </script>

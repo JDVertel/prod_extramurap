@@ -180,6 +180,7 @@ export default {
             cargandoEnProcesoModal: false,
             registrosEnProcesoModal: [],
             auxiliaresPorDocumento: {},
+            encuestasContador: [],
         };
     },
 
@@ -334,6 +335,16 @@ export default {
             }
         },
 
+        async cargarFuenteContadores() {
+            const { data } = await realtime_api.get("/Encuesta.json", {
+                params: { _ts: Date.now() },
+            });
+
+            this.encuestasContador = data
+                ? Object.entries(data).map(([id, value]) => ({ id, ...value }))
+                : [];
+        },
+
         async cargarEncuestas() {
             this.cargando = true;
             this.errorCarga = null;
@@ -352,9 +363,12 @@ export default {
                 }
 
                 await Promise.race([
-                    this.getEncuestasPendientesPsicologo({
-                        idUsuario: documentoObjetivo,
-                    }),
+                    Promise.all([
+                        this.getEncuestasPendientesPsicologo({
+                            idUsuario: documentoObjetivo,
+                        }),
+                        this.cargarFuenteContadores(),
+                    ]),
                     new Promise((_, reject) =>
                         setTimeout(() => reject(new Error('Timeout - tardo mas de 10 segundos')), 10000)
                     )
@@ -411,6 +425,18 @@ export default {
                 encuesta.status_gest_aux === true
             );
         },
+        encuestasContadorFiltradasPorConvenio() {
+            if (!this.encuestasContador || this.encuestasContador.length === 0) return [];
+            const convenioObjetivo = this.getConvenioObjetivo();
+
+            if (!convenioObjetivo) {
+                return this.encuestasContador;
+            }
+
+            return this.encuestasContador.filter(encuesta =>
+                String(encuesta.convenio || "").trim().toLowerCase() === String(convenioObjetivo || "").trim().toLowerCase()
+            );
+        },
         encuestasPendientes() {
             return this.encuestasFiltradasPorConvenio.filter((encuesta) => !this.esPacienteDevuelto(encuesta));
         },
@@ -427,7 +453,7 @@ export default {
             return this.encuestasFiltradasPorConvenio.length;
         },
         cantCerradosHoy() {
-            return contarCierresPorPeriodo(this.encuestas, {
+            return contarCierresPorPeriodo(this.encuestasContadorFiltradasPorConvenio, {
                 documentoObjetivo: this.getDocumentoObjetivo(),
                 docKeys: ["idPsicologoAtiende"],
                 statusKey: "status_gest_psicologo",
@@ -439,7 +465,7 @@ export default {
         },
         cantCerradosSemana() {
             if (!this.fechaActual) return 0;
-            return contarCierresPorPeriodo(this.encuestas, {
+            return contarCierresPorPeriodo(this.encuestasContadorFiltradasPorConvenio, {
                 documentoObjetivo: this.getDocumentoObjetivo(),
                 docKeys: ["idPsicologoAtiende"],
                 statusKey: "status_gest_psicologo",

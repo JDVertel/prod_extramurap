@@ -410,7 +410,7 @@
 
 <script>
 import { mapState, mapActions, mapMutations } from "vuex";
-import realtime_api from "@/api/realtimeApi";
+import { encuestasApi } from "@/api/modulesApi";
 import { getAllUsers } from "@/api/usersApi";
 
 export default {
@@ -812,7 +812,7 @@ export default {
       this.guardandoEdicion = true;
 
       try {
-        await realtime_api.patch(`/Encuesta/${this.pacienteEditandoId}.json`, {
+        await encuestasApi.update(this.pacienteEditandoId, {
           ...this.encuestaEdit,
         });
 

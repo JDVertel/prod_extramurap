@@ -1033,7 +1033,11 @@ export default {
                 await this.guardarCaracterizacion(DatosGuardados);
                 this.$router.push("/sop_aux");
             } catch (error) {
-                alert("Error al guardar los datos");
+                const mensaje = error?.response?.data?.message
+                    || error?.response?.data?.detail
+                    || error?.message
+                    || "Error al guardar los datos";
+                alert(mensaje);
             } finally {
                 this.guardando = false;
             }

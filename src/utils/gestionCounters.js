@@ -1,5 +1,27 @@
 import moment from "moment";
 
+const FECHA_FIELD_ALIASES = {
+  fechagestAuxiliar: ["fechagestAuxiliar", "fecha_gest_auxiliar"],
+  fechagestEnfermera: ["fechagestEnfermera", "fecha_gest_enfermera"],
+  fechagestMedica: ["fechagestMedica", "fecha_gest_medica"],
+  fechagestPsicologo: ["fechagestPsicologo", "fecha_gest_psicologo"],
+  fechagestTsocial: ["fechagestTsocial", "fecha_gest_tsocial"],
+  fechagestNutricionista: ["fechagestNutricionista", "fecha_gest_nutricionista"],
+};
+
+function getFieldValue(encuesta = {}, fieldName = "") {
+  const aliases = FECHA_FIELD_ALIASES[fieldName] || [fieldName];
+
+  for (const alias of aliases) {
+    const value = encuesta?.[alias];
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return value;
+    }
+  }
+
+  return "";
+}
+
 function parseFechaGestion(value) {
   const texto = String(value || "").trim();
   if (!texto) return null;
@@ -48,7 +70,7 @@ export function contarCierresPorPeriodo(encuestas = [], opciones = {}) {
     if (!coincideDocumento(encuesta, documentoObjetivo, docKeys)) return false;
     if (!esEstadoCerrado(encuesta?.[statusKey])) return false;
 
-    const fechaGestion = parseFechaGestion(encuesta?.[fechaKey]);
+    const fechaGestion = parseFechaGestion(getFieldValue(encuesta, fechaKey));
     return Boolean(fechaGestion && fechaGestion.isBetween(inicio, fin, "day", "[]"));
   }).length;
 }

@@ -73,7 +73,7 @@
                   <div class="btn-row">
                     <template v-if="esAuxiliarMostrado">
                       <template v-if="esConvenioExtramural(encuesta.convenio)">
-                        <div v-if="encuesta.Agenda_Visitamedica?.cita_visitamedica === false || encuesta.Agenda_Visitamedica?.cita_visitamedica === undefined">
+                        <div v-if="!tieneVisitaAgendada(encuesta)">
                           <button type="button" class="btn btn-info agendar-btn" @click="Agendar(encuesta.id, 'visitamedica')">
                             <i class="bi bi-houses"></i>
                             <span class="agendar-label">Visita</span>
@@ -171,6 +171,7 @@
 import { mapActions, mapState } from "vuex";
 import moment from "moment";
 import { contarCierresPorPeriodo } from "@/utils/gestionCounters";
+import realtime_api from "@/api/realtimeApi";
 
 export default {
   data() {
@@ -180,6 +181,7 @@ export default {
       eliminandoRegistro: null,
       rutaAnterior: null,
       errorCarga: null,
+      encuestasContador: [],
     };
   },
 
@@ -240,6 +242,14 @@ export default {
       return String(convenio || "").trim().toLowerCase() === "extramural";
     },
 
+    tieneVisitaAgendada(encuesta) {
+      const agendaVisita = encuesta?.Agenda_Visitamedica
+        ?? encuesta?.agendaVisitaMedica
+        ?? encuesta?.agenda_visita_medica;
+
+      return agendaVisita?.cita_visitamedica === true;
+    },
+
     cupsGestion(id) {
       sessionStorage.setItem("rutaAnterior", "/sop_aux");
       const query = this.esEstadoView
@@ -285,6 +295,19 @@ export default {
       return this.esPacienteDevuelto(encuesta) ? "paciente-devuelto" : "";
     },
 
+    async cargarFuenteContadores() {
+      const { data } = await realtime_api.get("/Encuesta.json", {
+        params: { _ts: Date.now() },
+      });
+
+      this.encuestasContador = data
+        ? Object.entries(data).map(([id, value]) => ({
+          id,
+          ...value,
+        }))
+        : [];
+    },
+
     async cargarEncuestas() {
       this.cargando = true;
       this.errorCarga = null;
@@ -303,9 +326,12 @@ export default {
         }
 
         await Promise.race([
-          this.getAllRegistersByFechaStatus({
-            idUsuario: documentoObjetivo,
-          }),
+          Promise.all([
+            this.getAllRegistersByFechaStatus({
+              idUsuario: documentoObjetivo,
+            }),
+            this.cargarFuenteContadores(),
+          ]),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Timeout - tardó más de 10 segundos')), 10000)
           )
@@ -378,6 +404,15 @@ export default {
         String(encuesta.convenio || "").trim().toLowerCase() === convenioUsuario
       );
     },
+    encuestasContadorFiltradasPorConvenio() {
+      if (!this.encuestasContador || this.encuestasContador.length === 0) return [];
+      if (!this.convenioObjetivo) return this.encuestasContador;
+
+      const convenioUsuario = String(this.convenioObjetivo || "").trim().toLowerCase();
+      return this.encuestasContador.filter((encuesta) =>
+        String(encuesta.convenio || "").trim().toLowerCase() === convenioUsuario
+      );
+    },
     encuestasPendientes() {
       return this.encuestasFiltradasPorConvenio.filter((encuesta) => !this.esPacienteDevuelto(encuesta));
     },
@@ -394,7 +429,7 @@ export default {
       return this.encuestasFiltradasPorConvenio.length;
     },
     cantCerradosHoy() {
-      return contarCierresPorPeriodo(this.encuestas, {
+      return contarCierresPorPeriodo(this.encuestasContadorFiltradasPorConvenio, {
         documentoObjetivo: this.documentoObjetivo,
         docKeys: this.getDocKeysBandeja(),
         statusKey: this.getStatusKeyBandeja(),
@@ -406,7 +441,7 @@ export default {
     },
     cantCerradosSemana() {
       if (!this.fechaActual) return 0;
-      return contarCierresPorPeriodo(this.encuestas, {
+      return contarCierresPorPeriodo(this.encuestasContadorFiltradasPorConvenio, {
         documentoObjetivo: this.documentoObjetivo,
         docKeys: this.getDocKeysBandeja(),
         statusKey: this.getStatusKeyBandeja(),

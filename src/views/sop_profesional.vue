@@ -165,7 +165,6 @@ import { mapActions, mapState } from "vuex";
 import moment from "moment";
 import realtime_api from "@/api/realtimeApi";
 import { getAllUsers } from "@/api/usersApi";
-import { contarCierresPorPeriodo } from "@/utils/gestionCounters";
 export default {
     data() {
         return {
@@ -175,6 +174,10 @@ export default {
             cargandoEnProcesoModal: false,
             registrosEnProcesoModal: [],
             auxiliaresPorDocumento: {},
+            encuestasContador: [],
+            cantCerradosHoyValor: 0,
+            cantCerradosSemanaValor: 0,
+            errorCarga: null,
         };
     },
     methods: {
@@ -185,6 +188,7 @@ export default {
             "getAllRegistersByFecha",
             " SelectExistenteAgendas",
             "getEncuestasConActividadesMedico",
+            "getConteoCierresMedicoPorRango",
         ]),
 
         removeRegEncuesta(id) {
@@ -263,9 +267,19 @@ export default {
             const matchIso = texto.match(/^(\d{4}-\d{2}-\d{2})/);
             if (matchIso) return matchIso[1];
 
+            const fechaIsoLocal = moment(texto, moment.ISO_8601, true);
+            if (fechaIsoLocal.isValid()) {
+                return fechaIsoLocal.format("YYYY-MM-DD");
+            }
+
+            const fechaLatam = moment(texto, ["DD/MM/YYYY", "DD-MM-YYYY"], true);
+            if (fechaLatam.isValid()) {
+                return fechaLatam.format("YYYY-MM-DD");
+            }
+
             const fecha = new Date(texto);
             if (!Number.isNaN(fecha.getTime())) {
-                return fecha.toISOString().slice(0, 10);
+                return moment(fecha).format("YYYY-MM-DD");
             }
 
             return texto;
@@ -297,6 +311,21 @@ export default {
         getFechaKeyBandeja() {
             return "fechagestMedica";
         },
+        getFechaGestionEncuesta(encuesta, fechaKey) {
+            const aliases = {
+                fechagestMedica: ["fechagestMedica", "fecha_gest_medica"],
+            };
+
+            const campos = aliases[fechaKey] || [fechaKey];
+            for (const campo of campos) {
+                const valor = encuesta?.[campo];
+                if (valor !== undefined && valor !== null && String(valor).trim() !== "") {
+                    return valor;
+                }
+            }
+
+            return "";
+        },
         esEstadoCerrado(valor) {
             if (valor === true || valor === 1 || valor === 2) return true;
             if (typeof valor === "string") {
@@ -309,7 +338,7 @@ export default {
         esPacienteDevuelto(encuesta) {
             const statusKey = this.getStatusKeyBandeja();
             const fechaKey = this.getFechaKeyBandeja();
-            return !this.esEstadoCerrado(encuesta?.[statusKey]) && Boolean(String(encuesta?.[fechaKey] || "").trim());
+            return !this.esEstadoCerrado(encuesta?.[statusKey]) && Boolean(String(this.getFechaGestionEncuesta(encuesta, fechaKey) || "").trim());
         },
         pacienteClass(encuesta) {
             return this.esPacienteDevuelto(encuesta) ? "paciente-devuelto" : "";
@@ -329,6 +358,121 @@ export default {
                 return String(this.$route?.query?.profesionalConvenio || "").trim();
             }
             return String(this.userData?.convenio || "").trim();
+        },
+
+        async cargarFuenteContadores() {
+            const { data } = await realtime_api.get("/Encuesta.json", {
+                params: { _ts: Date.now() },
+            });
+
+            this.encuestasContador = data
+                ? Object.entries(data).map(([id, value]) => ({ id, ...value }))
+                : [];
+        },
+        normalizarConvenioEncuesta(encuesta) {
+            return String(encuesta?.convenio || "").trim().toLowerCase();
+        },
+        obtenerFechaGestionMedica(encuesta) {
+            return this.getFechaGestionEncuesta(encuesta, "fechagestMedica");
+        },
+        contarCerradosMedicoPorRango(encuestas, fechaInicio, fechaFin) {
+            const documentoObjetivo = String(this.getDocumentoObjetivo() || "").trim();
+            const convenioObjetivo = String(this.getConvenioObjetivo() || "").trim().toLowerCase();
+
+            if (!documentoObjetivo || !fechaInicio || !fechaFin) {
+                return 0;
+            }
+
+            return (encuestas || []).filter((encuesta) => {
+                if (String(encuesta?.idMedicoAtiende || "").trim() !== documentoObjetivo) {
+                    return false;
+                }
+
+                if (convenioObjetivo && this.normalizarConvenioEncuesta(encuesta) !== convenioObjetivo) {
+                    return false;
+                }
+
+                if (!this.esEstadoCerrado(encuesta?.status_gest_medica)) {
+                    return false;
+                }
+
+                const fechaGestion = this.formatearFechaSoloDia(this.obtenerFechaGestionMedica(encuesta));
+                if (!fechaGestion) {
+                    return false;
+                }
+
+                return fechaGestion >= fechaInicio && fechaGestion <= fechaFin;
+            }).length;
+        },
+        async cargarContadoresCerrados() {
+            const documentoObjetivo = this.getDocumentoObjetivo();
+            const cargoObjetivo = this.esEstadoView
+                ? String(this.$route?.query?.profesionalCargo || this.userData?.cargo || "").trim()
+                : String(this.userData?.cargo || "").trim();
+
+            const cierresHoy = await this.getConteoCierresMedicoPorRango({
+                fechaInicio: this.fechaActual,
+                fechaFin: this.fechaActual,
+                idempleado: documentoObjetivo,
+                cargo: cargoObjetivo || "Medico",
+            });
+
+            this.cantCerradosHoyValor = cierresHoy.length;
+
+            const inicioSemana = this.fechaActual
+                ? moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD")
+                : "";
+            const finSemana = this.fechaActual
+                ? moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD")
+                : "";
+
+            const cierresSemana = await this.getConteoCierresMedicoPorRango({
+                fechaInicio: inicioSemana,
+                fechaFin: finSemana,
+                idempleado: documentoObjetivo,
+                cargo: cargoObjetivo || "Medico",
+            });
+
+            this.cantCerradosSemanaValor = cierresSemana.length;
+        },
+
+        async cargarEncuestas() {
+            this.cargando = true;
+            this.errorCarga = null;
+
+            try {
+                let intentos = 0;
+                while ((!this.userData || !this.userData.numDocumento) && intentos < 30) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    intentos++;
+                }
+
+                await this.cargarAuxiliares();
+                const documentoObjetivo = this.getDocumentoObjetivo();
+                if (!documentoObjetivo) {
+                    throw new Error("No se encontro el documento del profesional a consultar");
+                }
+
+                const [encuestasConActividades] = await Promise.race([
+                    Promise.all([
+                        this.getEncuestasConActividadesMedico({
+                            idUsuario: documentoObjetivo,
+                        }),
+                        this.cargarContadoresCerrados(),
+                    ]),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error("Timeout - tardó más de 10 segundos")), 10000)
+                    ),
+                ]);
+
+                this.$store.commit("setEncuestas", encuestasConActividades);
+                this.$store.commit("setcantEncuestas", encuestasConActividades.length);
+            } catch (error) {
+                console.error("Error cargando encuestas en sop_profesional:", error);
+                this.errorCarga = error?.message || "Error al cargar encuestas";
+            } finally {
+                this.cargando = false;
+            }
         },
 
         cerrarModalEnProceso() {
@@ -409,10 +553,24 @@ export default {
                 return this.encuestas.filter(encuesta => encuesta.status_gest_aux === true);
             }
 
-            // Filtrar encuestas donde el convenio coincida con userData.convenio
             return this.encuestas.filter(encuesta =>
-                String(encuesta.convenio || "").trim() === convenioObjetivo &&
+                String(encuesta.convenio || "").trim().toLowerCase() === convenioObjetivo.toLowerCase() &&
                 encuesta.status_gest_aux === true
+            );
+        },
+        encuestasContadorFiltradasPorConvenio() {
+            if (!this.encuestasContador || this.encuestasContador.length === 0) return [];
+
+            const convenioObjetivo = this.esEstadoView
+                ? String(this.$route?.query?.profesionalConvenio || "").trim()
+                : String(this.userData?.convenio || "").trim();
+
+            if (!convenioObjetivo) {
+                return this.encuestasContador;
+            }
+
+            return this.encuestasContador.filter((encuesta) =>
+                String(encuesta.convenio || "").trim().toLowerCase() === convenioObjetivo.toLowerCase()
             );
         },
         encuestasBaseProfesional() {
@@ -445,54 +603,25 @@ export default {
             return this.encuestas.length;
         },
         cantCerradosHoy() {
-            return contarCierresPorPeriodo(this.encuestas, {
-                documentoObjetivo: this.getDocumentoObjetivo(),
-                docKeys: ["idMedicoAtiende"],
-                statusKey: "status_gest_medica",
-                fechaKey: "fechagestMedica",
-                fechaInicio: this.fechaActual,
-                fechaFin: this.fechaActual,
-                esEstadoCerrado: this.esEstadoCerrado,
-            });
+            return this.cantCerradosHoyValor;
         },
         cantCerradosSemana() {
-            if (!this.fechaActual) return 0;
-            return contarCierresPorPeriodo(this.encuestas, {
-                documentoObjetivo: this.getDocumentoObjetivo(),
-                docKeys: ["idMedicoAtiende"],
-                statusKey: "status_gest_medica",
-                fechaKey: "fechagestMedica",
-                fechaInicio: moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD"),
-                fechaFin: moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD"),
-                esEstadoCerrado: this.esEstadoCerrado,
-            });
+            return this.cantCerradosSemanaValor;
+        },
+    },
+    watch: {
+        '$route': {
+            handler: function (to) {
+                if (to.name === 'sop_profesional') {
+                    this.cargarEncuestas();
+                }
+            },
+            deep: true,
         },
     },
     async mounted() {
         this.fechaActual = moment().format("YYYY-MM-DD");
-        try {
-            await this.cargarAuxiliares();
-            const documentoObjetivo = this.getDocumentoObjetivo();
-            if (!documentoObjetivo) {
-                throw new Error("No se encontro el documento del profesional a consultar");
-            }
-
-            // Obtener encuestas con status_gest_aux = true para médico y sus actividades
-            const encuestasConActividades = await this.getEncuestasConActividadesMedico({
-                idUsuario: documentoObjetivo,
-            });
-
-            // Actualizar el store manualmente porque la nueva función no lo hace
-            this.$store.commit('setEncuestas', encuestasConActividades);
-            this.$store.commit('setcantEncuestas', encuestasConActividades.length);
-
-            console.log("Encuestas con actividades (Médico):", encuestasConActividades);
-        } catch (error) {
-            console.error("Error en mounted de sop_profesional:", error);
-            alert("Error cargando encuestas: " + (error?.message || error));
-        } finally {
-            this.cargando = false;
-        }
+        await this.cargarEncuestas();
     },
 };
 </script>

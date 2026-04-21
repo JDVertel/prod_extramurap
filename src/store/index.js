@@ -6,6 +6,7 @@
 // IMPORTS
 // ============================================================================
 import realtime_api from "@/api/realtimeApi.js";
+import { encuestasApi, encuestaActividadesApi } from "@/api/modulesApi";
 import { workflowApi } from "@/api/workflowApi";
 import persistedState from "./persistedstate";
 import { createStore } from "vuex";
@@ -120,7 +121,10 @@ function normalizarFechaSoloDia(valor) {
 
   const parsed = new Date(raw);
   if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toISOString().slice(0, 10);
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
 
   return null;
@@ -154,6 +158,55 @@ function estaFechaEnRango(valor, inicio, fin) {
   }
 
   return fechaTs >= inicioTs && fechaTs <= finTs;
+}
+
+function getEncuestaDateFieldValue(encuesta = {}, legacyField = "") {
+  const fieldMap = {
+    fechagestEnfermera: "fecha_gest_enfermera",
+    fechagestMedica: "fecha_gest_medica",
+    fechagestPsicologo: "fecha_gest_psicologo",
+    fechagestTsocial: "fecha_gest_tsocial",
+    fechagestNutricionista: "fecha_gest_nutricionista",
+    fechagestAuxiliar: "fecha_gest_auxiliar",
+  };
+
+  const apiField = fieldMap[legacyField] || legacyField;
+  return encuesta?.[legacyField] ?? encuesta?.[apiField] ?? "";
+}
+
+function filterCierresMedicoPorRango(encuestas = [], { fechaInicio, fechaFin, idempleado, cargo } = {}) {
+  return encuestas.filter((encuesta) => {
+    const fechaNormalizada = normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestMedica"));
+    const estadoGestion = Number(encuesta.status_gest_medica);
+    const gestionCerrada = encuesta.status_gest_medica === true || estadoGestion >= 1;
+
+    if (!fechaNormalizada) return false;
+    if (!(fechaNormalizada >= fechaInicio && fechaNormalizada <= fechaFin)) return false;
+
+    if (
+      idempleado &&
+      String(encuesta.idMedicoAtiende || "").trim() !== String(idempleado || "").trim()
+    ) {
+      return false;
+    }
+
+    if (cargo && !gestionCerrada) return false;
+    if (cargo && encuesta.status_gest_aux !== true) return false;
+
+    if (encuesta.tipoActividad && typeof encuesta.tipoActividad === "object") {
+      encuesta.actividadesRealizadas = Object.values(encuesta.tipoActividad).filter(
+        (act) => act.Profesional && act.Profesional.includes(cargo)
+      );
+    } else {
+      encuesta.actividadesRealizadas = [];
+    }
+
+    return true;
+  });
+}
+
+function getActividadKey(row = {}) {
+  return String(row?.actividad_key ?? row?.actividadKey ?? row?.key ?? "").trim();
 }
 
 // ============================================================================
@@ -348,8 +401,8 @@ export default createStore({
         };
 
         // 1. Guardar registro principal
-        const { data } = await realtime_api.post(`/${bd}.json`, DataToSaveE);
-        mainId = data.name;
+        const created = await encuestasApi.create(DataToSaveE);
+        mainId = created?.id || null;
 
         if (!mainId) {
           throw new Error("No se pudo generar el identificador de la encuesta.");
@@ -360,9 +413,7 @@ export default createStore({
 
         for (const actividad of actividadesNormalizadas) {
           try {
-            await realtime_api.post(`/Actividades/${mainId}/tipoActividad.json`, {
-              key: actividad.key,
-            });
+            await encuestaActividadesApi.create({ encuestaId: mainId, actividadKey: actividad.key });
           } catch (errorActividad) {
             console.warn(
               `No fue posible guardar actividad ${actividad.key} para encuesta ${mainId}`,
@@ -372,25 +423,19 @@ export default createStore({
         }
 
         const leerKeysPersistidas = async () => {
-          const { data: actividadesPersistidas } = await realtime_api.get(`/Actividades/${mainId}.json`);
+          const actividadesPersistidas = await encuestaActividadesApi.list({
+            encuestaId: mainId,
+            limit: 200,
+            offset: 0,
+          });
 
-          if (!actividadesPersistidas || typeof actividadesPersistidas !== "object") {
+          if (!Array.isArray(actividadesPersistidas) || !actividadesPersistidas.length) {
             return [];
           }
 
-          const tipoActividad = actividadesPersistidas?.tipoActividad && typeof actividadesPersistidas.tipoActividad === "object"
-            ? actividadesPersistidas.tipoActividad
-            : actividadesPersistidas;
-
           return Array.from(new Set(
-            Object.values(tipoActividad)
-              .map((item) => {
-                if (typeof item === "string") return String(item).trim();
-                if (item && typeof item === "object") {
-                  return String(item.key || item.clave || item.actividadId || "").trim();
-                }
-                return "";
-              })
+            actividadesPersistidas
+              .map((item) => getActividadKey(item))
               .filter(Boolean)
           ));
         };
@@ -402,9 +447,7 @@ export default createStore({
         if (faltantes.length > 0) {
           for (const keyActividad of faltantes) {
             try {
-              await realtime_api.post(`/Actividades/${mainId}/tipoActividad.json`, {
-                key: keyActividad,
-              });
+              await encuestaActividadesApi.create({ encuestaId: mainId, actividadKey: keyActividad });
             } catch (errorReintento) {
               console.warn(
                 `Fallo reintento de actividad ${keyActividad} para encuesta ${mainId}`,
@@ -434,13 +477,16 @@ export default createStore({
         // Rollback: evitar encuestas "fantasma" si el proceso falla a mitad.
         if (mainId) {
           try {
-            await realtime_api.delete(`/${bd}/${mainId}.json`);
+            await encuestasApi.remove(mainId);
           } catch (rollbackMainError) {
             console.error("No se pudo revertir registro principal tras fallo:", rollbackMainError);
           }
 
           try {
-            await realtime_api.delete(`/Actividades/${mainId}.json`);
+            const actividades = await encuestaActividadesApi.list({ encuestaId: mainId, limit: 200, offset: 0 });
+            await Promise.all(
+              actividades.map((actividad) => encuestaActividadesApi.remove(actividad.id))
+            );
           } catch (rollbackActivitiesError) {
             console.error("No se pudieron revertir actividades tras fallo:", rollbackActivitiesError);
           }
@@ -457,8 +503,7 @@ export default createStore({
     deletePaciente: async ({ commit }, id) => {
       try {
         if (!id) throw new Error("ID inválido para eliminar");
-        const { data } = await realtime_api.delete(`/Encuesta/${id}.json`);
-        return data;
+        return await encuestasApi.remove(id);
       } catch (error) {
         console.error("Error en Action deletePaciente:", error);
         throw error;
@@ -470,8 +515,7 @@ export default createStore({
      */
     removeRegEnc: async ({ commit }, id) => {
       try {
-        const { data } = await realtime_api.delete(`/Encuesta/${id}.json`);
-        return data;
+        return await encuestasApi.remove(id);
       } catch (error) {
         console.error("Error en Action_removeRegEnc:", error);
         throw error;
@@ -513,10 +557,10 @@ export default createStore({
       }
 
       try {
-        const { data: encuestaActual } = await realtime_api.get(`/Encuesta/${id}.json`);
+        const encuestaActual = await encuestasApi.getById(id);
         const estadoActualRaw = encuestaActual?.[varStatus];
         const estadoActual = Number(estadoActualRaw);
-        const fechaActual = String(encuestaActual?.[dateStatus] || "").trim();
+        const fechaActual = String(getEncuestaDateFieldValue(encuestaActual, dateStatus) || "").trim();
         const tieneCierrePrevio = !!fechaActual;
 
         // Flujo solicitado:
@@ -526,7 +570,7 @@ export default createStore({
           ? 2
           : (tieneCierrePrevio && estadoActual >= 1 ? 2 : 1);
 
-        const { data } = await realtime_api.patch(`/Encuesta/${id}.json`, {
+        const data = await encuestasApi.update(id, {
           [varStatus]: nuevoEstado,
           [dateStatus]: moment(fecha).format("YYYY-MM-DD HH:mm:ss"),
         });
@@ -790,10 +834,10 @@ export default createStore({
         };
 
         // Obtener todas las encuestas
-        const { data: encuestasData } = await realtime_api.get("/Encuesta.json");
+        const { data: encuestasData } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
         const [{ data: actividadesGlobal }, { data: asignacionesGlobal }] = await Promise.all([
-          realtime_api.get("/Actividades.json").catch(() => ({ data: {} })),
-          realtime_api.get("/Asignaciones.json").catch(() => ({ data: {} })),
+          realtime_api.get("/Actividades.json", getNoCacheRequestConfig()).catch(() => ({ data: {} })),
+          realtime_api.get("/Asignaciones.json", getNoCacheRequestConfig()).catch(() => ({ data: {} })),
         ]);
 
         if (!encuestasData) {
@@ -817,7 +861,8 @@ export default createStore({
           encuestas.map(async (encuesta) => {
             try {
               let { data: actividadesData } = await realtime_api.get(
-                `/Actividades/${encuesta.id}.json`
+                `/Actividades/${encuesta.id}.json`,
+                getNoCacheRequestConfig()
               );
 
               if (!actividadesData && actividadesGlobal && typeof actividadesGlobal === "object") {
@@ -1165,41 +1210,41 @@ export default createStore({
           ...value,
         }));
 
-        const encuestasFiltradas = encuestas.filter((encuesta) => {
-          const fecha = String(encuesta.fechagestMedica || encuesta.fecha || "");
-          if (!fecha) return false;
-
-          const fechaNormalizada = fecha.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || fecha;
-
-          if (!(fechaNormalizada >= fechaInicio && fechaNormalizada <= fechaFin)) return false;
-
-          if (
-            idempleado &&
-            String(encuesta.idMedicoAtiende || "").trim() !== String(idempleado || "").trim()
-          ) {
-            return false;
-          }
-
-          if (cargo && encuesta.status_gest_medica !== true) return false;
-          if (cargo && encuesta.status_gest_aux !== true) return false;
-
-          if (encuesta.tipoActividad && typeof encuesta.tipoActividad === "object") {
-            encuesta.actividadesRealizadas = Object.values(encuesta.tipoActividad).filter(
-              (act) => {
-                return act.Profesional && act.Profesional.includes(cargo);
-              }
-            );
-          } else {
-            encuesta.actividadesRealizadas = [];
-          }
-
-          return true;
+        const encuestasFiltradas = filterCierresMedicoPorRango(encuestas, {
+          fechaInicio,
+          fechaFin,
+          idempleado,
+          cargo,
         });
 
         commit("setEncuestasfiltradas", encuestasFiltradas);
         return encuestasFiltradas;
       } catch (error) {
         console.error("Error en GetAllRegistersbyRangeMed:", error);
+        throw error;
+      }
+    },
+
+    getConteoCierresMedicoPorRango: async (_ctx, rango) => {
+      const { fechaInicio, fechaFin } = rango || {};
+      try {
+        if (!fechaInicio || !fechaFin) {
+          throw new Error("Debes proporcionar ambas fechas para el filtro.");
+        }
+
+        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        if (!data) {
+          return [];
+        }
+
+        const encuestas = Object.entries(data).map(([key, value]) => ({
+          id: key,
+          ...value,
+        }));
+
+        return filterCierresMedicoPorRango(encuestas, rango);
+      } catch (error) {
+        console.error("Error en getConteoCierresMedicoPorRango:", error);
         throw error;
       }
     },
@@ -1404,12 +1449,46 @@ export default createStore({
      */
     getActividadesById: async ({ commit }, idEncuesta) => {
       try {
+        const construirActividadesDesdeAsignaciones = (asignacion = {}) => {
+          const cups = asignacion?.cups;
+          const cupsLista = Array.isArray(cups)
+            ? cups
+            : (cups && typeof cups === "object" ? Object.values(cups) : []);
+
+          const tipoActividad = {};
+          cupsLista.forEach((cup) => {
+            const actividadId = String(cup?.actividadId ?? cup?.idActividad ?? "").trim();
+            if (!actividadId || tipoActividad[actividadId]) return;
+            tipoActividad[actividadId] = { key: actividadId };
+          });
+
+          return Object.keys(tipoActividad).length ? { tipoActividad } : null;
+        };
+
         let { data } = await realtime_api.get(`/Actividades/${idEncuesta}.json`);
 
         if (!data) {
           const { data: actividadesGlobal } = await realtime_api.get(`/Actividades.json`);
           if (actividadesGlobal && typeof actividadesGlobal === "object") {
             data = actividadesGlobal[String(idEncuesta)] || null;
+          }
+        }
+
+        if (!data) {
+          const { data: asignacionDirecta } = await realtime_api
+            .get(`/Asignaciones/${idEncuesta}.json`, getNoCacheRequestConfig())
+            .catch(() => ({ data: null }));
+
+          data = construirActividadesDesdeAsignaciones(asignacionDirecta || {});
+        }
+
+        if (!data) {
+          const { data: asignacionesGlobal } = await realtime_api
+            .get(`/Asignaciones.json`, getNoCacheRequestConfig())
+            .catch(() => ({ data: {} }));
+
+          if (asignacionesGlobal && typeof asignacionesGlobal === "object") {
+            data = construirActividadesDesdeAsignaciones(asignacionesGlobal[String(idEncuesta)] || {});
           }
         }
 
