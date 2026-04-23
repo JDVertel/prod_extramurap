@@ -6,7 +6,7 @@
 // IMPORTS
 // ============================================================================
 import realtime_api from "@/api/realtimeApi.js";
-import { encuestasApi, encuestaActividadesApi } from "@/api/modulesApi";
+import { caracterizacionApi, encuestasApi, encuestaActividadesApi } from "@/api/modulesApi";
 import { workflowApi } from "@/api/workflowApi";
 import persistedState from "./persistedstate";
 import { createStore } from "vuex";
@@ -1193,6 +1193,7 @@ export default createStore({
         }
 
         const cargoNormalizado = String(cargo || "").trim().toLowerCase();
+        const documentoEmpleado = String(idempleado || "").trim();
         const params = {};
 
         if (documentoEmpleado && cargoNormalizado === "auxiliar de enfermeria") {
@@ -1220,8 +1221,6 @@ export default createStore({
           id: key,
           ...value,
         }));
-
-        const documentoEmpleado = String(idempleado || "").trim();
 
         const encuestasFiltradas = encuestas.filter((encuesta) => {
           const fecha = String(encuesta.fecha || "").trim();
@@ -1771,32 +1770,36 @@ export default createStore({
             const encuestaId = paciente.id; // ID interno usado como parámetro
 
             try {
-              // Obtener caracterización buscando por idEncuesta
-              const [caracResp, asignResp, actividadesResp] = await Promise.all([
-                realtime_api.get(`/caracterizacion.json`, { params: { encuestaId } }),
+              const [caracterizacionResp, asignResp, actividadesResp] = await Promise.allSettled([
+                caracterizacionApi.getByEncuestaId(encuestaId),
                 realtime_api.get(`/Asignaciones/${encuestaId}.json`),
                 realtime_api.get(`/Actividades/${encuestaId}.json`),
               ]);
+
               let caracterizacion = {};
-              if (caracResp.data) {
-                const caracterizacionEncontrada = Object.values(caracResp.data).find(
-                  (carac) => carac.idEncuesta === encuestaId
-                );
-                caracterizacion = caracterizacionEncontrada || {};
+              if (caracterizacionResp.status === "fulfilled") {
+                caracterizacion = caracterizacionResp.value || {};
+              } else if (caracterizacionResp.reason?.response?.status !== 404) {
+                throw caracterizacionResp.reason;
               }
 
-              const asignaciones = asignResp.data || {};
+              const asignaciones = asignResp.status === "fulfilled" ? (asignResp.value.data || {}) : {};
               const cupsAsignados = extraerCupsAsignaciones(asignaciones);
               const seguimientoActividades = normalizarActividadesEncuesta(
-                actividadesResp.data || {},
+                actividadesResp.status === "fulfilled" ? (actividadesResp.value.data || {}) : {},
                 cupsAsignados
               );
+              const asignacionesNormalizadas = {
+                ...(asignaciones && typeof asignaciones === "object" ? asignaciones : {}),
+                cups: cupsAsignados,
+              };
 
               // Crear un nuevo objeto con todas las propiedades para garantizar reactividad
               const pacienteCompleto = {
                 ...paciente,
                 caracterizacion,
-                asignaciones,
+                asignaciones: asignacionesNormalizadas,
+                cupsAsignados,
                 seguimientoActividades,
               };
               return pacienteCompleto;

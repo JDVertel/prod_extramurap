@@ -6,7 +6,16 @@ const routes = [
     path: "/",
     redirect: () => {
       const token = localStorage.getItem("token");
-      return token ? "/homeviews" : "/login";
+      if (!token) return "/login";
+      try {
+        const raw = localStorage.getItem("userData");
+        const userData = raw ? JSON.parse(raw) : {};
+        return String(userData?.cargo || "").trim().toLowerCase() === "superusuario"
+          ? "/superusuario"
+          : "/homeviews";
+      } catch (_) {
+        return "/homeviews";
+      }
     },
     meta: { hideNavbar: true }
   },
@@ -16,6 +25,7 @@ const routes = [
     path: "/homeviews",
     name: "homeviews",
     component: () => import("../views/HomeView.vue"),
+    meta: { requiresAuth: true },
   },
 
   /* --------------------------------------------- */

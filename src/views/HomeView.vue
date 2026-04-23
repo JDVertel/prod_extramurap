@@ -1,7 +1,7 @@
 <template>
     <div>
 
-        <div v-if="getUserData">
+        <div v-if="sesionHomeValida">
             <div class="container mt-1">
                 <div class="col-12"> <img :src="logo" alt="Logo Extramurapp" class="img-fluid mb-3" /></div>
                 <h2>{{ getUserData.convenio }}</h2>
@@ -71,10 +71,17 @@ export default {
             profesionalesMismoGrupoConvenio: [],
             homeLoadPromise: null,
             homeLoadKey: "",
+            attemptedSessionLoad: false,
         };
     },
     methods: {
         ...mapActions(["fetchUserDataByUid", "getdataips", "consultarUsuariosApi"]),
+
+        redirectToLogin() {
+            this.$store.commit("clearAuth");
+            this.$store.commit("clearUserData");
+            this.$router.replace("/login");
+        },
 
         buildHomeLoadKey(userData = {}) {
             const grupo = String(userData?.grupo || "").trim();
@@ -154,6 +161,10 @@ export default {
     computed: {
         ...mapGetters(["getUserData"]),
         ...mapState(["dataips"]),
+        sesionHomeValida() {
+            const cargo = String(this.getUserData?.cargo || "").trim().toLowerCase();
+            return Boolean(this.getUserData?.numDocumento || cargo === "superusuario");
+        },
         codHabActual() {
             return this.dataips?.codHab || this.dataips?.cod_hab || "";
         },
@@ -162,7 +173,14 @@ export default {
         getUserData: {
             immediate: true,
             async handler(nuevoValor) {
-                if (!nuevoValor?.numDocumento) {
+                const cargo = String(nuevoValor?.cargo || "").trim().toLowerCase();
+                if (!nuevoValor?.numDocumento && cargo !== "superusuario") {
+                    if (this.attemptedSessionLoad) {
+                        this.redirectToLogin();
+                    }
+                    return;
+                }
+                if (cargo === "superusuario") {
                     return;
                 }
                 await this.cargarDatosHome();
@@ -170,13 +188,30 @@ export default {
         }
     },
     async mounted() {
-        if (this.uid) {
-            if (!this.getUserData?.numDocumento) {
-                await this.fetchUserDataByUid(this.uid);
-            }
-        } else {
-            console.warn("UID no disponible para cargar datos de usuario");
+        const token = localStorage.getItem("token");
+
+        if (!this.uid || !token) {
+            this.attemptedSessionLoad = true;
+            this.redirectToLogin();
+            return;
         }
+
+        if (!this.sesionHomeValida) {
+            await this.fetchUserDataByUid(this.uid);
+        }
+
+        this.attemptedSessionLoad = true;
+
+        if (!this.sesionHomeValida) {
+            this.redirectToLogin();
+            return;
+        }
+
+        if (String(this.getUserData?.cargo || "").trim().toLowerCase() === "superusuario") {
+            this.$router.replace("/superusuario");
+            return;
+        }
+
         await this.cargarDatosHome();
     },
 };

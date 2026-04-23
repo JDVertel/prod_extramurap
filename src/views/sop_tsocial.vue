@@ -33,9 +33,9 @@
                     title="Encuestas asignadas pero pendientes de cierre por el auxiliar">
                     <i class="bi bi-hourglass-split"></i> {{ cantEncuestasEnProceso }} en proceso
                 </span>
-                <span class="badge bg-success ms-2">
+                <HoverInfoBadge badge-class="bg-success ms-2" :content="tooltipCerradosHoy">
                     <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
-                </span>
+                </HoverInfoBadge>
                 <span class="badge bg-primary ms-2">
                     <i class="bi bi-calendar-week"></i> {{ cantCerradosSemana }} acumulado{{ cantCerradosSemana !== 1 ? 's' : '' }} semana
                 </span>
@@ -166,9 +166,13 @@ import { mapActions, mapState } from "vuex";
 import moment from "moment";
 import realtime_api from "@/api/realtimeApi";
 import { getAllUsers } from "@/api/usersApi";
-import { contarCierresPorPeriodo } from "@/utils/gestionCounters";
+import { construirTooltipEpsCierres, contarCierresPorPeriodo } from "@/utils/gestionCounters";
+import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 
 export default {
+    components: {
+        HoverInfoBadge,
+    },
     data() {
         return {
             cargando: true,
@@ -475,6 +479,17 @@ export default {
         },
         cantCerradosHoy() {
             return contarCierresPorPeriodo(this.encuestasContadorFiltradasPorConvenio, {
+                documentoObjetivo: this.getDocumentoObjetivo(),
+                docKeys: ["idTsocialAtiende"],
+                statusKey: "status_gest_tsocial",
+                fechaKey: "fechagestTsocial",
+                fechaInicio: this.fechaActual,
+                fechaFin: this.fechaActual,
+                esEstadoCerrado: this.esEstadoCerrado,
+            });
+        },
+        tooltipCerradosHoy() {
+            return construirTooltipEpsCierres(this.encuestasContadorFiltradasPorConvenio, {
                 documentoObjetivo: this.getDocumentoObjetivo(),
                 docKeys: ["idTsocialAtiende"],
                 statusKey: "status_gest_tsocial",

@@ -246,41 +246,6 @@
                     </tbody>
                   </table>
                 </div>
-                <div class="mt-3">
-                  <h6 class="mb-3"><i class="bi bi-list-check"></i> Actividades asignadas</h6>
-                  <div v-if="obtenerActividadesPaciente(paciente).length > 0" class="table-responsive">
-                    <table class="table table-sm table-striped table-bordered align-middle">
-                      <thead class="table-light">
-                        <tr>
-                          <th>Actividad</th>
-                          <th>Estado</th>
-                          <th>CUPS asignados</th>
-                          <th>Profesionales</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr
-                          v-for="(actividad, idxActividad) in obtenerActividadesPaciente(paciente)"
-                          :key="`${paciente.id}-actividad-${actividad.key || actividad.id || idxActividad}`"
-                        >
-                          <td>
-                            <strong>{{ actividad.nombre || 'Actividad' }}</strong>
-                          </td>
-                          <td>
-                            <span class="badge" :class="actividad.estado ? 'bg-success' : 'bg-warning text-dark'">
-                              {{ actividad.estado ? 'Activa' : 'Pendiente' }}
-                            </span>
-                          </td>
-                          <td>{{ actividad.asignaciones?.length || 0 }}</td>
-                          <td>{{ obtenerProfesionalesActividad(actividad) }}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <div v-else class="alert alert-info mb-0">
-                    <i class="bi bi-info-circle"></i> No hay actividades asignadas para esta encuesta.
-                  </div>
-                </div>
               </div>
 
               <!-- TAB: CARACTERIZACIÓN -->
@@ -521,29 +486,6 @@ export default {
       return actividad?.nombre || actividadKey || 'Actividad sin nombre';
     },
 
-    obtenerActividadesPaciente(paciente) {
-      if (!Array.isArray(paciente?.seguimientoActividades)) return [];
-
-      return paciente.seguimientoActividades.map((actividad) => ({
-        ...actividad,
-        nombre: actividad?.nombre || this.getNombreActividad(actividad?.key || actividad?.id),
-      }));
-    },
-
-    obtenerProfesionalesActividad(actividad) {
-      const profesionales = Array.from(new Set(
-        (Array.isArray(actividad?.asignaciones) ? actividad.asignaciones : [])
-          .flatMap((asignacion) => {
-            const nombres = asignacion?.nombreProf;
-            return Array.isArray(nombres) ? nombres : [nombres || asignacion?.key || ""];
-          })
-          .map((item) => String(item || "").trim())
-          .filter(Boolean)
-      ));
-
-      return profesionales.length ? profesionales.join(", ") : "Sin profesional asignado";
-    },
-
     setOrdenAsignaciones(campo) {
       if (this.ordenAsignacionesPor === campo) {
         this.ordenAsignacionesDir = this.ordenAsignacionesDir === "asc" ? "desc" : "asc";
@@ -613,10 +555,25 @@ export default {
         return valor ? '✓ Sí' : '✗ No';
       }
       if (Array.isArray(valor)) {
-        return valor.join(', ');
+        return valor
+          .map((item) => {
+            if (item && typeof item === 'object') {
+              return Object.entries(item)
+                .filter(([, itemValor]) => itemValor !== undefined && itemValor !== null && String(itemValor).trim() !== '')
+                .map(([itemClave, itemValor]) => `${this.formatearClave(itemClave)}: ${itemValor}`)
+                .join(' | ');
+            }
+
+            return String(item ?? '').trim();
+          })
+          .filter(Boolean)
+          .join(' ; ') || 'N/A';
       }
       if (typeof valor === 'object' && valor !== null) {
-        return JSON.stringify(valor);
+        return Object.entries(valor)
+          .filter(([, itemValor]) => itemValor !== undefined && itemValor !== null && String(itemValor).trim() !== '')
+          .map(([itemClave, itemValor]) => `${this.formatearClave(itemClave)}: ${itemValor}`)
+          .join(' | ') || 'N/A';
       }
       return valor || 'N/A';
     },

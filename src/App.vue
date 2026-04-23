@@ -30,12 +30,14 @@ export default {
         ...mapActions(["getdataips", "fetchUserDataByUid"]),
         syncUserDataFromStorage() {
             // Sincronizar userData desde localStorage si el Store está vacío
-            if ((!this.userData || !this.userData.numDocumento)) {
+            const cargoActual = String(this.userData?.cargo || "").trim().toLowerCase();
+            if ((!this.userData || (!this.userData.numDocumento && cargoActual !== "superusuario"))) {
                 const storedUserData = localStorage.getItem("userData");
                 if (storedUserData) {
                     try {
                         const parsed = JSON.parse(storedUserData);
-                        if (parsed && parsed.numDocumento) {
+                        const cargoGuardado = String(parsed?.cargo || "").trim().toLowerCase();
+                        if (parsed && (parsed.numDocumento || cargoGuardado === "superusuario")) {
                             this.$store.commit("setUserData", parsed);
                             console.log('✓ userData sincronizado desde localStorage');
                         }
@@ -62,6 +64,7 @@ export default {
                 Nutricionista: "/sop_nutricionista",
                 Fact: "/sop_facturacion",
                 "Auxiliar de enfermeria": "/sop_aux",
+                superusuario: "/superusuario",
             };
             return mapa[cargo] || "/homeviews";
         },

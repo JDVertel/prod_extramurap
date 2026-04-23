@@ -48,7 +48,7 @@ function coincideDocumento(encuesta, documentoObjetivo, docKeys) {
   return docKeys.some((key) => String(encuesta?.[key] || "").trim() === documento);
 }
 
-export function contarCierresPorPeriodo(encuestas = [], opciones = {}) {
+export function obtenerCierresPorPeriodo(encuestas = [], opciones = {}) {
   const {
     documentoObjetivo,
     docKeys = [],
@@ -59,12 +59,12 @@ export function contarCierresPorPeriodo(encuestas = [], opciones = {}) {
     esEstadoCerrado = (valor) => valor === true,
   } = opciones;
 
-  if (!Array.isArray(encuestas) || encuestas.length === 0) return 0;
-  if (!documentoObjetivo || !statusKey || !fechaKey || !fechaInicio || !fechaFin || docKeys.length === 0) return 0;
+  if (!Array.isArray(encuestas) || encuestas.length === 0) return [];
+  if (!documentoObjetivo || !statusKey || !fechaKey || !fechaInicio || !fechaFin || docKeys.length === 0) return [];
 
   const inicio = moment(fechaInicio, "YYYY-MM-DD", true);
   const fin = moment(fechaFin, "YYYY-MM-DD", true);
-  if (!inicio.isValid() || !fin.isValid()) return 0;
+  if (!inicio.isValid() || !fin.isValid()) return [];
 
   return encuestas.filter((encuesta) => {
     if (!coincideDocumento(encuesta, documentoObjetivo, docKeys)) return false;
@@ -72,5 +72,36 @@ export function contarCierresPorPeriodo(encuestas = [], opciones = {}) {
 
     const fechaGestion = parseFechaGestion(getFieldValue(encuesta, fechaKey));
     return Boolean(fechaGestion && fechaGestion.isBetween(inicio, fin, "day", "[]"));
-  }).length;
+  });
+}
+
+export function contarCierresPorPeriodo(encuestas = [], opciones = {}) {
+  return obtenerCierresPorPeriodo(encuestas, opciones).length;
+}
+
+export function construirTooltipEpsCierres(encuestas = [], opciones = {}) {
+  const cierres = obtenerCierresPorPeriodo(encuestas, opciones);
+  if (!cierres.length) {
+    return "Sin pacientes cerrados hoy";
+  }
+
+  const lineas = cierres
+    .map((encuesta) => {
+      const nombrePaciente = [
+        encuesta?.nombre1,
+        encuesta?.nombre2,
+        encuesta?.apellido1,
+        encuesta?.apellido2,
+      ]
+        .map((valor) => String(valor || "").trim())
+        .filter(Boolean)
+        .join(" ");
+
+      const paciente = nombrePaciente || String(encuesta?.numdoc || encuesta?.id || "Paciente sin nombre").trim();
+      const eps = String(encuesta?.eps || "Sin EPS").trim() || "Sin EPS";
+      return `- ${paciente} | EPS: ${eps}`;
+    })
+    .sort((left, right) => left.localeCompare(right, "es", { sensitivity: "base" }));
+
+  return `Pacientes cerrados hoy:\n${lineas.join("\n")}`;
 }

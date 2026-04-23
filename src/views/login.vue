@@ -113,6 +113,11 @@ export default {
         },
     },
     methods: {
+        obtenerRutaPostLogin(userData = {}) {
+            const cargo = String(userData?.cargo || "").trim().toLowerCase();
+            if (cargo === "superusuario") return "/superusuario";
+            return "/homeviews";
+        },
         esApiFueraDeLinea(error) {
             return !error?.response && Boolean(error?.request || error?.message);
         },
@@ -192,7 +197,7 @@ export default {
                     this.$store.commit("setUserData", userData);
                 }
                 this.intentosRestantes = MAX_LOGIN_ATTEMPTS;
-                this.$router.push("/homeviews");
+                this.$router.push(this.obtenerRutaPostLogin(userData));
             } catch (error) {
                 const status = error?.response?.status;
                 const detail = error?.response?.data?.detail || {};

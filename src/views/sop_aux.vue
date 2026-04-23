@@ -29,9 +29,9 @@
       </div>
 
       <h4>Detalle de Actividades
-        <span class="badge bg-success ms-2">
+        <HoverInfoBadge badge-class="bg-success ms-2" :content="tooltipCerradosHoy">
           <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
-        </span>
+        </HoverInfoBadge>
         <span class="badge bg-primary ms-2">
           <i class="bi bi-calendar-week"></i> {{ cantCerradosSemana }} acumulado{{ cantCerradosSemana !== 1 ? 's' : '' }} semana
         </span>
@@ -170,10 +170,14 @@
 <script>
 import { mapActions, mapState } from "vuex";
 import moment from "moment";
-import { contarCierresPorPeriodo } from "@/utils/gestionCounters";
+import { construirTooltipEpsCierres, contarCierresPorPeriodo } from "@/utils/gestionCounters";
 import realtime_api from "@/api/realtimeApi";
+import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 
 export default {
+  components: {
+    HoverInfoBadge,
+  },
   data() {
     return {
       cargando: true,
@@ -441,6 +445,17 @@ export default {
     },
     cantCerradosHoy() {
       return contarCierresPorPeriodo(this.encuestasContadorFiltradasPorConvenio, {
+        documentoObjetivo: this.documentoObjetivo,
+        docKeys: this.getDocKeysBandeja(),
+        statusKey: this.getStatusKeyBandeja(),
+        fechaKey: this.getFechaKeyBandeja(),
+        fechaInicio: this.fechaActual,
+        fechaFin: this.fechaActual,
+        esEstadoCerrado: this.esEstadoCerrado,
+      });
+    },
+    tooltipCerradosHoy() {
+      return construirTooltipEpsCierres(this.encuestasContadorFiltradasPorConvenio, {
         documentoObjetivo: this.documentoObjetivo,
         docKeys: this.getDocKeysBandeja(),
         statusKey: this.getStatusKeyBandeja(),

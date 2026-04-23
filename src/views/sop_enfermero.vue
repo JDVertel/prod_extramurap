@@ -17,9 +17,9 @@
             Visualizando como admin: {{ nombreProfesionalSeleccionado }}
         </p>
         <div class="text-center mb-2">
-            <span class="badge bg-success">
+            <HoverInfoBadge badge-class="bg-success" :content="tooltipCerradosHoy">
                 <i class="bi bi-check2-all"></i> {{ cantCerradosHoy }} cerrado{{ cantCerradosHoy !== 1 ? 's' : '' }} hoy
-            </span>
+            </HoverInfoBadge>
             <span class="badge bg-primary ms-2">
                 <i class="bi bi-calendar-week"></i> {{ cantCerradosSemana }} acumulado{{ cantCerradosSemana !== 1 ? 's' : '' }} semana
             </span>
@@ -229,7 +229,12 @@ import { getAllUsers } from "@/api/usersApi";
 import * as XLSX from "xlsx";
 import realtime_api from "@/api/realtimeApi";
 import { encuestasApi } from "@/api/modulesApi";
+import { construirTooltipEpsCierres } from "@/utils/gestionCounters";
+import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 export default {
+    components: {
+        HoverInfoBadge,
+    },
     data() {
         return {
             cargando: true,
@@ -1030,6 +1035,17 @@ export default {
         },
         cantCerradosHoy() {
             return this.cantCerradosHoyValor;
+        },
+        tooltipCerradosHoy() {
+            return construirTooltipEpsCierres(this.encuestasContadorFiltradasPorConvenio, {
+                documentoObjetivo: this.getDocumentoObjetivo(),
+                docKeys: ["idEnfermeroAtiende"],
+                statusKey: "status_gest_enfermera",
+                fechaKey: "fechagestEnfermera",
+                fechaInicio: this.fechaActual,
+                fechaFin: this.fechaActual,
+                esEstadoCerrado: this.esEstadoCerrado,
+            });
         },
         cantCerradosSemana() {
             return this.cantCerradosSemanaValor;
