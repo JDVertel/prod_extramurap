@@ -146,6 +146,12 @@ function getFacturacionPendientesDebugFilter() {
   }
 }
 
+function buildComparablePatientDocument(tipodoc, numdoc) {
+  const tipo = String(tipodoc ?? "").trim();
+  const numero = String(numdoc ?? "").trim();
+  return normalizeComparableDocument(tipo && numero ? `${tipo}-${numero}` : numero || tipo);
+}
+
 function shouldLogFacturacionPendientesRecord(record = {}) {
   const filtro = getFacturacionPendientesDebugFilter();
   if (!filtro) {
@@ -155,6 +161,7 @@ function shouldLogFacturacionPendientesRecord(record = {}) {
   const candidates = [
     record?.encuestaId,
     record?.numdoc,
+    record?.documentoPaciente,
     record?.facturadorPaciente,
     ...(Array.isArray(record?.facturadoresCups) ? record.facturadoresCups : []),
   ];
@@ -3587,6 +3594,8 @@ export default createStore({
           cerradasExcluidas: 0,
           sinAsignacionExcluidas: 0,
         };
+        const debugFiltro = getFacturacionPendientesDebugFilter();
+        let coincidenciasFiltro = 0;
 
         encuestasMap.forEach((encuestaAsociada) => {
           const idActividad = encuestaAsociada?.id;
@@ -3597,6 +3606,11 @@ export default createStore({
           const cups = asignaciones?.[idActividad]?.cups;
           const listaCups = cups && typeof cups === "object" ? Object.values(cups) : [];
           const facturadorPaciente = encuestaAsociada?.asigfact ?? encuestaAsociada?.asig_fact;
+          const documentoPaciente = `${encuestaAsociada?.tipodoc || ""}-${encuestaAsociada?.numdoc || ""}`.replace(/^-|-$|^$/g, "");
+          const documentoPacienteComparable = buildComparablePatientDocument(
+            encuestaAsociada?.tipodoc,
+            encuestaAsociada?.numdoc
+          );
           const facturadoresCups = listaCups.map(
             (cup) => cup?.FactProf ?? cup?.factProf ?? cup?.fact_prof ?? ""
           ).filter((value) => String(value || "").trim());
@@ -3630,7 +3644,9 @@ export default createStore({
           if (isFacturacionPendientesDebugEnabled()) {
             const debugPayload = {
               encuestaId: idActividad,
+              tipodoc: encuestaAsociada?.tipodoc,
               numdoc: encuestaAsociada?.numdoc,
+              documentoPaciente,
               paciente: `${encuestaAsociada?.nombre1 || ""} ${encuestaAsociada?.apellido1 || ""}`.trim(),
               facturadorPaciente,
               facturadoresCups,
@@ -3642,7 +3658,33 @@ export default createStore({
             };
 
             if (shouldLogFacturacionPendientesRecord(debugPayload)) {
+              coincidenciasFiltro++;
               logFacturacionPendientesDebug("evaluacion-encuesta", debugPayload);
+            }
+
+            if (debugFiltro && documentoPacienteComparable === debugFiltro) {
+              logFacturacionPendientesDebug("rastreo-documento", {
+                encuestaId: idActividad,
+                documentoPaciente,
+                paciente: debugPayload.paciente,
+                status_facturacion: encuestaAsociada?.status_facturacion,
+                facturadorPaciente,
+                facturadoresCups,
+                totalCups: listaCups.length,
+                cupsConFacturador: listaCups
+                  .map((cup, index) => ({
+                    index,
+                    actividadId: cup?.actividadId,
+                    FactProf: cup?.FactProf ?? cup?.factProf ?? cup?.fact_prof ?? null,
+                    FactNum: cup?.FactNum ?? cup?.factNum ?? cup?.fact_num ?? null,
+                    facturado: cup?.facturado === true,
+                  }))
+                  .filter((cup) => cup.FactProf || cup.FactNum || cup.facturado),
+                coincideFacturadorPaciente,
+                coincideFacturadorEnCups,
+                incluido,
+                exclusionReasons,
+              });
             }
           }
 
@@ -3667,8 +3709,16 @@ export default createStore({
         commit("setEncuestasFactAprov", resultados);
         logFacturacionPendientesDebug("fin-carga", {
           ...resumen,
+          coincidenciasFiltro,
+          debugFiltro: debugFiltro || null,
           idsIncluidos: resultados.map((item) => item.id),
         });
+        if (debugFiltro && coincidenciasFiltro === 0) {
+          logFacturacionPendientesDebug("rastreo-documento-no-encontrado", {
+            debugFiltro,
+            mensaje: "No se encontró ninguna encuesta con ese documento, id de encuesta o asignación dentro de la carga actual.",
+          });
+        }
         return resultados;
       } catch (error) {
         console.error("Error en Action_GetRegistersbyRangeGeneralFactAprov:", error);
