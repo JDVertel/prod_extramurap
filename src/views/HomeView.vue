@@ -36,7 +36,7 @@
                             <li v-for="profesional in profesionalesMismoGrupoConvenio" :key="profesional.id"
                                 class="list-group-item d-flex justify-content-between align-items-center">
                                 <span>{{ profesional.nombre }}</span>
-                                <span class="badge bg-primary">{{ profesional.cargo }}</span>
+                                <span class="badge" :class="getCargoBadgeClass(profesional.cargo)">{{ profesional.cargo }}</span>
                             </li>
                         </ul>
                     </div>
@@ -56,6 +56,7 @@
 
 <script>
 import logo from "../assets/images/logo_extramurapp.png";
+import { getCargoBadgeClass } from "@/utils/cargoBadges";
 import {
     mapActions,
     mapGetters,
@@ -76,6 +77,7 @@ export default {
     },
     methods: {
         ...mapActions(["fetchUserDataByUid", "getdataips", "consultarUsuariosApi"]),
+        getCargoBadgeClass,
 
         redirectToLogin() {
             this.$store.commit("clearAuth");

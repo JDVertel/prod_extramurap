@@ -98,7 +98,10 @@
               <span class="text-muted ms-2 small">{{ profesional.numDocumento }}</span>
             </div>
             <div class="d-flex gap-2 align-items-center">
-              <span class="badge bg-secondary">{{ profesional.cargo }}</span>
+              <span class="badge" :class="getCargoBadgeClass(profesional.cargo)">{{ profesional.cargo }}</span>
+              <span v-if="profesional.grupo" class="badge bg-info-subtle text-dark border">
+                Grupo {{ profesional.grupo }}
+              </span>
               <span class="badge bg-light text-dark border">{{ profesional.convenio }}</span>
               <i class="bi bi-chevron-right text-muted"></i>
             </div>
@@ -112,6 +115,7 @@
 <script>
 import { getDelegatedProfessionals } from "@/api/usersApi";
 import { ipsApi } from "@/api/modulesApi";
+import { getCargoBadgeClass } from "@/utils/cargoBadges";
 import { mapState } from "vuex";
 
 const CARGO_CANONICO_POR_NORMALIZADO = {
@@ -124,6 +128,8 @@ const CARGO_CANONICO_POR_NORMALIZADO = {
   trabajadorsocial: "Tsocial",
   trabajadorasocial: "Tsocial",
   nutricionista: "Nutricionista",
+  fact: "Fact",
+  facturacion: "Fact",
 };
 
 const RUTA_POR_CARGO_CANONICO = {
@@ -133,6 +139,7 @@ const RUTA_POR_CARGO_CANONICO = {
   Psicologo: "/sop_psicologo",
   Tsocial: "/sop_tsocial",
   Nutricionista: "/sop_nutricionista",
+  Fact: "/sop_facturacion",
 };
 
 function normalizarCargo(valor) {
@@ -235,6 +242,7 @@ export default {
     },
   },
   methods: {
+    getCargoBadgeClass,
     limpiarFiltros() {
       this.filtroNombre = "";
       this.filtroConvenio = "";

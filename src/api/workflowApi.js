@@ -33,6 +33,13 @@ function toApiCaracterizacion(payload = {}) {
     antecedentes: payload.seleccionadosAntecedentes ?? payload.antecedentes,
     grupoFamiliar: payload.grupoFamiliar ?? payload.grupo_familiar,
     riesgos: payload.seleccionadosRiesgos ?? payload.riesgos,
+    detalleSedentarismo: payload.detalleSedentarismo ?? payload.detalle_sedentarismo,
+    detalleConsumoAlcohol: payload.detalleConsumoAlcohol ?? payload.detalle_consumo_alcohol,
+    detalleConsumoCigarrillo: payload.detalleConsumoCigarrillo ?? payload.detalle_consumo_cigarrillo,
+    detalleAlimentacionPocoSaludable:
+      payload.AlimentacionPocoSaludable ??
+      payload.detalleAlimentacionPocoSaludable ??
+      payload.detalle_alimentacion_poco_saludable,
   };
 }
 

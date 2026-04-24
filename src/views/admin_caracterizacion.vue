@@ -101,7 +101,7 @@ export default {
             fechaInicio: "",
             fechaFin: "",
             convenioInforme: "",
-            conveniosDisponibles: ["Extramural", "E Basicos"],
+            conveniosDisponibles: [],
             cargando: false,
             consultado: false,
             registrosCaracterizacion: [],
@@ -235,6 +235,53 @@ export default {
             return convenio === this.normalizarConvenio(this.convenioInforme);
         },
 
+        actualizarConveniosDisponibles(...colecciones) {
+            const convenios = new Map();
+
+            colecciones.forEach((coleccion) => {
+                (Array.isArray(coleccion) ? coleccion : []).forEach((item) => {
+                    const valor = String(item || "").trim();
+                    if (!valor) return;
+
+                    const clave = valor.toLowerCase();
+                    if (!convenios.has(clave)) {
+                        convenios.set(clave, valor);
+                    }
+                });
+            });
+
+            this.conveniosDisponibles = Array.from(convenios.values())
+                .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+
+            if (
+                this.convenioInforme &&
+                !this.conveniosDisponibles.some(
+                    (convenio) => this.normalizarConvenio(convenio) === this.normalizarConvenio(this.convenioInforme)
+                )
+            ) {
+                this.convenioInforme = "";
+            }
+        },
+
+        async cargarConveniosDisponibles() {
+            try {
+                const [caracterizacionResp, encuestaResp] = await Promise.all([
+                    realtime_api.get("/caracterizacion.json"),
+                    realtime_api.get("/Encuesta.json"),
+                ]);
+
+                const conveniosCaracterizacion = Object.values(caracterizacionResp?.data || {})
+                    .map((item) => item?.convenio);
+                const conveniosEncuesta = Object.values(encuestaResp?.data || {})
+                    .map((item) => item?.convenio);
+
+                this.actualizarConveniosDisponibles(conveniosCaracterizacion, conveniosEncuesta);
+            } catch (error) {
+                console.error("Error cargando convenios de caracterización:", error);
+                this.actualizarConveniosDisponibles();
+            }
+        },
+
         async generarInforme() {
             if (!this.fechaInicio || !this.fechaFin) {
                 alert("Debe seleccionar fecha de inicio y fecha fin.");
@@ -265,6 +312,11 @@ export default {
 
                 const caracterizaciones = caracterizacionResp.data || {};
                 const encuestas = encuestaResp.data || {};
+
+                this.actualizarConveniosDisponibles(
+                    Object.values(caracterizaciones).map((item) => item?.convenio),
+                    Object.values(encuestas).map((item) => item?.convenio)
+                );
 
                 const encuestasMap = Object.entries(encuestas).reduce((acc, [id, value]) => {
                     acc[String(id)] = { id, ...value };
@@ -334,6 +386,9 @@ export default {
 
             XLSX.writeFile(wb, `informe_caracterizacion_${convenio}_${this.fechaInicio}_${this.fechaFin}.xlsx`);
         },
+    },
+    async mounted() {
+        await this.cargarConveniosDisponibles();
     },
 };
 </script>

@@ -104,19 +104,31 @@
                                     </div>
                                     <div class="col-12 col-md-4 texto-sombra">
                                         <strong>Antecedentes:</strong>
-                                        {{ formatearListaCaracterizacion(caracterizacionEncuesta.seleccionadosAntecedentes) }}
+                                        {{ formatearListaCaracterizacion(obtenerValorCaracterizacion("antecedentes", "seleccionadosAntecedentes")) }}
                                     </div>
                                     <div class="col-12 col-md-4 texto-sombra">
                                         <strong>Factores de riesgo:</strong>
-                                        {{ formatearListaCaracterizacion(caracterizacionEncuesta.seleccionadosFactoresRiesgo) }}
+                                        {{ formatearListaCaracterizacion(obtenerValorCaracterizacion("factoresRiesgo", "factores_riesgo", "seleccionadosFactoresRiesgo")) }}
+                                    </div>
+                                    <div class="col-12 col-md-4 texto-sombra">
+                                        <strong>Grupo familiar:</strong>
+                                        {{ formatearListaCaracterizacion(obtenerValorCaracterizacion("grupoFamiliar", "grupo_familiar")) }}
+                                    </div>
+                                    <div class="col-12 col-md-4 texto-sombra">
+                                        <strong>Riesgos:</strong>
+                                        {{ formatearListaCaracterizacion(obtenerValorCaracterizacion("riesgos", "seleccionadosRiesgos")) }}
+                                    </div>
+                                    <div class="col-12 col-md-4 texto-sombra">
+                                        <strong>Detalle riesgos:</strong>
+                                        {{ formatearDetalleRiesgosCaracterizacion() }}
                                     </div>
                                     <div class="col-12 col-md-4 texto-sombra">
                                         <strong>Presencia de animales:</strong>
-                                        {{ formatearListaCaracterizacion(caracterizacionEncuesta.seleccionadosPresenciaAnimales) }}
+                                        {{ formatearListaCaracterizacion(obtenerValorCaracterizacion("presenciaAnimales", "presencia_animales", "seleccionadosPresenciaAnimales")) }}
                                     </div>
                                     <div class="col-12 col-md-4 texto-sombra">
                                         <strong>Servicios públicos:</strong>
-                                        {{ formatearListaCaracterizacion(caracterizacionEncuesta.seleccionadosServPublic) }}
+                                        {{ formatearListaCaracterizacion(obtenerValorCaracterizacion("servPublicos", "serv_publicos", "seleccionadosServPublic")) }}
                                     </div>
                                 </template>
                             </template>
@@ -357,6 +369,7 @@ import {
     mapActions,
     mapState
 } from "vuex";
+import { getCargoBadgeClass as getSharedCargoBadgeClass } from "@/utils/cargoBadges";
 import { asignacionesApi, caracterizacionApi, encuestaActividadesApi, encuestasApi } from "@/api/modulesApi";
 import realtime_api from "@/api/realtimeApi.js";
 import { workflowApi } from "@/api/workflowApi";
@@ -886,22 +899,7 @@ export default {
         },
 
         getCargoBadgeClass(cargo) {
-            const normalizado = this.normalizarTextoComparacion(cargo);
-            const compacto = normalizado.replace(/[^a-z0-9]/g, "");
-
-            if (compacto.includes("auxiliardeenfermeria")) return "bg-success text-white";
-            if (compacto.includes("enfermero")) return "bg-warning text-dark";
-            if (compacto.includes("medico")) return "bg-primary text-white";
-            if (compacto.includes("psicolog")) return "bg-cargo-psicologo text-white";
-            if (
-                compacto.includes("tsocial") ||
-                compacto.includes("trabajadorsocial") ||
-                compacto.includes("trabajadorasocial") ||
-                compacto.includes("trabajosocial")
-            ) return "bg-cargo-tsocial text-white";
-            if (compacto.includes("nutricion")) return "bg-cargo-nutricionista text-white";
-
-            return "bg-secondary text-white";
+            return getSharedCargoBadgeClass(cargo);
         },
 
         obtenerCupsDeContrato(contrato) {
@@ -1084,15 +1082,115 @@ export default {
             return unidad ? `${valorTexto} ${unidad}` : valorTexto;
         },
 
+        obtenerValorCaracterizacion(...claves) {
+            for (const clave of claves) {
+                const valor = this.caracterizacionEncuesta?.[clave];
+                if (valor === undefined || valor === null) {
+                    continue;
+                }
+
+                if (typeof valor === "string") {
+                    const texto = valor.trim();
+                    if (!texto) {
+                        continue;
+                    }
+
+                    if ((texto.startsWith("[") && texto.endsWith("]")) || (texto.startsWith("{") && texto.endsWith("}"))) {
+                        try {
+                            return JSON.parse(texto);
+                        } catch (_) {
+                            return texto;
+                        }
+                    }
+
+                    return texto;
+                }
+
+                if (Array.isArray(valor) && valor.length === 0) {
+                    continue;
+                }
+
+                if (typeof valor === "object" && !Array.isArray(valor) && Object.keys(valor).length === 0) {
+                    continue;
+                }
+
+                return valor;
+            }
+
+            return null;
+        },
+
         formatearListaCaracterizacion(valor) {
-            if (!Array.isArray(valor) || valor.length === 0) {
+            if (typeof valor === "string") {
+                const texto = valor.trim();
+                return texto || "N/A";
+            }
+
+            if (Array.isArray(valor)) {
+                const items = valor
+                    .map((item) => {
+                        if (item === null || item === undefined) {
+                            return "";
+                        }
+
+                        if (typeof item === "object") {
+                            return Object.values(item)
+                                .map((subvalor) => String(subvalor ?? "").trim())
+                                .filter(Boolean)
+                                .join(": ");
+                        }
+
+                        return String(item).trim();
+                    })
+                    .filter(Boolean);
+
+                return items.join(", ") || "N/A";
+            }
+
+            if (valor && typeof valor === "object") {
+                const items = Object.values(valor)
+                    .map((item) => String(item ?? "").trim())
+                    .filter(Boolean);
+
+                return items.join(", ") || "N/A";
+            }
+
+            if (valor === null || valor === undefined) {
                 return "N/A";
             }
 
-            return valor
-                .map((item) => String(item || "").trim())
-                .filter(Boolean)
-                .join(", ");
+            const texto = String(valor).trim();
+            return texto || "N/A";
+        },
+
+        formatearDetalleRiesgosCaracterizacion() {
+            const detalles = [];
+            const sedentarismo = this.obtenerValorCaracterizacion("detalleSedentarismo", "detalle_sedentarismo");
+            const consumoAlcohol = this.obtenerValorCaracterizacion("detalleConsumoAlcohol", "detalle_consumo_alcohol");
+            const consumoCigarrillo = this.obtenerValorCaracterizacion("detalleConsumoCigarrillo", "detalle_consumo_cigarrillo");
+            const alimentacion = this.obtenerValorCaracterizacion(
+                "detalleAlimentacionPocoSaludable",
+                "detalle_alimentacion_poco_saludable",
+                "AlimentacionPocoSaludable"
+            );
+
+            if (sedentarismo !== null && sedentarismo !== undefined && String(sedentarismo).trim() !== "") {
+                detalles.push(`Sedentarismo: ${sedentarismo}`);
+            }
+
+            if (consumoAlcohol !== null && consumoAlcohol !== undefined && String(consumoAlcohol).trim() !== "") {
+                detalles.push(`Alcohol: ${consumoAlcohol}`);
+            }
+
+            if (consumoCigarrillo !== null && consumoCigarrillo !== undefined && String(consumoCigarrillo).trim() !== "") {
+                detalles.push(`Cigarrillo: ${consumoCigarrillo}`);
+            }
+
+            if (alimentacion !== null && alimentacion !== undefined && String(alimentacion).trim() !== "") {
+                detalles.push(`Alimentación: ${alimentacion}`);
+            }
+
+            return detalles.length ? detalles.join(" | ") : "N/A";
         },
 
         async cargarCaracterizacionEncuesta() {
@@ -2580,18 +2678,6 @@ select {
     color: #198754;
     font-style: italic;
     font-size: 0.76rem;
-}
-
-.bg-cargo-psicologo {
-    background-color: #c2185b !important;
-}
-
-.bg-cargo-tsocial {
-    background-color: #1fdf0d !important;
-}
-
-.bg-cargo-nutricionista {
-    background-color: #fd7e14 !important;
 }
 
 @media (max-width: 767.98px) {

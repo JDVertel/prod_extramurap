@@ -457,6 +457,7 @@
 <script>
 import realtime_api from "@/api/realtimeApi.js";
 import { getAllUsers } from "@/api/usersApi";
+import * as XLSX from "xlsx";
 import {
     mapState,
     mapActions
@@ -523,6 +524,7 @@ const COLUMNAS_ACTIVIDADES = [
 ];
 
 const COLUMNAS_FACTURACION = [
+    { key: "aprovisionado", label: "Aprovisionado" },
     { key: "cantidad", label: "Cantidad CUPS" },
     { key: "fechaFacturacionCup", label: "Fecha Facturacion CUPS" },
     { key: "fechaCierreFactura", label: "Fecha Cierre Factura" },
@@ -1462,6 +1464,7 @@ export default {
                     ""
                 ).trim();
                 const base = {
+                    aprovisionado: facturadorPacienteDoc ? "Sí" : "No",
                     convenio: paciente.convenio || "",
                     facturadorPaciente: this.obtenerNombreFacturador(facturadorPacienteDoc),
                     fechaCierreFactura: this.formatearFechaCorta(
@@ -1527,9 +1530,7 @@ export default {
         },
 
         async actualizarDatosFacturacionInforme() {
-            const paramsEncuesta = {
-                status_facturacion: 1,
-            };
+            const paramsEncuesta = {};
 
             if (String(this.convenioInforme || "").trim()) {
                 paramsEncuesta.convenio = String(this.convenioInforme || "").trim();
@@ -1563,7 +1564,6 @@ export default {
             }));
 
             this.encuestasInforme = encuestasLista
-                .filter((encuesta) => encuesta?.status_facturacion === true)
                 .filter((encuesta) => {
                     if (!convenioSeleccionado) return true;
                     return this.normalizarConvenio(encuesta?.convenio) === convenioSeleccionado;
@@ -1574,28 +1574,50 @@ export default {
                         ? Object.entries(cupsObj).map(([cupId, cup]) => ({ id: cupId, ...(cup || {}) }))
                         : [];
 
-                    const cupsFacturados = cupsLista.filter((cup) => cup?.facturado === true);
+                    const cupsRelacionados = cupsLista.filter((cup) => {
+                        const tieneFactura = String(cup?.FactNum || cup?.factNum || cup?.fact_num || "").trim().length > 0;
+                        const fueFacturado = cup?.facturado === true;
+                        const tieneFacturador = String(
+                            cup?.FactProf || cup?.factProf || cup?.fact_prof || ""
+                        ).trim().length > 0;
+                        return tieneFactura || fueFacturado || tieneFacturador;
+                    });
+
+                    const pacienteAprovisionado = String(
+                        encuesta?.asigfact || encuesta?.asig_fact || ""
+                    ).trim().length > 0;
+                    const pacienteCerrado = encuesta?.status_facturacion === true;
 
                     return {
                         ...encuesta,
-                        cupsFacturacion: cupsFacturados,
+                        cupsFacturacion: cupsRelacionados,
+                        includeInFacturacion: pacienteCerrado || pacienteAprovisionado || cupsRelacionados.length > 0,
                     };
                 })
+                .filter((encuesta) => encuesta.includeInFacturacion)
                 .filter((encuesta) => {
                     const fechaPacienteEnRango = this.fechaDentroDeRango(
                         encuesta?.FechaFacturacion || encuesta?.fechaFacturacion || encuesta?.fecha_facturacion,
                         this.fechaInicio,
                         this.fechaFin
                     );
+                    const fechaAprovisionamientoEnRango = this.fechaDentroDeRango(
+                        encuesta?.fechagestEnfermera || encuesta?.fecha_gest_enfermera,
+                        this.fechaInicio,
+                        this.fechaFin
+                    );
                     const actividadEnRango = (encuesta.cupsFacturacion || []).some((cup) =>
                         this.fechaDentroDeRango(
-                            cup?.fechaAsignacionFactura || cup?.fechaFacturacion || cup?.fecha_facturacion || cup?.FechaFacturacion,
+                            cup?.fechaAsignacionFactura ||
+                            cup?.fechaFacturacion ||
+                            cup?.fecha_facturacion ||
+                            cup?.FechaFacturacion,
                             this.fechaInicio,
                             this.fechaFin
                         )
                     );
 
-                    return fechaPacienteEnRango || actividadEnRango;
+                    return fechaPacienteEnRango || fechaAprovisionamientoEnRango || actividadEnRango;
                 })
                 .filter((encuesta) => {
                     if (!facturadorSeleccionado) return true;
@@ -1645,26 +1667,20 @@ export default {
             return lineas.join("\n");
         },
 
-        ordenarPor(key) {
-            if (this.sortKey === key) {
-                this.sortDirection = this.sortDirection === "asc" ? "desc" : "asc";
-                return;
+        sanitizarValorExcel(valor) {
+            const texto = String(valor ?? "");
+            if (!texto) return "";
+
+            // Evita que Excel interprete contenido de usuario como fórmula.
+            if (/^[=+\-@]/.test(texto)) {
+                return `'${texto}`;
             }
-            this.sortKey = key;
-            this.sortDirection = "asc";
+
+            return texto;
         },
 
-        exportarExcelFiltrado() {
-            const filas = this.filasFiltradasOrdenadas;
-            const html = this.construirHtmlExportacion(filas);
-            const blob = new Blob([`<html><head><meta charset="UTF-8"></head><body>${html}</body></html>`], {
-                type: "application/vnd.ms-excel;charset=utf-8;"
-            });
-
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            const fecha = new Date().toISOString().slice(0, 10);
-            const limpiarNombreArchivo = (valor = "") => String(valor || "")
+        limpiarNombreArchivo(valor = "") {
+            return String(valor || "")
                 .normalize("NFD")
                 .replace(/[\u0300-\u036f]/g, "")
                 .trim()
@@ -1672,21 +1688,53 @@ export default {
                 .replace(/\s+/g, "_")
                 .replace(/[^a-z0-9_-]/g, "")
                 .replace(/_+/g, "_")
-                .replace(/^_+|_+$/g, "") || "profesional";
+                .replace(/^_+|_+$/g, "") || "informe";
+        },
 
-            let nombreArchivo = `informe_filtrado_${fecha}.xls`;
+        construirNombreArchivoExcel() {
+            const fecha = new Date().toISOString().slice(0, 10);
+
             if (this.tipoinforme === "4") {
                 const profesionalNombre = this.obtenerNombreProfesional(this.profesionalInforme)?.nombre || this.profesionalInforme || "profesional";
-                const profesionalSlug = limpiarNombreArchivo(profesionalNombre);
+                const profesionalSlug = this.limpiarNombreArchivo(profesionalNombre);
                 const rango = [this.fechaInicio, this.fechaFin].filter(Boolean).join("_a_") || fecha;
-                nombreArchivo = `informe_${profesionalSlug}_${rango}.xls`;
+                return `informe_${profesionalSlug}_${rango}.xlsx`;
             }
-            link.href = url;
-            link.download = nombreArchivo;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+
+            const tipoSlug = this.limpiarNombreArchivo(this.consultaActual?.tipo || this.tipoinforme || "filtrado");
+            const convenioSlug = this.convenioInforme ? this.limpiarNombreArchivo(this.convenioInforme) : "todos";
+            const rango = [this.fechaInicio, this.fechaFin].filter(Boolean).join("_a_") || fecha;
+            return `informe_${tipoSlug}_${convenioSlug}_${rango}.xlsx`;
+        },
+
+        exportarExcelFiltrado() {
+            const filas = this.filasFiltradasOrdenadas;
+            if (!filas.length) {
+                this.$toast?.error
+                    ? this.$toast.error("No hay datos para exportar.")
+                    : alert("No hay datos para exportar.");
+                return;
+            }
+
+            const filasExcel = filas.map((fila) => {
+                const row = {};
+                this.columnasTabla.forEach((col) => {
+                    row[col.label] = this.sanitizarValorExcel(fila[col.key] ?? "");
+                });
+                return row;
+            });
+
+            const ws = XLSX.utils.json_to_sheet(filasExcel);
+            if (ws["!ref"]) {
+                ws["!autofilter"] = { ref: ws["!ref"] };
+            }
+
+            ws["!cols"] = this.columnasTabla.map(() => ({ wch: 22 }));
+
+            const wb = XLSX.utils.book_new();
+            const nombreHoja = String(this.consultaActual?.tipo || "Informe").slice(0, 31) || "Informe";
+            XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
+            XLSX.writeFile(wb, this.construirNombreArchivoExcel());
         },
 
         copiarHtmlTabla() {

@@ -86,6 +86,87 @@ form {
   background-color: rgb(234, 186, 123);
 }
 
+.bandeja-dia-seccion {
+  margin-bottom: 1rem;
+}
+
+.bandeja-dia-titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.25rem 0 0.75rem;
+}
+
+.bandeja-dia-titulo::before,
+.bandeja-dia-titulo::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(15, 23, 42, 0.14);
+}
+
+.bandeja-dia-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.badge-cargo {
+  color: #ffffff;
+  border: 1px solid transparent;
+}
+
+.badge-cargo-auxiliar {
+  background-color: #198754;
+}
+
+.badge-cargo-enfermero {
+  background-color: #0dcaf0;
+  color: #0f172a;
+}
+
+.badge-cargo-medico {
+  background-color: #0d6efd;
+}
+
+.badge-cargo-facturacion {
+  background-color: #ffc107;
+  color: #1f2937;
+}
+
+.badge-cargo-admin {
+  background-color: #dc3545;
+}
+
+.badge-cargo-superusuario {
+  background-color: #7c2d12;
+}
+
+.badge-cargo-psicologo {
+  background-color: #c2185b;
+}
+
+.badge-cargo-nutricionista {
+  background-color: #fd7e14;
+}
+
+.badge-cargo-tsocial {
+  background-color: #047857;
+}
+
+.badge-cargo-default {
+  background-color: #6c757d;
+}
+
 body {
   background: #F4F6FB;
   font-family: "Instrument Sans", sans-serif;

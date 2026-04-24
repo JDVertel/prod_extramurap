@@ -402,19 +402,23 @@
             <div class="row">
                 <hr />
                 <h4>Tamizaje</h4>
+                <p class="small text-muted mb-3">
+                    Los campos marcados como Obligatorio deben diligenciarse para guardar la caracterización.
+                    Perímetro Branquial es Opcional.
+                </p>
                 <div class="row">
                     <div class="col-6">
                         <div class="form-floating mb-3">
                             <input type="number" class="form-control" id="floatingInput1" v-model="peso"
                                 placeholder="" />
-                            <label for="floatingInput1">Peso (Kg)</label>
+                            <label for="floatingInput1">Peso (Kg) - Obligatorio</label>
                         </div>
                     </div>
                     <div class="col-6">
                         <div class="form-floating mb-3">
                             <input type="number" class="form-control" id="floatingInput2" v-model="talla"
                                 placeholder="" />
-                            <label for="floatingInput2">Talla (m)</label>
+                            <label for="floatingInput2">Talla (m) - Obligatorio</label>
                         </div>
                     </div>
 
@@ -422,28 +426,28 @@
                         <div class="form-floating mb-3">
                             <input type="number" class="form-control" id="floatingInput3" v-model="tensionSistolica"
                                 placeholder="" />
-                            <label for="floatingInput3">Tension Sistolica (mmHg)</label>
+                            <label for="floatingInput3">Tension Sistolica (mmHg) - Obligatorio</label>
                         </div>
                     </div>
                     <div class="col-6">
                         <div class="form-floating mb-3">
                             <input type="number" class="form-control" id="floatingInput4" v-model="tensionDiastolica"
                                 placeholder="" />
-                            <label for="floatingInput4">Tension Diastolica (mmHg)</label>
+                            <label for="floatingInput4">Tension Diastolica (mmHg) - Obligatorio</label>
                         </div>
                     </div>
                     <div class="col-6">
                         <div class="form-floating mb-3">
                             <input type="number" class="form-control" id="floatingInput5" v-model="perimetroAbdominal"
                                 placeholder="" />
-                            <label for="floatingInput5">Perimetro Abdominal (cm)</label>
+                            <label for="floatingInput5">Perimetro Abdominal (cm) - Obligatorio</label>
                         </div>
                     </div>
                     <div class="col-6">
                         <div class="form-floating mb-3">
                             <input type="number" class="form-control" id="floatingInput6" v-model="perimetroBranquial"
                                 placeholder="" />
-                            <label for="floatingInput6">Perimetro Branquial (cm)</label>
+                            <label for="floatingInput6">Perimetro Branquial (cm) - Opcional</label>
                         </div>
                     </div>
 
@@ -451,14 +455,14 @@
                         <div class="form-floating mb-3">
                             <input type="number" class="form-control" id="floatingInput7" v-model="oximetria"
                                 placeholder="" />
-                            <label for="floatingInput7">Oximetria (%)</label>
+                            <label for="floatingInput7">Oximetria (%) - Obligatorio</label>
                         </div>
                     </div>
                     <div class="col-6">
                         <div class="form-floating mb-3">
                             <input type="number" class="form-control" id="floatingInput8" v-model="temperatura"
                                 placeholder="" />
-                            <label for="floatingInput8">Temperatura (°C)</label>
+                            <label for="floatingInput8">Temperatura (°C) - Obligatorio</label>
                         </div>
                     </div>
                     <div class="container">
@@ -492,14 +496,14 @@
                         <div class="form-floating mb-3">
                             <input type="text" class="form-control" id="floatingInput" v-model="Oizquierdo"
                                 placeholder="" />
-                            <label for="floatingInput">Ojo Izquierdo</label>
+                            <label for="floatingInput">Ojo Izquierdo - Obligatorio</label>
                         </div>
                     </div>
                     <div class="col-6">
                         <div class="form-floating mb-3">
                             <input type="text" class="form-control" id="floatingInput" v-model="Oderecho"
                                 placeholder="" />
-                            <label for="floatingInput">Ojo Derecho </label>
+                            <label for="floatingInput">Ojo Derecho - Obligatorio</label>
                         </div>
                     </div>
                 </div>
@@ -510,6 +514,7 @@
             <div class="row">
                 <hr />
                 <h4>Estado del esquema vacunal</h4>
+                <p class="small text-muted mb-2">Campo Obligatorio</p>
                 <select id="evacunal" name="evacunal" class="form-select" aria-label="Default select example"
                     v-model="Evacunal">
                     <option selected value="">Seleccione</option>
@@ -567,6 +572,11 @@ export default {
             cargandoEps: false,
             seleccionadosServPublic: [],
             opcionesServPublicos: [{
+                id: 11,
+                valor: "ninguno",
+                texto: "Ninguno",
+            },
+            {
                 id: 1,
                 valor: "acueducto",
                 texto: "acueducto",
@@ -621,6 +631,11 @@ export default {
             seleccionadosFactoresRiesgo: [],
 
             factoresRiesgo: [{
+                id: 17,
+                valor: "ninguno",
+                texto: "Ninguno",
+            },
+            {
                 id: 11,
                 valor: "Droga",
                 texto: "Droga",
@@ -653,6 +668,11 @@ export default {
             ],
             seleccionadosPresenciaAnimales: [],
             OpcionesPresenciaAnimales: [{
+                id: 25,
+                valor: "ninguno",
+                texto: "Ninguno",
+            },
+            {
                 id: 17,
                 valor: "Vectores",
                 texto: "Vectores",
@@ -695,6 +715,11 @@ export default {
             ],
             seleccionadosAntecedentes: [],
             opcionesAntecedentes: [{
+                id: 32,
+                valor: "ninguno",
+                texto: "Ninguno",
+            },
+            {
                 id: 25,
                 valor: "Hipertencion Arterial",
                 texto: "Hipertencion Arterial",
@@ -767,6 +792,11 @@ export default {
             ],
 
             OpcionesRiesgos: [{
+                id: 42,
+                valor: "ninguno",
+                texto: "Ninguno",
+            },
+            {
                 id: 32,
                 valor: "sedentarismo",
                 texto: "Sedentarismo",
@@ -823,6 +853,18 @@ export default {
     },
     methods: {
         ...mapActions(["guardarCaracterizacion", "getAllEpss"]),
+        normalizarSeleccionExclusiva(lista = [], valorExclusivo = "ninguno") {
+            if (!Array.isArray(lista) || !lista.includes(valorExclusivo) || lista.length <= 1) {
+                return Array.isArray(lista) ? lista : [];
+            }
+
+            const ultimoValor = lista[lista.length - 1];
+            if (ultimoValor === valorExclusivo) {
+                return [valorExclusivo];
+            }
+
+            return lista.filter((item) => item !== valorExclusivo);
+        },
         addmiembro() {
             if (
                 this.nuevoMiembro.nombres &&
@@ -938,10 +980,6 @@ export default {
                 nombre: "Perímetro Abdominal",
             },
             {
-                valor: this.perimetroBranquial,
-                nombre: "Perímetro Branquial",
-            },
-            {
                 valor: this.oximetria,
                 nombre: "Oximetría",
             },
@@ -1027,6 +1065,10 @@ export default {
                 seleccionadosAntecedentes: this.seleccionadosAntecedentes,
                 grupoFamiliar: this.grupoFamiliar,
                 seleccionadosRiesgos: this.seleccionadosRiesgos,
+                detalleSedentarismo: this.detalleSedentarismo,
+                detalleConsumoAlcohol: this.detalleConsumoAlcohol,
+                detalleConsumoCigarrillo: this.detalleConsumoCigarrillo,
+                AlimentacionPocoSaludable: this.AlimentacionPocoSaludable,
             };
             this.guardando = true;
             try {
@@ -1080,6 +1122,55 @@ export default {
             else if (imc < 35) return "Obesidad grado I";
             else if (imc < 40) return "Obesidad grado II";
             else return "Obesidad grado III";
+        },
+    },
+    watch: {
+        seleccionadosServPublic(nuevoValor) {
+            const normalizado = this.normalizarSeleccionExclusiva(nuevoValor);
+            if (JSON.stringify(normalizado) !== JSON.stringify(nuevoValor)) {
+                this.seleccionadosServPublic = normalizado;
+            }
+        },
+        seleccionadosFactoresRiesgo(nuevoValor) {
+            const normalizado = this.normalizarSeleccionExclusiva(nuevoValor);
+            if (JSON.stringify(normalizado) !== JSON.stringify(nuevoValor)) {
+                this.seleccionadosFactoresRiesgo = normalizado;
+            }
+        },
+        seleccionadosPresenciaAnimales(nuevoValor) {
+            const normalizado = this.normalizarSeleccionExclusiva(nuevoValor);
+            if (JSON.stringify(normalizado) !== JSON.stringify(nuevoValor)) {
+                this.seleccionadosPresenciaAnimales = normalizado;
+            }
+        },
+        seleccionadosAntecedentes(nuevoValor) {
+            const normalizado = this.normalizarSeleccionExclusiva(nuevoValor);
+            if (JSON.stringify(normalizado) !== JSON.stringify(nuevoValor)) {
+                this.seleccionadosAntecedentes = normalizado;
+            }
+        },
+        seleccionadosRiesgos(nuevoValor) {
+            const normalizado = this.normalizarSeleccionExclusiva(nuevoValor);
+            if (JSON.stringify(normalizado) !== JSON.stringify(nuevoValor)) {
+                this.seleccionadosRiesgos = normalizado;
+                return;
+            }
+
+            if (!normalizado.includes("sedentarismo")) {
+                this.detalleSedentarismo = "";
+            }
+
+            if (!normalizado.includes("consumeAlcohol")) {
+                this.detalleConsumoAlcohol = "";
+            }
+
+            if (!normalizado.includes("consumeCigarrillo")) {
+                this.detalleConsumoCigarrillo = "";
+            }
+
+            if (!normalizado.includes("alimentacionPocoSaludable")) {
+                this.AlimentacionPocoSaludable = "";
+            }
         },
     },
     async mounted() {

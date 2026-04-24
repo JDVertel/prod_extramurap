@@ -59,67 +59,72 @@
             <p class="mb-0">No hay registros pendientes en este momento.</p>
           </div>
 
-          <div v-for="(encuesta, index) in encuestasPendientes" :key="`pend-${encuesta.id || index}`"
-            class="container rounded-lg p-2 mb-2">
-            <div :class="['row', 'paciente', 'shadow-sm', pacienteClass(encuesta)]">
-              <div class="col-7 col-md-6">
-                <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
-                <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
-                <small>Nac: {{ encuesta.fechaNac }} | Enc: {{ encuesta.fecha }}</small>
-              </div>
+          <div v-for="grupo in encuestasPendientesAgrupadas" :key="`pend-dia-${grupo.dayKey}`" class="bandeja-dia-seccion">
+            <div class="bandeja-dia-titulo">
+              <span class="bandeja-dia-badge">{{ grupo.dayLabel }}</span>
+            </div>
+            <div v-for="(encuesta, index) in grupo.items" :key="`pend-${encuesta.id || index}`"
+              class="container rounded-lg p-2 mb-2">
+              <div :class="['row', 'paciente', 'shadow-sm', pacienteClass(encuesta)]">
+                <div class="col-7 col-md-6">
+                  <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
+                  <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                  <small>Nac: {{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaCorta(encuesta.fecha) || 'N/A' }}</small>
+                </div>
 
-              <div class="col-5 col-md-6 acciones-col">
-                <div class="btn-grid">
-                  <div class="btn-row">
-                    <template v-if="esAuxiliarMostrado">
-                      <template v-if="esConvenioExtramural(encuesta.convenio)">
-                        <div v-if="!tieneVisitaAgendada(encuesta)">
-                          <button type="button" class="btn btn-info agendar-btn" @click="Agendar(encuesta.id, 'visitamedica')">
-                            <i class="bi bi-houses"></i>
-                            <span class="agendar-label">Visita</span>
+                <div class="col-5 col-md-6 acciones-col">
+                  <div class="btn-grid">
+                    <div class="btn-row">
+                      <template v-if="esAuxiliarMostrado">
+                        <template v-if="esConvenioExtramural(encuesta.convenio)">
+                          <div v-if="!tieneVisitaAgendada(encuesta)">
+                            <button type="button" class="btn btn-info agendar-btn" @click="Agendar(encuesta.id, 'visitamedica')">
+                              <i class="bi bi-houses"></i>
+                              <span class="agendar-label">Visita</span>
+                            </button>
+                          </div>
+                          <div v-else>
+                            <button type="button" class="btn btn-secondary agendar-btn" disabled>
+                              <i class="bi bi-check2-circle"></i>
+                              <span class="agendar-label">Visita</span>
+                            </button>
+                          </div>
+                        </template>
+                      </template>
+
+                      <template v-if="esAuxiliarMostrado">
+                        <div v-if="encuesta.status_caracterizacion === false">
+                          <button type="button" class="btn btn-warning agendar-btn" @click="Caracterizar(encuesta.id)">
+                            <i class="bi bi-calendar2-check"></i>
+                            <span class="agendar-label">Caract</span>
                           </button>
                         </div>
                         <div v-else>
                           <button type="button" class="btn btn-secondary agendar-btn" disabled>
                             <i class="bi bi-check2-circle"></i>
-                            <span class="agendar-label">Visita</span>
+                            <span class="agendar-label">Caract</span>
                           </button>
                         </div>
                       </template>
-                    </template>
 
-                    <template v-if="esAuxiliarMostrado">
-                      <div v-if="encuesta.status_caracterizacion === false">
-                        <button type="button" class="btn btn-warning agendar-btn" @click="Caracterizar(encuesta.id)">
-                          <i class="bi bi-calendar2-check"></i>
-                          <span class="agendar-label">Caract</span>
+                      <div v-if="esAuxiliarMostrado || esMedicoMostrado">
+                        <button type="button" class="btn btn-primary agendar-btn" @click="cupsGestion(encuesta.id)">
+                          <i class="bi bi-calendar2-heart-fill"></i>
+                          <span class="agendar-label">Cups</span>
                         </button>
                       </div>
-                      <div v-else>
-                        <button type="button" class="btn btn-secondary agendar-btn" disabled>
-                          <i class="bi bi-check2-circle"></i>
-                          <span class="agendar-label">Caract</span>
-                        </button>
-                      </div>
-                    </template>
 
-                    <div v-if="esAuxiliarMostrado || esMedicoMostrado">
-                      <button type="button" class="btn btn-primary agendar-btn" @click="cupsGestion(encuesta.id)">
-                        <i class="bi bi-calendar2-heart-fill"></i>
-                        <span class="agendar-label">Cups</span>
-                      </button>
+                      <template v-if="esAuxiliarMostrado">
+                        <div>
+                          <button type="button" class="btn btn-danger agendar-btn" @click="eliminarRegistro(encuesta.id)"
+                            :disabled="eliminandoRegistro === encuesta.id" :title="'Eliminar registro'">
+                            <i class="bi bi-trash" v-if="eliminandoRegistro !== encuesta.id"></i>
+                            <i class="bi bi-hourglass-split" v-else></i>
+                            <span class="agendar-label">{{ eliminandoRegistro === encuesta.id ? 'Verif' : 'Elim' }}</span>
+                          </button>
+                        </div>
+                      </template>
                     </div>
-
-                    <template v-if="esAuxiliarMostrado">
-                      <div>
-                        <button type="button" class="btn btn-danger agendar-btn" @click="eliminarRegistro(encuesta.id)"
-                          :disabled="eliminandoRegistro === encuesta.id" :title="'Eliminar registro'">
-                          <i class="bi bi-trash" v-if="eliminandoRegistro !== encuesta.id"></i>
-                          <i class="bi bi-hourglass-split" v-else></i>
-                          <span class="agendar-label">{{ eliminandoRegistro === encuesta.id ? 'Verif' : 'Elim' }}</span>
-                        </button>
-                      </div>
-                    </template>
                   </div>
                 </div>
               </div>
@@ -135,26 +140,31 @@
             <p class="mb-0">No hay pacientes devueltos para corrección.</p>
           </div>
 
-          <div v-for="(encuesta, index) in encuestasDevueltas" :key="`dev-${encuesta.id || index}`"
-            class="container rounded-lg p-2 mb-2">
-            <div class="row paciente paciente-devuelto shadow-sm">
-              <div class="col-7 col-md-6">
-                <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
-                <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
-                <small>Nac: {{ encuesta.fechaNac }} | Enc: {{ encuesta.fecha }}</small>
-                <div class="devolucion-nota mt-2">
-                  <div class="devolucion-titulo"><i class="bi bi-arrow-counterclockwise me-1"></i> Paciente devuelto para corrección</div>
+          <div v-for="grupo in encuestasDevueltasAgrupadas" :key="`dev-dia-${grupo.dayKey}`" class="bandeja-dia-seccion">
+            <div class="bandeja-dia-titulo">
+              <span class="bandeja-dia-badge">{{ grupo.dayLabel }}</span>
+            </div>
+            <div v-for="(encuesta, index) in grupo.items" :key="`dev-${encuesta.id || index}`"
+              class="container rounded-lg p-2 mb-2">
+              <div class="row paciente paciente-devuelto shadow-sm">
+                <div class="col-7 col-md-6">
+                  <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
+                  <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                  <small>Nac: {{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaCorta(encuesta.fecha) || 'N/A' }}</small>
+                  <div class="devolucion-nota mt-2">
+                    <div class="devolucion-titulo"><i class="bi bi-arrow-counterclockwise me-1"></i> Paciente devuelto para corrección</div>
+                  </div>
                 </div>
-              </div>
 
-              <div class="col-5 col-md-6 acciones-col">
-                <div class="btn-grid">
-                  <div class="btn-row">
-                    <div v-if="esAuxiliarMostrado || esMedicoMostrado">
-                      <button type="button" class="btn btn-primary agendar-btn" @click="cupsGestion(encuesta.id)">
-                        <i class="bi bi-calendar2-heart-fill"></i>
-                        <span class="agendar-label">Cups</span>
-                      </button>
+                <div class="col-5 col-md-6 acciones-col">
+                  <div class="btn-grid">
+                    <div class="btn-row">
+                      <div v-if="esAuxiliarMostrado || esMedicoMostrado">
+                        <button type="button" class="btn btn-primary agendar-btn" @click="cupsGestion(encuesta.id)">
+                          <i class="bi bi-calendar2-heart-fill"></i>
+                          <span class="agendar-label">Cups</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -172,6 +182,7 @@ import { mapActions, mapState } from "vuex";
 import moment from "moment";
 import { construirTooltipEpsCierres, contarCierresPorPeriodo } from "@/utils/gestionCounters";
 import realtime_api from "@/api/realtimeApi";
+import { formatBandejaShortDate, groupBandejaItemsByDay } from "@/utils/bandejaPresentation";
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 
 export default {
@@ -297,6 +308,12 @@ export default {
     },
     pacienteClass(encuesta) {
       return this.esPacienteDevuelto(encuesta) ? "paciente-devuelto" : "";
+    },
+    formatearFechaCorta(valorFecha) {
+      return formatBandejaShortDate(valorFecha);
+    },
+    agruparEncuestasPorDia(items) {
+      return groupBandejaItemsByDay(items, (encuesta) => encuesta?.fecha || encuesta?.created_at || encuesta?.updated_at);
     },
 
     async cargarFuenteContadores() {
@@ -431,8 +448,14 @@ export default {
     encuestasPendientes() {
       return this.encuestasFiltradasPorConvenio.filter((encuesta) => !this.esPacienteDevuelto(encuesta));
     },
+    encuestasPendientesAgrupadas() {
+      return this.agruparEncuestasPorDia(this.encuestasPendientes);
+    },
     encuestasDevueltas() {
       return this.encuestasFiltradasPorConvenio.filter((encuesta) => this.esPacienteDevuelto(encuesta));
+    },
+    encuestasDevueltasAgrupadas() {
+      return this.agruparEncuestasPorDia(this.encuestasDevueltas);
     },
     cantEncuestasPendientes() {
       return this.encuestasPendientes.length;

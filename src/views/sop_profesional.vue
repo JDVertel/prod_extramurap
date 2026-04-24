@@ -59,24 +59,29 @@
                     </div>
 
                     <div v-else class="container-fluid">
-                        <div v-for="(encuesta, index) in encuestasPendientes" :key="`pend-${encuesta.id || index}`"
-                            class="container rounded-lg p-2 mb-2" style="border-radius: 24px;">
-                            <div :class="['row', 'paciente', 'shadow-sm', pacienteClass(encuesta)]">
-                                <div class="col-10 col-md-10">
-                                    <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong></small> |
-                                    <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
-                                    <small>Auxiliar: {{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</small>
-                                    <small>Nac: {{ formatearFechaSoloDia(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaSoloDia(encuesta.fecha) }}</small>
-                                </div>
+                        <div v-for="grupo in encuestasPendientesAgrupadas" :key="`pend-dia-${grupo.dayKey}`" class="bandeja-dia-seccion">
+                            <div class="bandeja-dia-titulo">
+                                <span class="bandeja-dia-badge">{{ grupo.dayLabel }}</span>
+                            </div>
+                            <div v-for="(encuesta, index) in grupo.items" :key="`pend-${encuesta.id || index}`"
+                                class="container rounded-lg p-2 mb-2" style="border-radius: 24px;">
+                                <div :class="['row', 'paciente', 'shadow-sm', pacienteClass(encuesta)]">
+                                    <div class="col-10 col-md-10">
+                                        <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong></small> |
+                                        <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                                        <small>Auxiliar: {{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</small>
+                                        <small>Nac: {{ formatearFechaSoloDia(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaSoloDia(encuesta.fecha) || 'N/A' }}</small>
+                                    </div>
 
-                                <div class="col-2 col-md-2 acciones-col ">
-                                    <div class="btn-grid">
-                                        <div class="btn-row">
-                                            <div v-if="cargoMostrado === 'Auxiliar de enfermeria' || cargoMostrado === 'Medico'">
-                                                <button type="button" class="btn btn-danger agendar-btn" @click="cupsGestion(encuesta.id)">
-                                                    <i class="bi bi-calendar2-heart-fill"></i>
-                                                    <span class="agendar-label">Cups</span>
-                                                </button>
+                                    <div class="col-2 col-md-2 acciones-col ">
+                                        <div class="btn-grid">
+                                            <div class="btn-row">
+                                                <div v-if="cargoMostrado === 'Auxiliar de enfermeria' || cargoMostrado === 'Medico'">
+                                                    <button type="button" class="btn btn-danger agendar-btn" @click="cupsGestion(encuesta.id)">
+                                                        <i class="bi bi-calendar2-heart-fill"></i>
+                                                        <span class="agendar-label">Cups</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -95,27 +100,32 @@
                     </div>
 
                     <div v-else class="container-fluid">
-                        <div v-for="(encuesta, index) in encuestasDevueltas" :key="`dev-${encuesta.id || index}`"
-                            class="container rounded-lg p-2 mb-2" style="border-radius: 24px;">
-                            <div :class="['row', 'paciente', 'paciente-devuelto', 'shadow-sm']">
-                                <div class="col-10 col-md-10">
-                                    <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong></small> |
-                                    <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
-                                    <small>Auxiliar: {{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</small>
-                                    <small>Nac: {{ formatearFechaSoloDia(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaSoloDia(encuesta.fecha) }}</small>
-                                    <div class="devolucion-nota mt-2">
-                                        <div class="devolucion-titulo"><i class="bi bi-arrow-counterclockwise me-1"></i> Paciente devuelto para corrección</div>
+                        <div v-for="grupo in encuestasDevueltasAgrupadas" :key="`dev-dia-${grupo.dayKey}`" class="bandeja-dia-seccion">
+                            <div class="bandeja-dia-titulo">
+                                <span class="bandeja-dia-badge">{{ grupo.dayLabel }}</span>
+                            </div>
+                            <div v-for="(encuesta, index) in grupo.items" :key="`dev-${encuesta.id || index}`"
+                                class="container rounded-lg p-2 mb-2" style="border-radius: 24px;">
+                                <div :class="['row', 'paciente', 'paciente-devuelto', 'shadow-sm']">
+                                    <div class="col-10 col-md-10">
+                                        <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong></small> |
+                                        <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                                        <small>Auxiliar: {{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</small>
+                                        <small>Nac: {{ formatearFechaSoloDia(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaSoloDia(encuesta.fecha) || 'N/A' }}</small>
+                                        <div class="devolucion-nota mt-2">
+                                            <div class="devolucion-titulo"><i class="bi bi-arrow-counterclockwise me-1"></i> Paciente devuelto para corrección</div>
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="col-2 col-md-2 acciones-col ">
-                                    <div class="btn-grid">
-                                        <div class="btn-row">
-                                            <div v-if="cargoMostrado === 'Auxiliar de enfermeria' || cargoMostrado === 'Medico'">
-                                                <button type="button" class="btn btn-danger agendar-btn" @click="cupsGestion(encuesta.id)">
-                                                    <i class="bi bi-calendar2-heart-fill"></i>
-                                                    <span class="agendar-label">Cups</span>
-                                                </button>
+                                    <div class="col-2 col-md-2 acciones-col ">
+                                        <div class="btn-grid">
+                                            <div class="btn-row">
+                                                <div v-if="cargoMostrado === 'Auxiliar de enfermeria' || cargoMostrado === 'Medico'">
+                                                    <button type="button" class="btn btn-danger agendar-btn" @click="cupsGestion(encuesta.id)">
+                                                        <i class="bi bi-calendar2-heart-fill"></i>
+                                                        <span class="agendar-label">Cups</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -166,6 +176,7 @@ import moment from "moment";
 import realtime_api from "@/api/realtimeApi";
 import { getAllUsers } from "@/api/usersApi";
 import { construirTooltipEpsCierres } from "@/utils/gestionCounters";
+import { formatBandejaShortDate, groupBandejaItemsByDay, sortBandejaItems } from "@/utils/bandejaPresentation";
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 export default {
     components: {
@@ -265,28 +276,10 @@ export default {
         },
 
         formatearFechaSoloDia(valorFecha) {
-            if (!valorFecha) return "";
-            const texto = String(valorFecha).trim();
-
-            const matchIso = texto.match(/^(\d{4}-\d{2}-\d{2})/);
-            if (matchIso) return matchIso[1];
-
-            const fechaIsoLocal = moment(texto, moment.ISO_8601, true);
-            if (fechaIsoLocal.isValid()) {
-                return fechaIsoLocal.format("YYYY-MM-DD");
-            }
-
-            const fechaLatam = moment(texto, ["DD/MM/YYYY", "DD-MM-YYYY"], true);
-            if (fechaLatam.isValid()) {
-                return fechaLatam.format("YYYY-MM-DD");
-            }
-
-            const fecha = new Date(texto);
-            if (!Number.isNaN(fecha.getTime())) {
-                return moment(fecha).format("YYYY-MM-DD");
-            }
-
-            return texto;
+            return formatBandejaShortDate(valorFecha);
+        },
+        agruparEncuestasPorDia(items) {
+            return groupBandejaItemsByDay(items, (encuesta) => encuesta?.fecha || encuesta?.created_at || encuesta?.updated_at);
         },
         async cargarAuxiliares() {
             try {
@@ -613,10 +606,22 @@ export default {
             );
         },
         encuestasPendientes() {
-            return this.encuestasBaseProfesional.filter((encuesta) => !this.esPacienteDevuelto(encuesta));
+            return sortBandejaItems(
+                this.encuestasBaseProfesional.filter((encuesta) => !this.esPacienteDevuelto(encuesta)),
+                (encuesta) => encuesta?.fecha || encuesta?.created_at || encuesta?.updated_at
+            );
+        },
+        encuestasPendientesAgrupadas() {
+            return this.agruparEncuestasPorDia(this.encuestasPendientes);
         },
         encuestasDevueltas() {
-            return this.encuestasBaseProfesional.filter((encuesta) => this.esPacienteDevuelto(encuesta));
+            return sortBandejaItems(
+                this.encuestasBaseProfesional.filter((encuesta) => this.esPacienteDevuelto(encuesta)),
+                (encuesta) => encuesta?.fecha || encuesta?.created_at || encuesta?.updated_at
+            );
+        },
+        encuestasDevueltasAgrupadas() {
+            return this.agruparEncuestasPorDia(this.encuestasDevueltas);
         },
         cantEncuestasPendientes() {
             return this.encuestasPendientes.length;

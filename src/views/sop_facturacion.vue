@@ -845,6 +845,18 @@ export default {
 
             await this.getPendientes();
         },
+        "userData.numDocumento": {
+            immediate: true,
+            async handler(nuevoDocumento) {
+                if (!String(nuevoDocumento || "").trim()) {
+                    return;
+                }
+
+                if (this.activeTab === "pendientes") {
+                    await this.getPendientes();
+                }
+            },
+        },
         "userData.convenio": {
             immediate: true,
             handler(nuevoConvenio) {
@@ -877,12 +889,29 @@ export default {
         /*  */
 
         /*  */
+        async esperarUsuarioDisponible() {
+            let intentos = 0;
+
+            while ((!this.userData || !this.userData.numDocumento) && intentos < 30) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                intentos++;
+            }
+
+            const documento = String(this.userData?.numDocumento || "").trim();
+            if (!documento) {
+                throw new Error("Usuario no disponible después de esperar");
+            }
+
+            return documento;
+        },
         async getPendientes() {
             this.cargando = true;
-            await this.GetRegistersbyRangeGeneralFactAprov(
-                this.userData.numDocumento
-            );
-            this.cargando = false;
+            try {
+                const documento = await this.esperarUsuarioDisponible();
+                await this.GetRegistersbyRangeGeneralFactAprov(documento);
+            } finally {
+                this.cargando = false;
+            }
         },
         async getdataEncuestas(fechaInicio, fechaFin, convenio) {
             this.cargando = true;
@@ -1310,9 +1339,7 @@ export default {
         this.cargando = true
         try {
             await this.getAllActividadesExtra();
-            await this.GetRegistersbyRangeGeneralFactAprov(
-                this.userData.numDocumento
-            );
+            await this.getPendientes();
         } finally {
             this.cargando = false
         }

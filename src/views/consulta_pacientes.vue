@@ -551,6 +551,22 @@ export default {
     },
 
     formatearValor(valor) {
+      if (typeof valor === 'string') {
+        const texto = valor.trim();
+        if (!texto) {
+          return 'N/A';
+        }
+
+        if ((texto.startsWith('[') && texto.endsWith(']')) || (texto.startsWith('{') && texto.endsWith('}'))) {
+          try {
+            return this.formatearValor(JSON.parse(texto));
+          } catch (_) {
+            return texto;
+          }
+        }
+
+        return texto;
+      }
       if (typeof valor === 'boolean') {
         return valor ? '✓ Sí' : '✗ No';
       }
@@ -572,7 +588,7 @@ export default {
       if (typeof valor === 'object' && valor !== null) {
         return Object.entries(valor)
           .filter(([, itemValor]) => itemValor !== undefined && itemValor !== null && String(itemValor).trim() !== '')
-          .map(([itemClave, itemValor]) => `${this.formatearClave(itemClave)}: ${itemValor}`)
+          .map(([itemClave, itemValor]) => `${this.formatearClave(itemClave)}: ${this.formatearValor(itemValor)}`)
           .join(' | ') || 'N/A';
       }
       return valor || 'N/A';

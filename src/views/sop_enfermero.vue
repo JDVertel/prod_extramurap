@@ -55,45 +55,41 @@
                     </div>
 
                     <div v-else class="container-fluid" style="max-height: 500px; overflow-y: auto ">
-                        <div v-for="(encuesta, index) in encuestasPendientes" :key="index"
-                            class="container rounded-lg p-2 mb-2" style="border-radius: 24px;">
-                            <div class="row paciente shadow-sm">
-                                <div class="col-6 col-md-6">
-                                    <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1
-                                            }}</strong> | </small>
-                                    <small>EPS: {{ encuesta.eps }} | Riesgo: {{
-                                        encuesta.poblacionRiesgo }}</small>
-                                    <small>Nac: {{ encuesta.fechaNac }} | Enc: {{ encuesta.fecha
-                                        }}</small>
-                                    <!-- Mostrar actividades si existen -->
+                        <div v-for="grupo in encuestasPendientesAgrupadas" :key="`pend-dia-${grupo.dayKey}`" class="bandeja-dia-seccion">
+                            <div class="bandeja-dia-titulo">
+                                <span class="bandeja-dia-badge">{{ grupo.dayLabel }}</span>
+                            </div>
+                            <div v-for="(encuesta, index) in grupo.items" :key="encuesta.id || index"
+                                class="container rounded-lg p-2 mb-2" style="border-radius: 24px;">
+                                <div class="row paciente shadow-sm">
+                                    <div class="col-6 col-md-6">
+                                        <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong> | </small>
+                                        <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
+                                        <small>Nac: {{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaCorta(encuesta.fecha) || 'N/A' }}</small>
+                                    </div>
 
-                                </div>
-
-                                <div class="col-6 col-md-6 acciones-col ">
-                                    <div class="btn-grid">
-                                        <!-- Fila única: Visita, Caracterización y CUPS (3 botones) -->
-                                        <div class="btn-row">
-
-                                            <!-- CUPS (Enfermero y Medico) -->
-                                            <div
-                                                v-if="cargoMostrado === 'Enfermero' || cargoMostrado === 'Medico'">
-                                                <button type="button" class="btn btn-danger btn-sm agendar-btn"
-                                                    @click="cupsGestion(encuesta.id)">
-                                                    <i class="bi bi-calendar2-heart-fill"></i>
-                                                    <span class="agendar-label">Cups</span>
-                                                </button>
-                                            </div>
-                                            <div
-                                                v-for="destino in obtenerDestinosRegreso(encuesta)"
-                                                :key="`${encuesta.id}-${destino.statusKey}`">
-                                                <button
-                                                    type="button"
-                                                    class="btn btn-warning btn-sm agendar-btn"
-                                                    :disabled="regresarDisabled[`${encuesta.id}_${destino.statusKey}`]"
-                                                    @click="regresarParaCorreccion(encuesta, destino)">
-                                                    <i class="bi bi-arrow-counterclockwise"></i>
-                                                    <span class="agendar-label">{{ `Reg ${destino.rolShort}` }}</span>
-                                                </button>
+                                    <div class="col-6 col-md-6 acciones-col ">
+                                        <div class="btn-grid">
+                                            <div class="btn-row">
+                                                <div v-if="cargoMostrado === 'Enfermero' || cargoMostrado === 'Medico'">
+                                                    <button type="button" class="btn btn-danger btn-sm agendar-btn"
+                                                        @click="cupsGestion(encuesta.id)">
+                                                        <i class="bi bi-calendar2-heart-fill"></i>
+                                                        <span class="agendar-label">Cups</span>
+                                                    </button>
+                                                </div>
+                                                <div
+                                                    v-for="destino in obtenerDestinosRegreso(encuesta)"
+                                                    :key="`${encuesta.id}-${destino.statusKey}`">
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-warning btn-sm agendar-btn"
+                                                        :disabled="regresarDisabled[`${encuesta.id}_${destino.statusKey}`]"
+                                                        @click="regresarParaCorreccion(encuesta, destino)">
+                                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                                        <span class="agendar-label">{{ `Reg ${destino.rolShort}` }}</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -167,8 +163,8 @@
                                     <td>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</td>
                                     <td>{{ encuesta.eps }}</td>
                                     <td>{{ encuesta.poblacionRiesgo }}</td>
-                                    <td>{{ encuesta.fechaNac }}</td>
-                                    <td>{{ encuesta.fecha }}</td>
+                                    <td>{{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }}</td>
+                                    <td>{{ formatearFechaCorta(encuesta.fecha) || 'N/A' }}</td>
                                     <td>
                                         <div class="estado-lista">
                                             <div
@@ -230,6 +226,7 @@ import * as XLSX from "xlsx";
 import realtime_api from "@/api/realtimeApi";
 import { encuestasApi } from "@/api/modulesApi";
 import { construirTooltipEpsCierres } from "@/utils/gestionCounters";
+import { formatBandejaShortDate, groupBandejaItemsByDay, sortBandejaItems } from "@/utils/bandejaPresentation";
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 export default {
     components: {
@@ -428,6 +425,14 @@ export default {
                 .filter(Boolean);
 
             return nombres.length > 0 ? nombres.join(', ') : 'Sin actividades';
+        },
+
+        formatearFechaCorta(valorFecha) {
+            return formatBandejaShortDate(valorFecha);
+        },
+
+        agruparEncuestasPorDia(items) {
+            return groupBandejaItemsByDay(items, (encuesta) => encuesta?.fecha || encuesta?.created_at || encuesta?.updated_at);
         },
 
         async cargarAuxiliares() {
@@ -890,7 +895,7 @@ export default {
             const esExtramural = convenio === 'Extramural';
             const esEBasicos = convenio === 'E Basicos';
 
-            return this.encuestasPendientesBase.filter((encuesta) => {
+            return sortBandejaItems(this.encuestasPendientesBase.filter((encuesta) => {
                 if (encuesta.idEnfermeroAtiende !== documento) return false;
                 if (encuesta.status_gest_enfermera !== false) return false;
 
@@ -925,7 +930,10 @@ export default {
                 if (requiereNutri && !this.estadoGestionNutricionista(encuesta)) return false;
 
                 return true;
-            });
+            }), (encuesta) => encuesta?.fecha || encuesta?.created_at || encuesta?.updated_at);
+        },
+        encuestasPendientesAgrupadas() {
+            return this.agruparEncuestasPorDia(this.encuestasPendientes);
         },
         cantEncuestasPendientes() {
             return this.encuestasPendientes.length;
@@ -978,13 +986,13 @@ export default {
             return this.encuestasEnProceso.length;
         },
         encuestasEnProcesoFiltradas() {
-            return this.encuestasEnProceso.filter((encuesta) => {
+            return sortBandejaItems(this.encuestasEnProceso.filter((encuesta) => {
                 const idAux = String(encuesta.idEncuestador || "").trim();
                 const cumpleAuxiliar = !this.filtroAuxiliar || idAux === this.filtroAuxiliar;
                 if (!cumpleAuxiliar) return false;
 
                 return this.cumpleFiltroEstadoProfesional(encuesta);
-            });
+            }), (encuesta) => encuesta?.fecha || encuesta?.created_at || encuesta?.updated_at);
         },
         auxiliaresDisponibles() {
             const conteoPorId = {};

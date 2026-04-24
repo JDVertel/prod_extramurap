@@ -1903,6 +1903,10 @@ export default createStore({
         seleccionadosAntecedentes: entradasC.seleccionadosAntecedentes,
         grupoFamiliar: entradasC.grupoFamiliar,
         seleccionadosRiesgos: entradasC.seleccionadosRiesgos,
+        detalleSedentarismo: entradasC.detalleSedentarismo,
+        detalleConsumoAlcohol: entradasC.detalleConsumoAlcohol,
+        detalleConsumoCigarrillo: entradasC.detalleConsumoCigarrillo,
+        AlimentacionPocoSaludable: entradasC.AlimentacionPocoSaludable,
       };
 
       try {

@@ -328,7 +328,7 @@
                                                     <small class="text-muted ms-2">{{ prof.numDocumento }}</small>
                                                 </div>
                                                 <div class="d-flex align-items-center gap-2">
-                                                    <span class="badge bg-secondary">{{ prof.cargo }}</span>
+                                                    <span class="badge" :class="getCargoColorClass(prof.cargo)">{{ prof.cargo }}</span>
                                                     <i
                                                         class="bi"
                                                         :class="editAccesosProfesionales.includes(String(prof.numDocumento || '').trim()) ? 'bi-check-circle-fill text-primary' : 'bi-circle text-muted'"
@@ -632,6 +632,7 @@
 
 <script>
 import Papa from "papaparse";
+import { getCargoBadgeClass as getSharedCargoBadgeClass } from "@/utils/cargoBadges";
 import {
     createUser,
     deleteUserById,
@@ -1224,38 +1225,7 @@ export default {
         },
 
         getCargoColorClass(cargo) {
-            const normalizado = String(cargo || "")
-                .trim()
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "");
-            const compacto = normalizado.replace(/[^a-z0-9]/g, "");
-
-            if (compacto.includes("psicolog")) {
-                return 'bg-fuchsia text-white';
-            }
-
-            if (
-                compacto.includes("tsocial") ||
-                compacto.includes("trabajadorsocial") ||
-                compacto.includes("trabajadorasocial") ||
-                compacto.includes("trabajosocial")
-            ) {
-                return 'bg-emerald-deep text-white';
-            }
-
-            const cargoColors = {
-                'auxiliar de enfermeria': 'bg-success text-white',
-                'enfermero': 'bg-info text-white',
-                'medico': 'bg-primary text-white',
-                'fact': 'bg-warning text-dark',
-                'admin': 'bg-danger text-white',
-                'nutricionista': 'bg-orange text-white',
-                'psicologo': 'bg-fuchsia text-white',
-                'tsocial': 'bg-emerald-deep text-white'
-            };
-
-            return cargoColors[normalizado] || 'bg-secondary text-white';
+            return getSharedCargoBadgeClass(cargo);
         },
 
         getCargoShortName(cargo) {
