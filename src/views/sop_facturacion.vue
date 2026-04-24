@@ -897,6 +897,14 @@ export default {
                 ""
             ).trim();
         },
+        isFacturacionPendientesDebugEnabled() {
+            try {
+                const flag = String(localStorage.getItem("debugFacturacionPendientes") || "").trim().toLowerCase();
+                return window.__DEBUG_FACTURACION_PENDIENTES__ === true || flag === "1" || flag === "true";
+            } catch (_) {
+                return window.__DEBUG_FACTURACION_PENDIENTES__ === true;
+            }
+        },
         async esperarUsuarioDisponible() {
             let intentos = 0;
 
@@ -916,7 +924,21 @@ export default {
             this.cargando = true;
             try {
                 const documento = await this.esperarUsuarioDisponible();
-                await this.GetRegistersbyRangeGeneralFactAprov(documento);
+                const resultados = await this.GetRegistersbyRangeGeneralFactAprov(documento);
+
+                if (this.isFacturacionPendientesDebugEnabled()) {
+                    console.info("[facturacion:pendientes] vista-getPendientes", {
+                        documento,
+                        uid: this.uid,
+                        total: Array.isArray(resultados) ? resultados.length : 0,
+                        ids: Array.isArray(resultados) ? resultados.map(item => item.id) : [],
+                        userData: {
+                            numDocumento: this.userData?.numDocumento,
+                            num_documento: this.userData?.num_documento,
+                            documento: this.userData?.documento,
+                        },
+                    });
+                }
             } finally {
                 this.cargando = false;
             }

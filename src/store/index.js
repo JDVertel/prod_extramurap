@@ -118,6 +118,58 @@ function normalizeComparableDocument(value) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+function isFacturacionPendientesDebugEnabled() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    const localFlag = String(localStorage.getItem("debugFacturacionPendientes") ?? "")
+      .trim()
+      .toLowerCase();
+
+    return window.__DEBUG_FACTURACION_PENDIENTES__ === true || localFlag === "1" || localFlag === "true";
+  } catch (_) {
+    return window.__DEBUG_FACTURACION_PENDIENTES__ === true;
+  }
+}
+
+function getFacturacionPendientesDebugFilter() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  try {
+    return normalizeComparableDocument(localStorage.getItem("debugFacturacionPendientesFiltro"));
+  } catch (_) {
+    return "";
+  }
+}
+
+function shouldLogFacturacionPendientesRecord(record = {}) {
+  const filtro = getFacturacionPendientesDebugFilter();
+  if (!filtro) {
+    return true;
+  }
+
+  const candidates = [
+    record?.encuestaId,
+    record?.numdoc,
+    record?.facturadorPaciente,
+    ...(Array.isArray(record?.facturadoresCups) ? record.facturadoresCups : []),
+  ];
+
+  return candidates.some((value) => normalizeComparableDocument(value) === filtro);
+}
+
+function logFacturacionPendientesDebug(event, payload) {
+  if (!isFacturacionPendientesDebugEnabled()) {
+    return;
+  }
+
+  console.info(`[facturacion:pendientes] ${event}`, payload);
+}
+
 function normalizarFechaSoloDia(valor) {
   if (valor === null || valor === undefined) {
     return null;
@@ -3506,8 +3558,15 @@ export default createStore({
 
         const idUsuarioNormalizado = normalizeComparableDocument(iduser);
 
+        logFacturacionPendientesDebug("inicio-carga", {
+          iduser,
+          idUsuarioNormalizado,
+          debugFiltro: getFacturacionPendientesDebugFilter() || null,
+        });
+
         if (!encuestas) {
           commit("setEncuestasFactAprov", []);
+          logFacturacionPendientesDebug("sin-encuestas", { iduser, idUsuarioNormalizado });
           return [];
         }
 
@@ -3519,6 +3578,16 @@ export default createStore({
         }));
 
         const resultados = [];
+        const resumen = {
+          totalEncuestas: encuestasMap.length,
+          incluidas: 0,
+          excluidas: 0,
+          porPaciente: 0,
+          porCups: 0,
+          cerradasExcluidas: 0,
+          sinAsignacionExcluidas: 0,
+        };
+
         encuestasMap.forEach((encuestaAsociada) => {
           const idActividad = encuestaAsociada?.id;
           if (!idActividad) {
@@ -3527,31 +3596,79 @@ export default createStore({
 
           const cups = asignaciones?.[idActividad]?.cups;
           const listaCups = cups && typeof cups === "object" ? Object.values(cups) : [];
+          const facturadorPaciente = encuestaAsociada?.asigfact ?? encuestaAsociada?.asig_fact;
+          const facturadoresCups = listaCups.map(
+            (cup) => cup?.FactProf ?? cup?.factProf ?? cup?.fact_prof ?? ""
+          ).filter((value) => String(value || "").trim());
           const coincideFacturadorPaciente =
-            normalizeComparableDocument(encuestaAsociada?.asigfact ?? encuestaAsociada?.asig_fact) === idUsuarioNormalizado;
+            normalizeComparableDocument(facturadorPaciente) === idUsuarioNormalizado;
           const coincideFacturadorEnCups = listaCups.some((cup) => {
             return normalizeComparableDocument(cup?.FactProf ?? cup?.factProf ?? cup?.fact_prof) === idUsuarioNormalizado;
           });
+          const cerrado = encuestaAsociada.status_facturacion === true;
+          const incluido = (coincideFacturadorPaciente || coincideFacturadorEnCups) && !cerrado;
+          const exclusionReasons = [];
 
-          if (
-            (coincideFacturadorPaciente || coincideFacturadorEnCups) &&
-            encuestaAsociada.status_facturacion !== true
-          ) {
+          if (!coincideFacturadorPaciente && !coincideFacturadorEnCups) {
+            exclusionReasons.push("sin-asignacion-para-facturador");
+            resumen.sinAsignacionExcluidas++;
+          }
+
+          if (cerrado) {
+            exclusionReasons.push("cerrado");
+            resumen.cerradasExcluidas++;
+          }
+
+          if (coincideFacturadorPaciente) {
+            resumen.porPaciente++;
+          }
+
+          if (coincideFacturadorEnCups) {
+            resumen.porCups++;
+          }
+
+          if (isFacturacionPendientesDebugEnabled()) {
+            const debugPayload = {
+              encuestaId: idActividad,
+              numdoc: encuestaAsociada?.numdoc,
+              paciente: `${encuestaAsociada?.nombre1 || ""} ${encuestaAsociada?.apellido1 || ""}`.trim(),
+              facturadorPaciente,
+              facturadoresCups,
+              status_facturacion: encuestaAsociada?.status_facturacion,
+              coincideFacturadorPaciente,
+              coincideFacturadorEnCups,
+              incluido,
+              exclusionReasons,
+            };
+
+            if (shouldLogFacturacionPendientesRecord(debugPayload)) {
+              logFacturacionPendientesDebug("evaluacion-encuesta", debugPayload);
+            }
+          }
+
+          if (incluido) {
             const allFacturasVacias = listaCups.length === 0 || listaCups.every(cup => {
               const fact = String(cup?.FactNum ?? "").trim();
               return !fact;
             });
 
+            resumen.incluidas++;
             resultados.push({
               id: idActividad,
               ...encuestaAsociada,
               tipoActividad: actividadesMap[idActividad] || { tipoActividad: {} },
               allFacturasVacias,
             });
+          } else {
+            resumen.excluidas++;
           }
         });
 
         commit("setEncuestasFactAprov", resultados);
+        logFacturacionPendientesDebug("fin-carga", {
+          ...resumen,
+          idsIncluidos: resultados.map((item) => item.id),
+        });
         return resultados;
       } catch (error) {
         console.error("Error en Action_GetRegistersbyRangeGeneralFactAprov:", error);
