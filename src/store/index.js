@@ -3493,9 +3493,16 @@ export default createStore({
      */
     GetRegistersbyRangeGeneralFactAprov: async ({ commit }, iduser) => {
       try {
-        const { data: actividades } = await realtime_api.get("/Actividades.json");
-        const { data: encuestas } = await realtime_api.get("/Encuesta.json");
-        const { data: asignaciones } = await realtime_api.get("/Asignaciones.json");
+        const noCacheConfig = getNoCacheRequestConfig();
+        const [actividadesResponse, encuestasResponse, asignacionesResponse] = await Promise.all([
+          realtime_api.get("/Actividades.json", noCacheConfig),
+          realtime_api.get("/Encuesta.json", noCacheConfig),
+          realtime_api.get("/Asignaciones.json", noCacheConfig),
+        ]);
+
+        const actividades = actividadesResponse?.data;
+        const encuestas = encuestasResponse?.data;
+        const asignaciones = asignacionesResponse?.data;
 
         const idUsuarioNormalizado = normalizeComparableDocument(iduser);
 
