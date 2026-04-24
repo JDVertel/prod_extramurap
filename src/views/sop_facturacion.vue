@@ -887,7 +887,7 @@ export default {
                 }
 
                 if (this.isFacturacionPendientesDebugEnabled()) {
-                    console.info("[facturacion:pendientes] cambio-documento-usuario", {
+                    console.warn("[facturacion:pendientes] cambio-documento-usuario", {
                         documentoAnterior: String(documentoAnterior || "").trim() || null,
                         nuevoDocumento,
                         activeTab: this.activeTab,
@@ -936,8 +936,11 @@ export default {
         },
         isFacturacionPendientesDebugEnabled() {
             try {
+                const query = new URLSearchParams(window.location.search);
+                const queryFlag = String(query.get("debugFacturacionPendientes") || "").trim().toLowerCase();
+                const queryFilter = String(query.get("debugFacturacionPendientesFiltro") || "").trim();
                 const flag = String(localStorage.getItem("debugFacturacionPendientes") || "").trim().toLowerCase();
-                return window.__DEBUG_FACTURACION_PENDIENTES__ === true || flag === "1" || flag === "true";
+                return window.__DEBUG_FACTURACION_PENDIENTES__ === true || queryFlag === "1" || queryFlag === "true" || flag === "1" || flag === "true" || !!queryFilter;
             } catch (_) {
                 return window.__DEBUG_FACTURACION_PENDIENTES__ === true;
             }
@@ -962,7 +965,7 @@ export default {
             try {
                 const documento = await this.esperarUsuarioDisponible();
                 if (this.isFacturacionPendientesDebugEnabled()) {
-                    console.info("[facturacion:pendientes] inicio-getPendientes", {
+                    console.warn("[facturacion:pendientes] inicio-getPendientes", {
                         documento,
                         activeTab: this.activeTab,
                         userData: {
@@ -975,7 +978,7 @@ export default {
                 const resultados = await this.GetRegistersbyRangeGeneralFactAprov(documento);
 
                 if (this.isFacturacionPendientesDebugEnabled()) {
-                    console.info("[facturacion:pendientes] vista-getPendientes", {
+                    console.warn("[facturacion:pendientes] vista-getPendientes", {
                         documento,
                         uid: this.uid,
                         total: Array.isArray(resultados) ? resultados.length : 0,
@@ -989,7 +992,7 @@ export default {
 
                     await nextTick();
                     const filasRenderizadas = this.$el?.querySelectorAll?.("#nav-home tbody tr")?.length || 0;
-                    console.info("[facturacion:pendientes] render-tabla", {
+                    console.warn("[facturacion:pendientes] render-tabla", {
                         totalPendientesCargados: this.totalPendientesCargados,
                         totalPendientesVisibles: this.encuestasPendientesProcesadas.length,
                         filasRenderizadas,

@@ -124,11 +124,24 @@ function isFacturacionPendientesDebugEnabled() {
   }
 
   try {
+    const query = new URLSearchParams(window.location.search);
+    const queryFlag = String(query.get("debugFacturacionPendientes") ?? "")
+      .trim()
+      .toLowerCase();
     const localFlag = String(localStorage.getItem("debugFacturacionPendientes") ?? "")
       .trim()
       .toLowerCase();
+    const queryFilter = String(query.get("debugFacturacionPendientesFiltro") ?? "")
+      .trim();
 
-    return window.__DEBUG_FACTURACION_PENDIENTES__ === true || localFlag === "1" || localFlag === "true";
+    return (
+      window.__DEBUG_FACTURACION_PENDIENTES__ === true ||
+      queryFlag === "1" ||
+      queryFlag === "true" ||
+      localFlag === "1" ||
+      localFlag === "true" ||
+      !!queryFilter
+    );
   } catch (_) {
     return window.__DEBUG_FACTURACION_PENDIENTES__ === true;
   }
@@ -140,6 +153,12 @@ function getFacturacionPendientesDebugFilter() {
   }
 
   try {
+    const query = new URLSearchParams(window.location.search);
+    const queryFilter = String(query.get("debugFacturacionPendientesFiltro") ?? "").trim();
+    if (queryFilter) {
+      return normalizeComparableDocument(queryFilter);
+    }
+
     return normalizeComparableDocument(localStorage.getItem("debugFacturacionPendientesFiltro"));
   } catch (_) {
     return "";
@@ -174,7 +193,7 @@ function logFacturacionPendientesDebug(event, payload) {
     return;
   }
 
-  console.info(`[facturacion:pendientes] ${event}`, payload);
+  console.warn(`[facturacion:pendientes] ${event}`, payload);
 }
 
 function normalizarFechaSoloDia(valor) {
