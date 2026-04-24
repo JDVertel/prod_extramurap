@@ -748,6 +748,14 @@ export default {
         convenioUsuario() {
             return String(this.userData?.convenio || "").trim();
         },
+        documentoUsuarioActual() {
+            return String(
+                this.userData?.numDocumento ||
+                this.userData?.num_documento ||
+                this.userData?.documento ||
+                ""
+            ).trim();
+        },
         convenioBloqueado() {
             return !!this.convenioUsuario;
         },
@@ -861,9 +869,29 @@ export default {
         },
         "userData.numDocumento": {
             immediate: true,
-            async handler(nuevoDocumento) {
+            async handler() {
+                if (!String(this.documentoUsuarioActual || "").trim()) {
+                    return;
+                }
+
+                if (this.activeTab === "pendientes") {
+                    await this.getPendientes();
+                }
+            },
+        },
+        documentoUsuarioActual: {
+            immediate: true,
+            async handler(nuevoDocumento, documentoAnterior) {
                 if (!String(nuevoDocumento || "").trim()) {
                     return;
+                }
+
+                if (this.isFacturacionPendientesDebugEnabled()) {
+                    console.info("[facturacion:pendientes] cambio-documento-usuario", {
+                        documentoAnterior: String(documentoAnterior || "").trim() || null,
+                        nuevoDocumento,
+                        activeTab: this.activeTab,
+                    });
                 }
 
                 if (this.activeTab === "pendientes") {
@@ -904,12 +932,7 @@ export default {
 
         /*  */
         obtenerDocumentoUsuarioActual() {
-            return String(
-                this.userData?.numDocumento ||
-                this.userData?.num_documento ||
-                this.userData?.documento ||
-                ""
-            ).trim();
+            return this.documentoUsuarioActual;
         },
         isFacturacionPendientesDebugEnabled() {
             try {
@@ -938,6 +961,17 @@ export default {
             this.cargando = true;
             try {
                 const documento = await this.esperarUsuarioDisponible();
+                if (this.isFacturacionPendientesDebugEnabled()) {
+                    console.info("[facturacion:pendientes] inicio-getPendientes", {
+                        documento,
+                        activeTab: this.activeTab,
+                        userData: {
+                            numDocumento: this.userData?.numDocumento,
+                            num_documento: this.userData?.num_documento,
+                            documento: this.userData?.documento,
+                        },
+                    });
+                }
                 const resultados = await this.GetRegistersbyRangeGeneralFactAprov(documento);
 
                 if (this.isFacturacionPendientesDebugEnabled()) {
@@ -1393,6 +1427,12 @@ export default {
         try {
             await this.getAllActividadesExtra();
             await this.getPendientes();
+        } catch (error) {
+            console.error("[facturacion:pendientes] error-mounted", {
+                message: error?.message || String(error),
+                userData: this.userData,
+                documentoUsuarioActual: this.documentoUsuarioActual,
+            });
         } finally {
             this.cargando = false
         }
