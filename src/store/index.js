@@ -3518,12 +3518,18 @@ export default createStore({
             return;
           }
 
+          const cups = asignaciones?.[idActividad]?.cups;
+          const listaCups = cups && typeof cups === "object" ? Object.values(cups) : [];
+          const coincideFacturadorPaciente =
+            normalizeComparableDocument(encuestaAsociada?.asigfact ?? encuestaAsociada?.asig_fact) === idUsuarioNormalizado;
+          const coincideFacturadorEnCups = listaCups.some((cup) => {
+            return normalizeComparableDocument(cup?.FactProf ?? cup?.factProf ?? cup?.fact_prof) === idUsuarioNormalizado;
+          });
+
           if (
-            normalizeComparableDocument(encuestaAsociada?.asigfact ?? encuestaAsociada?.asig_fact) === idUsuarioNormalizado &&
+            (coincideFacturadorPaciente || coincideFacturadorEnCups) &&
             encuestaAsociada.status_facturacion !== true
           ) {
-            const cups = asignaciones?.[idActividad]?.cups;
-            const listaCups = cups && typeof cups === "object" ? Object.values(cups) : [];
             const allFacturasVacias = listaCups.length === 0 || listaCups.every(cup => {
               const fact = String(cup?.FactNum ?? "").trim();
               return !fact;

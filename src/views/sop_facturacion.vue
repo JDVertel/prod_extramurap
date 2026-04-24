@@ -889,15 +889,23 @@ export default {
         /*  */
 
         /*  */
+        obtenerDocumentoUsuarioActual() {
+            return String(
+                this.userData?.numDocumento ||
+                this.userData?.num_documento ||
+                this.userData?.documento ||
+                ""
+            ).trim();
+        },
         async esperarUsuarioDisponible() {
             let intentos = 0;
 
-            while ((!this.userData || !this.userData.numDocumento) && intentos < 30) {
+            while (!this.obtenerDocumentoUsuarioActual() && intentos < 30) {
                 await new Promise(resolve => setTimeout(resolve, 100));
                 intentos++;
             }
 
-            const documento = String(this.userData?.numDocumento || "").trim();
+            const documento = this.obtenerDocumentoUsuarioActual();
             if (!documento) {
                 throw new Error("Usuario no disponible después de esperar");
             }
@@ -952,7 +960,7 @@ export default {
             this.aprovDisabled[id] = true;
             let data = {
                 idEnc: id,
-                idProf: this.userData.numDocumento,
+                idProf: this.obtenerDocumentoUsuarioActual(),
             };
             this.aprovicionarP(data);
         },
@@ -965,7 +973,7 @@ export default {
             try {
                 await this.revertirAprovisionFacturacion(id);
 
-                await this.GetRegistersbyRangeGeneralFactAprov(this.userData.numDocumento);
+                await this.GetRegistersbyRangeGeneralFactAprov(this.obtenerDocumentoUsuarioActual());
 
                 if (this.fechaInicio && this.fechaFin) {
                     await this.getdataEncuestas(this.fechaInicio, this.fechaFin, this.convenioFiltro);
@@ -1188,7 +1196,7 @@ export default {
                     cupId: cupId,
                     numFactura: numfact,
                     facturado: true,
-                    idFacturador: this.userData.numDocumento,
+                    idFacturador: this.obtenerDocumentoUsuarioActual(),
                     idEncuesta: this.pacienteIdModal,
                     cup: cupActual,
                 };
@@ -1238,7 +1246,7 @@ export default {
                 // Recargar la lista y esperar a que termine
                 if (this.GetRegistersbyRangeGeneralFactAprov) {
                     await this.GetRegistersbyRangeGeneralFactAprov(
-                        this.userData.numDocumento
+                        this.obtenerDocumentoUsuarioActual()
                     );
                 }
                 // Forzar reflow / re-evaluación del DOM y restaurar desplazamiento si aplica
