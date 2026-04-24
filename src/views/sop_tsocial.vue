@@ -92,6 +92,7 @@
                         </div>
                     </div>
                 </div>
+                </div>
 
                 <div class="tab-pane fade" id="ts-devueltos" role="tabpanel">
                     <div v-if="!encuestasDevueltas || encuestasDevueltas.length === 0"
@@ -132,6 +133,7 @@
                             </div>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
 
