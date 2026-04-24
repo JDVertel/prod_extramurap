@@ -110,6 +110,14 @@ function userBelongsToGroup(userGroupValue, targetGroup) {
   return groups.includes(target);
 }
 
+function normalizeComparableDocument(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^([0-9]+)\.0+$/, "$1")
+    .replace(/[^a-z0-9]/g, "");
+}
+
 function normalizarFechaSoloDia(valor) {
   if (valor === null || valor === undefined) {
     return null;
@@ -3489,12 +3497,7 @@ export default createStore({
         const { data: encuestas } = await realtime_api.get("/Encuesta.json");
         const { data: asignaciones } = await realtime_api.get("/Asignaciones.json");
 
-        const normalizarTexto = (valor) =>
-          String(valor ?? "")
-            .trim()
-            .toLowerCase();
-
-        const idUsuarioNormalizado = normalizarTexto(iduser);
+        const idUsuarioNormalizado = normalizeComparableDocument(iduser);
 
         if (!encuestas) {
           commit("setEncuestasFactAprov", []);
@@ -3516,7 +3519,7 @@ export default createStore({
           }
 
           if (
-            normalizarTexto(encuestaAsociada?.asigfact) === idUsuarioNormalizado &&
+            normalizeComparableDocument(encuestaAsociada?.asigfact ?? encuestaAsociada?.asig_fact) === idUsuarioNormalizado &&
             encuestaAsociada.status_facturacion !== true
           ) {
             const cups = asignaciones?.[idActividad]?.cups;
