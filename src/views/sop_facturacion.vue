@@ -18,20 +18,23 @@
             <nav>
                 <div class="nav nav-tabs" id="nav-tab" role="tablist">
                     <button class="nav-link" :class="{ active: activeTab === 'pendientes' }"
-                        @click="activeTab = 'pendientes'" type="button">
+                        @click="activeTab = 'pendientes'" type="button" :aria-selected="activeTab === 'pendientes'">
                         Pendientes
                     </button>
                     <button class="nav-link" :class="{ active: activeTab === 'aprovisionar' }"
-                        @click="activeTab = 'aprovisionar'" type="button">
+                        @click="activeTab = 'aprovisionar'" type="button" :aria-selected="activeTab === 'aprovisionar'">
                         Aprovisionar
                     </button>
                 </div>
             </nav>
             <div class="tab-content" id="nav-tabContent">
-                <div v-show="activeTab === 'pendientes'" class="tab-pane fade show active" id="nav-home" role="tabpanel"
+                <div v-if="activeTab === 'pendientes'" class="tab-pane show active" id="nav-home" role="tabpanel"
                     tabindex="0">
 
-                    <div class="d-flex justify-content-end mb-2 mt-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2 mt-2 gap-2 flex-wrap">
+                        <div class="small text-muted">
+                            Mostrando {{ encuestasPendientesProcesadas.length }} de {{ totalPendientesCargados }} pendientes cargados
+                        </div>
                         <button type="button" class="btn btn-outline-secondary btn-sm"
                             @click="limpiarFiltrosPendientes">
                             Limpiar filtros
@@ -168,11 +171,18 @@
                                         </div>
                                     </td>
                                 </tr>
+                                <tr v-if="encuestasPendientesProcesadas.length === 0">
+                                    <td colspan="16" class="text-center text-muted py-4">
+                                        No hay pacientes visibles en la bandeja.
+                                        <span v-if="totalPendientesCargados > 0">Hay registros cargados, pero quedaron ocultos por filtros o por la pestaña actual.</span>
+                                        <span v-else>No se cargaron pendientes para este facturador.</span>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-                <div v-show="activeTab === 'aprovisionar'" class="tab-pane fade show active" id="nav-profile"
+                <div v-if="activeTab === 'aprovisionar'" class="tab-pane show active" id="nav-profile"
                     role="tabpanel" tabindex="0">
                     <div class="container mt-3">
 
@@ -619,6 +629,7 @@ import {
     mapActions,
     mapState
 } from "vuex";
+import { nextTick } from "vue";
 
 export default {
     data() {
@@ -811,6 +822,9 @@ export default {
                 comuna: generarOpciones(p => p.barrioVeredacomuna?.comuna),
             };
         },
+        totalPendientesCargados() {
+            return Array.isArray(this.EncuestasFactAprov) ? this.EncuestasFactAprov.length : 0;
+        },
         encuestasPendientesProcesadas() {
             const filas = Array.isArray(this.EncuestasFactAprov) ? [...this.EncuestasFactAprov] : [];
 
@@ -937,6 +951,15 @@ export default {
                             num_documento: this.userData?.num_documento,
                             documento: this.userData?.documento,
                         },
+                    });
+
+                    await nextTick();
+                    const filasRenderizadas = this.$el?.querySelectorAll?.("#nav-home tbody tr")?.length || 0;
+                    console.info("[facturacion:pendientes] render-tabla", {
+                        totalPendientesCargados: this.totalPendientesCargados,
+                        totalPendientesVisibles: this.encuestasPendientesProcesadas.length,
+                        filasRenderizadas,
+                        activeTab: this.activeTab,
                     });
                 }
             } finally {
