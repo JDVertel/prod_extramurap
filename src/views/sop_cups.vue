@@ -86,21 +86,21 @@
                                 <template v-else>
                                     <hr />
                                     <div class="col-12 col-md-4 texto-sombra">
-                                        <strong>Peso:</strong> {{ formatearDatoCaracterizacion(caracterizacionEncuesta.peso, "kg") }}<br>
-                                        <strong>Talla:</strong> {{ formatearDatoCaracterizacion(caracterizacionEncuesta.talla, "m") }}<br>
-                                        <strong>IMC:</strong> {{ formatearDatoCaracterizacion(caracterizacionEncuesta.imc) }}
+                                        <strong>Peso:</strong> {{ formatearDatoCaracterizacion(obtenerValorCaracterizacion("peso"), "kg") }}<br>
+                                        <strong>Talla:</strong> {{ formatearDatoCaracterizacion(obtenerValorCaracterizacion("talla"), "m") }}<br>
+                                        <strong>IMC:</strong> {{ formatearDatoCaracterizacion(obtenerValorCaracterizacion("imc")) }}
                                     </div>
                                     <div class="col-12 col-md-4 texto-sombra">
-                                        <strong>Clasif. IMC:</strong> {{ formatearDatoCaracterizacion(caracterizacionEncuesta.clasificacionImc) }}<br>
-                                        <strong>Tensión sistólica:</strong> {{ formatearDatoCaracterizacion(caracterizacionEncuesta.tensionSistolica, "mmHg") }}<br>
-                                        <strong>Tensión diastólica:</strong> {{ formatearDatoCaracterizacion(caracterizacionEncuesta.tensionDiastolica, "mmHg") }}
+                                        <strong>Clasif. IMC:</strong> {{ formatearDatoCaracterizacion(obtenerValorCaracterizacion("clasificacionImc", "clasificacion_imc")) }}<br>
+                                        <strong>Tensión sistólica:</strong> {{ formatearDatoCaracterizacion(obtenerValorCaracterizacion("tensionSistolica", "tension_sistolica"), "mmHg") }}<br>
+                                        <strong>Tensión diastólica:</strong> {{ formatearDatoCaracterizacion(obtenerValorCaracterizacion("tensionDiastolica", "tension_diastolica"), "mmHg") }}
                                     </div>
                                     <div class="col-12 col-md-4 texto-sombra">
-                                        <strong>Per. abdominal:</strong> {{ formatearDatoCaracterizacion(caracterizacionEncuesta.perimetroAbdominal, "cm") }}<br>
-                                        <strong>Per. braquial:</strong> {{ formatearDatoCaracterizacion(caracterizacionEncuesta.perimetroBranquial, "cm") }}<br>
+                                        <strong>Per. abdominal:</strong> {{ formatearDatoCaracterizacion(obtenerValorCaracterizacion("perimetroAbdominal", "perimetro_abdominal"), "cm") }}<br>
+                                        <strong>Per. braquial:</strong> {{ formatearDatoCaracterizacion(obtenerValorCaracterizacion("perimetroBranquial", "perimetroBraquial", "perimetro_branquial"), "cm") }}<br>
                                         <strong>Oximetría/Temp:</strong>
-                                        {{ formatearDatoCaracterizacion(caracterizacionEncuesta.oximetria, "%") }} /
-                                        {{ formatearDatoCaracterizacion(caracterizacionEncuesta.temperatura, "°C") }}
+                                        {{ formatearDatoCaracterizacion(obtenerValorCaracterizacion("oximetria"), "%") }} /
+                                        {{ formatearDatoCaracterizacion(obtenerValorCaracterizacion("temperatura"), "°C") }}
                                     </div>
                                     <div class="col-12 col-md-4 texto-sombra">
                                         <strong>Antecedentes:</strong>

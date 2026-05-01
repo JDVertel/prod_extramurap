@@ -66,6 +66,7 @@
                                         <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong> | </small>
                                         <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
                                         <small>Nac: {{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaCorta(encuesta.fecha) || 'N/A' }}</small>
+                                        <AssignedProfessionalsBadge :encuesta="encuesta" />
                                     </div>
 
                                     <div class="col-6 col-md-6 acciones-col ">
@@ -228,9 +229,11 @@ import { encuestasApi } from "@/api/modulesApi";
 import { construirTooltipEpsCierres } from "@/utils/gestionCounters";
 import { formatBandejaShortDate, groupBandejaItemsByDay, sortBandejaItems } from "@/utils/bandejaPresentation";
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
+import AssignedProfessionalsBadge from "@/components/AssignedProfessionalsBadge.vue";
 export default {
     components: {
         HoverInfoBadge,
+        AssignedProfessionalsBadge,
     },
     data() {
         return {
@@ -1313,5 +1316,50 @@ h1.display-6 {
 .progreso-indeterminado {
     background-color: var(--convenio-color-3) !important;
     width: 100%;
+}
+
+@media (max-width: 768px) {
+    .acciones-col {
+        margin-top: 8px;
+    }
+
+    .btn-row {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        justify-items: stretch;
+    }
+
+    .btn-row > div {
+        width: 100%;
+    }
+
+    .agendar-btn {
+        width: 100%;
+        min-height: 44px;
+        height: auto;
+        border-radius: 10px;
+        flex-direction: column;
+        justify-content: center;
+        gap: 2px;
+        padding: 6px 8px;
+        overflow: hidden;
+    }
+
+    .agendar-btn i {
+        flex: 0 0 auto;
+        text-align: center;
+    }
+
+    .agendar-label {
+        font-size: 0.68rem;
+        line-height: 1.1;
+        width: 100%;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 }
 </style>

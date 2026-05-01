@@ -194,14 +194,29 @@
         </div>
       </div>
     </nav>
+    <div v-if="ipsNombreMostrado" class="ips-subtle-bar">
+      <span class="ips-subtle-text" :style="ipsSubtleStyle">
+        <img v-if="ipsLogoUrl && !logoLoadFailed" :src="ipsLogoUrl" alt="Logo IPS" class="ips-subtle-logo"
+          @error="onIpsLogoError" />
+        <i v-else class="bi bi-building ips-subtle-logo-fallback" aria-hidden="true"></i>
+        <span>{{ ipsNombreMostrado }}</span>
+      </span>
+    </div>
   </div>
 </template>
 
 <script>
 import { mapState, mapActions } from "vuex";
+import { ipsApi } from "@/api/modulesApi";
 // En navbar.vue
 
 export default {
+  data() {
+    return {
+      ipsBranding: {},
+      logoLoadFailed: false,
+    };
+  },
   methods: {
     ...mapActions(["userLogout"]),
     async logoutUser() {
@@ -232,12 +247,79 @@ export default {
     onNavLinkClick() {
       this.closeOffcanvas();
     },
+    getCurrentIpsId() {
+      const ipsId = String(
+        this.userData?.ipsId ||
+        this.userData?.ips_id ||
+        this.userData?.idips ||
+        this.userData?.ips ||
+        this.dataips?.id ||
+        this.dataips?.ipsId ||
+        this.dataips?.ips_id ||
+        ""
+      ).trim();
+      return ipsId || null;
+    },
+    async cargarBrandingIps() {
+      const ipsId = this.getCurrentIpsId();
+      if (!ipsId) return;
+      try {
+        const ips = await ipsApi.getById(ipsId);
+        this.ipsBranding = ips && typeof ips === "object" ? ips : {};
+        this.logoLoadFailed = false;
+      } catch (error) {
+        console.error("No fue posible cargar branding de IPS para navbar:", error);
+      }
+    },
+    onIpsLogoError() {
+      this.logoLoadFailed = true;
+      console.warn("No se pudo cargar el logo de IPS. Verifica que la URL sea publica y directa a imagen:", this.ipsLogoUrl);
+    },
   },
   computed: {
         esConvenioExtramural() {
           return String(this.userData?.convenio || "").trim().toLowerCase() === "extramural";
         },
-    ...mapState(["userData"]),
+    ...mapState(["userData", "dataips"]),
+    ipsNombreMostrado() {
+      const fromBranding = String(this.ipsBranding?.nombre || "").trim();
+      if (fromBranding) return fromBranding;
+
+      const fromDataips = String(this.dataips?.nombre || "").trim();
+      if (fromDataips) return fromDataips;
+
+      const fromUser = String(
+        this.userData?.ipsNombre ||
+        this.userData?.ips_name ||
+        this.userData?.ips ||
+        ""
+      ).trim();
+      return fromUser;
+    },
+    ipsLogoUrl() {
+      const fromBranding = String(this.ipsBranding?.logoUrl || this.ipsBranding?.logo_url || "").trim();
+      if (fromBranding) return fromBranding;
+
+      const fromDataips = String(this.dataips?.logoUrl || this.dataips?.logo_url || "").trim();
+      if (fromDataips) return fromDataips;
+      return "";
+    },
+    ipsColorInstitucional() {
+      const fromBranding = String(this.ipsBranding?.colorInstitucional || this.ipsBranding?.color_institucional || "").trim();
+      if (fromBranding) return fromBranding;
+
+      const fromDataips = String(this.dataips?.colorInstitucional || this.dataips?.color_institucional || "").trim();
+      return fromDataips || "#0d6efd";
+    },
+    ipsSubtleStyle() {
+      const color = this.ipsColorInstitucional;
+      return {
+        background: color,
+        borderColor: `${color}CC`,
+        boxShadow: `inset 0 0 0 1px ${color}`,
+        color: "#ffffff",
+      };
+    },
     convenioThemeClass() {
       const convenio = String(this.userData?.convenio || "").trim().toLowerCase();
 
@@ -252,6 +334,15 @@ export default {
     canViewEstadoProfesional() {
       const cargo = String(this.userData?.cargo || "").trim().toLowerCase();
       return Boolean(this.userData && (this.userData.numDocumento || cargo === "admin" || cargo === "administrador" || cargo === "superusuario"));
+    },
+  },
+  watch: {
+    userData: {
+      immediate: true,
+      deep: true,
+      handler() {
+        this.cargarBrandingIps();
+      },
     },
   },
 };
@@ -448,7 +539,7 @@ export default {
 .navbar-nav strong,
 .navbar-nav .nav-item {
   color: #fff !important;
-  text-shadow: 1px 1px 4px #000;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
   font-size: 0.54rem;
   font-weight: 400;
   letter-spacing: 0.01em;
@@ -502,13 +593,14 @@ export default {
   margin-right: 0;
   vertical-align: middle;
   flex-shrink: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .logout-btn {
   background: none;
   border: none;
   color: #fff !important;
-  text-shadow: 1px 1px 4px #000;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
   font-size: 0.54rem;
   font-weight: 400;
   padding: 0.28rem 0.24rem !important;
@@ -557,6 +649,50 @@ export default {
   object-fit: contain;
   margin: 0 0.25rem;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.ips-subtle-bar {
+  position: fixed;
+  top: 54px;
+  left: 0;
+  right: 0;
+  z-index: 1031;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ips-subtle-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.66rem;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 2px 8px;
+  letter-spacing: 0.02em;
+}
+
+.ips-subtle-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.ips-subtle-logo-fallback {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #0f172a;
 }
 
 .user-info-badge {
@@ -754,6 +890,15 @@ export default {
   .offcanvas-profile-name {
     font-size: 0.9rem;
     font-weight: 600;
+  }
+
+  .ips-subtle-bar {
+    top: 48px;
+  }
+
+  .ips-subtle-text {
+    font-size: 0.6rem;
+    padding: 2px 7px;
   }
 }
 </style>

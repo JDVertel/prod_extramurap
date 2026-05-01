@@ -16,8 +16,16 @@
                         </div>
                         <div class="mb-3">
                             <label for="password" class="form-label"><i class="bi bi-key"></i> Contraseña</label>
-                            <input v-model="password" type="password" class="form-control" id="password"
-                                placeholder="Ingresa tu contraseña" autocomplete="current-password" required />
+                            <div class="input-group">
+                                <input v-model="password" :type="showPassword ? 'text' : 'password'" class="form-control"
+                                    id="password" placeholder="Ingresa tu contraseña" autocomplete="current-password"
+                                    required />
+                                <button class="btn btn-outline-secondary" type="button"
+                                    @click="showPassword = !showPassword"
+                                    :aria-label="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                                    <i :class="showPassword ? 'bi bi-eye-slash' : 'bi bi-eye'"></i>
+                                </button>
+                            </div>
                         </div>
                         <button type="submit" class="buttonLogin mb-3 w-100">Entrar</button>
                     </form>
@@ -66,6 +74,7 @@
 <script>
 import { loginWithApi } from "@/api/authApi";
 import { emailExists } from "@/api/usersApi";
+import { clearAuthStorage, isTokenExpired } from "@/utils/authSession";
 import {
     APP_VERSION_STORAGE_KEY,
     APP_VERSION_UPDATED_EVENT,
@@ -86,6 +95,7 @@ export default {
         return {
             email: "",
             password: "",
+            showPassword: false,
             mustChangePassword: false,
             newPassword: "",
             confirmPassword: "",
@@ -238,6 +248,10 @@ export default {
         this.initializeBackgroundImages();
         const token = localStorage.getItem("token");
         if (token) {
+            if (isTokenExpired(token)) {
+                clearAuthStorage();
+                return;
+            }
             this.$router.push("/homeviews");
         }
     },

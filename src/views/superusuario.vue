@@ -84,14 +84,17 @@
 
         <!-- Formulario IPS -->
         <div class="col-12 col-lg-7">
-          <div class="card shadow-sm h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="card shadow-sm h-100 ips-edit-card" :style="ipsPanelStyle">
+            <div class="card-header d-flex justify-content-between align-items-center ips-edit-card-header" :style="ipsPanelHeaderStyle">
               <strong>{{ ipsForm.id ? 'Editar IPS' : 'Nueva IPS' }}</strong>
+              <span v-if="ipsForm.id" class="badge rounded-pill ips-edit-badge" :style="ipsPanelBadgeStyle">
+                IPS seleccionada
+              </span>
               <button class="btn btn-sm btn-outline-primary" @click="nuevaIps">
                 <i class="bi bi-plus-circle"></i> Nueva
               </button>
             </div>
-            <div class="card-body">
+            <div class="card-body ips-edit-card-body" :style="ipsPanelBodyStyle">
               <form @submit.prevent="guardarIps">
                 <div class="row g-3">
                   <div class="col-12">
@@ -113,6 +116,41 @@
                   <div class="col-12 col-md-6">
                     <label class="form-label">Municipio</label>
                     <input v-model="ipsForm.municipio" type="text" class="form-control" placeholder="Municipio" />
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label">Color institucional</label>
+                    <div class="d-flex align-items-center gap-2">
+                      <input v-model="ipsForm.colorInstitucional" type="color" class="form-control form-control-color p-1" title="Color institucional" />
+                      <input
+                        v-model="ipsForm.colorInstitucional"
+                        type="text"
+                        class="form-control"
+                        placeholder="#0d6efd"
+                        maxlength="20"
+                      />
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label">Logo IPS (URL)</label>
+                    <input v-model="ipsForm.logoUrl" type="text" class="form-control" placeholder="https://... o data:image/..." />
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Cargar logo IPS (archivo)</label>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                      <input
+                        class="form-control"
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                        @change="onLogoFileChange"
+                      />
+                      <button type="button" class="btn btn-sm btn-outline-secondary" @click="limpiarLogoIps">
+                        <i class="bi bi-eraser"></i> Quitar logo
+                      </button>
+                    </div>
+                    <small class="text-muted">Se recomienda logo liviano para mejor rendimiento.</small>
+                    <div v-if="ipsForm.logoUrl" class="mt-2">
+                      <img :src="ipsForm.logoUrl" alt="Preview logo IPS" style="max-height: 44px; max-width: 180px; object-fit: contain;" />
+                    </div>
                   </div>
                 </div>
                 <div class="mt-3 d-flex gap-2">
@@ -312,7 +350,7 @@ export default {
       /* IPS */
       ipsList: [],
       guardandoIps: false,
-      ipsForm: { id: null, nombre: "", nit: "", codHab: "", dpto: "", municipio: "" },
+      ipsForm: { id: null, nombre: "", nit: "", codHab: "", dpto: "", municipio: "", logoUrl: "", colorInstitucional: "#0d6efd" },
 
       /* Admins */
       adminsList: [],
@@ -328,9 +366,53 @@ export default {
     versionAppPreview() {
       return String(this.versionAppInput || "").trim() || getDefaultAppVersionText();
     },
+    ipsFormColorNormalizado() {
+      const color = String(this.ipsForm?.colorInstitucional || "").trim();
+      const hexColor = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+      if (hexColor.test(color)) return color;
+      return "#0d6efd";
+    },
+    ipsPanelStyle() {
+      return {
+        borderColor: this.ipsFormColorNormalizado,
+        boxShadow: `0 0 0 1px ${this.ipsFormColorNormalizado}40`,
+      };
+    },
+    ipsPanelHeaderStyle() {
+      return {
+        backgroundColor: this.toRgba(this.ipsFormColorNormalizado, 0.2),
+        color: "#0f172a",
+        borderBottom: `1px solid ${this.toRgba(this.ipsFormColorNormalizado, 0.35)}`,
+      };
+    },
+    ipsPanelBodyStyle() {
+      return {
+        backgroundColor: this.toRgba(this.ipsFormColorNormalizado, 0.14),
+      };
+    },
+    ipsPanelBadgeStyle() {
+      return {
+        backgroundColor: "#ffffff",
+        color: this.ipsFormColorNormalizado,
+        border: `1px solid ${this.ipsFormColorNormalizado}`,
+      };
+    },
   },
 
   methods: {
+    toRgba(hexColor, alpha = 1) {
+      const hex = String(hexColor || "").replace("#", "").trim();
+      const normalized = hex.length === 3
+        ? hex.split("").map((ch) => ch + ch).join("")
+        : hex;
+      if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+        return `rgba(13, 110, 253, ${alpha})`;
+      }
+      const r = parseInt(normalized.slice(0, 2), 16);
+      const g = parseInt(normalized.slice(2, 4), 16);
+      const b = parseInt(normalized.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    },
     notificar(tipo, texto) {
       this.tipoMensaje = tipo;
       this.mensaje = texto;
@@ -353,7 +435,7 @@ export default {
     },
 
     nuevaIps() {
-      this.ipsForm = { id: null, nombre: "", nit: "", codHab: "", dpto: "", municipio: "" };
+      this.ipsForm = { id: null, nombre: "", nit: "", codHab: "", dpto: "", municipio: "", logoUrl: "", colorInstitucional: "#0d6efd" };
     },
 
     seleccionarIps(ips) {
@@ -364,12 +446,42 @@ export default {
         codHab: ips.codHab || ips.cod_hab || "",
         dpto: ips.dpto || "",
         municipio: ips.municipio || "",
+        logoUrl: ips.logoUrl || ips.logo_url || "",
+        colorInstitucional: ips.colorInstitucional || ips.color_institucional || "#0d6efd",
       };
+    },
+    async onLogoFileChange(event) {
+      try {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        const dataUrl = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        if (dataUrl.length > 1000000) {
+          this.notificar("error", "El logo es muy pesado. Usa una imagen mas liviana (maximo aproximado 700 KB).");
+          event.target.value = "";
+          return;
+        }
+        this.ipsForm.logoUrl = dataUrl;
+      } catch (error) {
+        this.notificar("error", "No fue posible cargar el archivo del logo.");
+      }
+    },
+    limpiarLogoIps() {
+      this.ipsForm.logoUrl = "";
     },
 
     async guardarIps() {
       if (!this.ipsForm.nombre.trim()) {
         this.notificar("error", "El nombre de la IPS es obligatorio.");
+        return;
+      }
+      const logoNormalizado = this.ipsForm.logoUrl?.trim() || "";
+      if (logoNormalizado.startsWith("data:image/") && logoNormalizado.length > 1000000) {
+        this.notificar("error", "El logo en base64 excede el limite permitido. Comprime la imagen e intenta nuevamente.");
         return;
       }
       this.guardandoIps = true;
@@ -380,6 +492,8 @@ export default {
           codHab: this.ipsForm.codHab?.trim() || null,
           dpto: this.ipsForm.dpto?.trim() || null,
           municipio: this.ipsForm.municipio?.trim() || null,
+          logoUrl: logoNormalizado || null,
+          colorInstitucional: this.ipsForm.colorInstitucional?.trim() || null,
         };
 
         if (this.ipsForm.id) {
@@ -483,3 +597,28 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.ips-edit-card {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ips-edit-card-header {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.ips-edit-card-body {
+  transition: background-color 0.2s ease;
+}
+
+.ips-edit-card-body .form-control,
+.ips-edit-card-body .form-select,
+.ips-edit-card-body .form-control-color {
+  background-color: rgba(255, 255, 255, 0.92);
+}
+
+.ips-edit-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+</style>

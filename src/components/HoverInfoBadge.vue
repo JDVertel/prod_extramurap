@@ -1,14 +1,11 @@
 <template>
-  <span
-    class="hover-info-badge"
-    @mouseenter="visible = true"
-    @mouseleave="visible = false"
-  >
+  <span class="hover-info-badge" @mouseenter="visible = true" @mouseleave="visible = false">
     <span
       :class="['badge', badgeClass]"
       tabindex="0"
       @focus="visible = true"
       @blur="visible = false"
+      @click.stop="openModal"
     >
       <slot />
     </span>
@@ -22,6 +19,20 @@
       </div>
     </div>
   </span>
+
+  <div v-if="modalOpen && lines.length" class="hover-info-modal-overlay" @click="closeModal">
+    <div class="hover-info-modal-content" @click.stop>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0">{{ titleLine }}</h6>
+        <button type="button" class="btn btn-sm btn-outline-secondary" @click="closeModal">Cerrar</button>
+      </div>
+      <div class="hover-info-modal-body">
+        <div v-for="(line, index) in bodyLines" :key="`modal-${index}-${line}`" class="hover-info-modal-line">
+          {{ line }}
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -40,6 +51,7 @@ export default {
   data() {
     return {
       visible: false,
+      modalOpen: false,
     };
   },
   computed: {
@@ -56,6 +68,15 @@ export default {
       return this.lines.slice(1);
     },
   },
+  methods: {
+    openModal() {
+      if (!this.lines.length) return;
+      this.modalOpen = true;
+    },
+    closeModal() {
+      this.modalOpen = false;
+    },
+  },
 };
 </script>
 
@@ -67,6 +88,37 @@ export default {
 
 .hover-info-badge .badge {
   cursor: help;
+}
+
+.hover-info-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.hover-info-modal-content {
+  width: min(560px, 95vw);
+  max-height: 70vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.hover-info-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hover-info-modal-line {
+  font-size: 0.85rem;
+  line-height: 1.3;
 }
 
 .hover-info-popover {

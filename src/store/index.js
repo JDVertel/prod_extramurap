@@ -271,11 +271,22 @@ function getEncuestaDateFieldValue(encuesta = {}, legacyField = "") {
   return encuesta?.[legacyField] ?? encuesta?.[apiField] ?? "";
 }
 
+function isEstadoGestionCerrado(valor) {
+  if (valor === true || valor === 1 || valor === 2) return true;
+
+  if (typeof valor === "string") {
+    const limpio = valor.trim().toLowerCase();
+    return limpio === "true" || limpio === "1" || limpio === "2" || limpio === "cerrado";
+  }
+
+  if (typeof valor === "number") return valor >= 1;
+  return false;
+}
+
 function filterCierresMedicoPorRango(encuestas = [], { fechaInicio, fechaFin, idempleado, cargo } = {}) {
   return encuestas.filter((encuesta) => {
     const fechaNormalizada = normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestMedica"));
-    const estadoGestion = Number(encuesta.status_gest_medica);
-    const gestionCerrada = encuesta.status_gest_medica === true || estadoGestion >= 1;
+    const gestionCerrada = isEstadoGestionCerrado(encuesta.status_gest_medica);
 
     if (!fechaNormalizada) return false;
     if (!(fechaNormalizada >= fechaInicio && fechaNormalizada <= fechaFin)) return false;
@@ -288,7 +299,7 @@ function filterCierresMedicoPorRango(encuestas = [], { fechaInicio, fechaFin, id
     }
 
     if (cargo && !gestionCerrada) return false;
-    if (cargo && encuesta.status_gest_aux !== true) return false;
+    if (cargo && !isEstadoGestionCerrado(encuesta.status_gest_aux)) return false;
 
     if (encuesta.tipoActividad && typeof encuesta.tipoActividad === "object") {
       encuesta.actividadesRealizadas = Object.values(encuesta.tipoActividad).filter(
@@ -1284,17 +1295,18 @@ export default createStore({
 
         if (documentoEmpleado && cargoNormalizado === "auxiliar de enfermeria") {
           params.idEncuestador = documentoEmpleado;
-          params.status_gest_aux = 1;
         }
 
         if (documentoEmpleado && (cargoNormalizado === "psicologo" || cargoNormalizado === "psicólogo")) {
           params.idPsicologoAtiende = documentoEmpleado;
-          params.status_gest_psicologo = 1;
         }
 
         if (documentoEmpleado && (cargoNormalizado === "tsocial" || cargoNormalizado === "trabajador social")) {
           params.idTsocialAtiende = documentoEmpleado;
-          params.status_gest_tsocial = 1;
+        }
+
+        if (documentoEmpleado && cargoNormalizado === "nutricionista") {
+          params.idNutricionistaAtiende = documentoEmpleado;
         }
 
         const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(params));
@@ -1309,10 +1321,15 @@ export default createStore({
         }));
 
         const encuestasFiltradas = encuestas.filter((encuesta) => {
-          const fecha = String(encuesta.fecha || "").trim();
-          if (!fecha) return false;
-
-          const fechaNormalizada = fecha.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || fecha;
+          const fechaNormalizada = (() => {
+            if (cargoNormalizado === "psicologo" || cargoNormalizado === "psicólogo") {
+              return normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestPsicologo"));
+            }
+            if (cargoNormalizado === "tsocial" || cargoNormalizado === "trabajador social") {
+              return normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestTsocial"));
+            }
+            return normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestAuxiliar"));
+          })();
 
           if (!(fechaNormalizada >= fechaInicio && fechaNormalizada <= fechaFin)) return false;
 
@@ -1329,7 +1346,7 @@ export default createStore({
             if (documentoEmpleado && String(encuesta.idPsicologoAtiende || "").trim() !== documentoEmpleado) {
               return false;
             }
-            if (encuesta.status_gest_psicologo !== true) return false;
+            if (!isEstadoGestionCerrado(encuesta.status_gest_psicologo)) return false;
             return true;
           }
 
@@ -1337,12 +1354,36 @@ export default createStore({
             if (documentoEmpleado && String(encuesta.idTsocialAtiende || "").trim() !== documentoEmpleado) {
               return false;
             }
-            if (encuesta.status_gest_tsocial !== true) return false;
+            if (!isEstadoGestionCerrado(encuesta.status_gest_tsocial)) return false;
+            return true;
+          }
+
+          if (cargoNormalizado === "nutricionista") {
+            const docsNutri = [
+              encuesta.idNutricionistaAtiende,
+              encuesta.idNutriAtiende,
+              encuesta.idNutricionista,
+              encuesta.idNutricionAtiende,
+            ]
+              .map((v) => String(v || "").trim())
+              .filter(Boolean);
+
+            if (documentoEmpleado && !docsNutri.includes(documentoEmpleado)) {
+              return false;
+            }
+
+            const estadoNutri = encuesta.status_gest_nutricionista ?? encuesta.status_gest_nutri;
+            if (!isEstadoGestionCerrado(estadoNutri)) return false;
+
+            const fechaNutri = normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestNutricionista"));
+            if (!fechaNutri) return false;
+            if (!(fechaNutri >= fechaInicio && fechaNutri <= fechaFin)) return false;
+
             return true;
           }
 
           // Por defecto: incluir pacientes cerrados por el auxiliar (cierre de CUPS/paciente).
-          if (encuesta.status_gest_aux !== true) return false;
+          if (!isEstadoGestionCerrado(encuesta.status_gest_aux)) return false;
 
           return true;
         });
@@ -1368,10 +1409,6 @@ export default createStore({
         const params = {};
         if (String(idempleado || "").trim()) {
           params.idMedicoAtiende = String(idempleado || "").trim();
-        }
-        if (cargo) {
-          params.status_gest_medica = 1;
-          params.status_gest_aux = 1;
         }
 
         const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(params));
@@ -1411,10 +1448,6 @@ export default createStore({
         if (String(idempleado || "").trim()) {
           params.idMedicoAtiende = String(idempleado || "").trim();
         }
-        if (cargo) {
-          params.status_gest_medica = 1;
-          params.status_gest_aux = 1;
-        }
 
         const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(params));
         if (!data) {
@@ -1448,11 +1481,6 @@ export default createStore({
         if (String(idempleado || "").trim()) {
           params.idEnfermeroAtiende = String(idempleado || "").trim();
         }
-        if (cargo) {
-          params.status_gest_medica = 1;
-          params.status_gest_aux = 1;
-          params.status_gest_enfermera = 1;
-        }
 
         const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(params));
         if (!data) {
@@ -1466,16 +1494,15 @@ export default createStore({
         }));
 
         const encuestasFiltradas = encuestas.filter((encuesta) => {
-          const fecha = encuesta.fechagestEnfermera;
-          if (!fecha) return false;
-
-          if (!(fecha >= fechaInicio && fecha <= fechaFin)) return false;
+          const fechaNormalizada = normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestEnfermera"));
+          if (!fechaNormalizada) return false;
+          if (!(fechaNormalizada >= fechaInicio && fechaNormalizada <= fechaFin)) return false;
 
           if (idempleado && encuesta.idEnfermeroAtiende !== idempleado) return false;
 
-          if (cargo && encuesta.status_gest_medica !== true) return false;
-          if (cargo && encuesta.status_gest_aux !== true) return false;
-          if (cargo && encuesta.status_gest_enfermera !== true) return false;
+          if (cargo && !isEstadoGestionCerrado(encuesta.status_gest_medica)) return false;
+          if (cargo && !isEstadoGestionCerrado(encuesta.status_gest_aux)) return false;
+          if (cargo && !isEstadoGestionCerrado(encuesta.status_gest_enfermera)) return false;
 
           return true;
         });

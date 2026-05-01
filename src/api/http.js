@@ -1,4 +1,6 @@
 import axios from "axios";
+import router from "@/router";
+import { clearAuthStorage } from "@/utils/authSession";
 
 const baseURL = import.meta.env.VITE_API_URL || "/api";
 
@@ -21,9 +23,10 @@ http.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error?.response?.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("uid");
-      localStorage.removeItem("userData");
+      clearAuthStorage();
+      if (router.currentRoute.value?.path !== "/login") {
+        router.replace({ name: "login", query: { reason: "session_expired" } });
+      }
     }
     return Promise.reject(error);
   }

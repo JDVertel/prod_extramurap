@@ -148,12 +148,23 @@
 
                         <div class="col-6 col-md-3 mb-3">
                             <label for="barrioVeredacomuna" class="form-label">Barrio-vereda/comuna</label>
-                            <select id="barrioVeredacomuna" v-model="barrioVeredacomuna" class="form-select" required>
-                                <option value="">---Seleccione---</option>
-                                <option :value="option" v-for="(option, index) in comunasBarrios" :key="index">
-                                    {{ option.barrio }} ({{ option.comuna }})
-                                </option>
-                            </select>
+                            <div class="position-relative">
+                                <input id="barrioVeredacomuna" v-model="barrioVeredacomunaSearch" type="text"
+                                    class="form-control" placeholder="Escribe barrio o comuna" autocomplete="off"
+                                    required @input="onBarrioInput" @focus="openBarrioDropdown = true"
+                                    @blur="onBarrioInputBlur" />
+                                <div v-if="openBarrioDropdown && barrioVeredacomunaSearch.trim()"
+                                    class="barrio-dropdown-list">
+                                    <button type="button" class="barrio-dropdown-item"
+                                        v-for="(option, index) in filteredComunasBarrios" :key="`barrio-${index}`"
+                                        @mousedown.prevent="selectBarrioOption(option)">
+                                        {{ option.barrio }} ({{ option.comuna }})
+                                    </button>
+                                    <div v-if="filteredComunasBarrios.length === 0" class="barrio-dropdown-empty">
+                                        Sin coincidencias
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="col-12 ">
                             <label for="poblacionRiesgo" class="form-label">Población de Riesgo</label>
@@ -194,27 +205,11 @@
 
                         <div class="col-12 col-md-6 mb-3">
                             <label for="tipoActividad" class="form-label">Tipo de Actividad (Proyectada)</label>
-                            <div class="row g-2">
-                                <div class="col-9">
-                                    <select id="tipoActividad" v-model="tipoActividad" class="form-select">
-                                        <option value="">Seleccione</option>
-                                        <option value="__ALL__">Todas</option>
-                                        <option :value="option" v-for="(option, index) in tipoActividadDisponibles"
-                                            :key="index">
-                                            {{ option.nombre }}
-                                        </option>
-                                    </select>
-                                </div>
-                                <div class="col-2">
-                                    <button type="button" class="btn btn-warning w-100 mt-2" v-if="tipoActividad !== ''"
-                                        @click="addActividad">+ Agregar</button>
-                                </div>
-                            </div>
-
                             <div class="mt-2">
-                                <ul class="list-group list-group-flush">
-                                    <li class="list-group-item d-flex justify-content-between align-items-center"
+                                <ul class="list-group list-group-flush actividad-lista actividad-grid">
+                                    <li class="list-group-item actividad-lista-item"
                                         v-for="(list, index) in ListtipoActividad" :key="index">
+                                        <i class="bi bi-check-circle-fill actividad-check-icon"></i>
                                         <span>{{ list.nombre }}</span>
                                     </li>
                                 </ul>
@@ -334,6 +329,8 @@ export default {
         fechaNac: "",
         direccion: "",
         barrioVeredacomuna: "",
+        barrioVeredacomunaSearch: "",
+        openBarrioDropdown: false,
         telefono: "",
         desplazamiento: "",
         tipoActividad: "",
@@ -710,6 +707,38 @@ export default {
         removeActividad(index) {
             this.ListtipoActividad.splice(index, 1);
         },
+        getBarrioComunaLabel(option) {
+            if (!option) return "";
+            return `${option.barrio || ""} (${option.comuna || ""})`;
+        },
+        onBarrioInput() {
+            const texto = String(this.barrioVeredacomunaSearch || "").trim().toLowerCase();
+            this.openBarrioDropdown = true;
+
+            if (!texto) {
+                this.barrioVeredacomuna = "";
+                return;
+            }
+
+            const coincideSeleccionActual = this.getBarrioComunaLabel(this.barrioVeredacomuna)
+                .trim()
+                .toLowerCase() === texto;
+
+            if (!coincideSeleccionActual) {
+                this.barrioVeredacomuna = "";
+            }
+        },
+        selectBarrioOption(option) {
+            this.barrioVeredacomuna = option;
+            this.barrioVeredacomunaSearch = this.getBarrioComunaLabel(option);
+            this.openBarrioDropdown = false;
+        },
+        onBarrioInputBlur() {
+            // Espera breve para permitir click en opcion antes de ocultar.
+            setTimeout(() => {
+                this.openBarrioDropdown = false;
+            }, 120);
+        },
         removeRiesgo(index) {
             this.ListpoblacionRiesgo.splice(index, 1);
         },
@@ -794,6 +823,8 @@ export default {
             this.sexo = "";
             this.telefono = "";
             this.barrioVeredacomuna = "";
+            this.barrioVeredacomunaSearch = "";
+            this.openBarrioDropdown = false;
             this.desplazamiento = "";
             this.tipoActividad = "";
             this.poblacionRiesgo = "";
@@ -869,6 +900,18 @@ export default {
             return this.poblacionRiesgoOptions.filter(
                 (riesgo) => !seleccionadas.has(riesgo.nombre)
             );
+        },
+        filteredComunasBarrios() {
+            const texto = String(this.barrioVeredacomunaSearch || "").trim().toLowerCase();
+            if (!texto) return [];
+
+            return (this.comunasBarrios || [])
+                .filter((option) => {
+                    const barrio = String(option?.barrio || "").toLowerCase();
+                    const comuna = String(option?.comuna || "").toLowerCase();
+                    return barrio.includes(texto) || comuna.includes(texto);
+                })
+                .slice(0, 30);
         },
     },
     watch: {
@@ -1113,5 +1156,73 @@ html {
 .btn.rounded-circle:hover {
     transform: scale(1.05);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.barrio-dropdown-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+    max-height: 240px;
+    overflow-y: auto;
+    z-index: 20;
+}
+
+.barrio-dropdown-item {
+    width: 100%;
+    text-align: left;
+    background: #fff;
+    border: 0;
+    border-bottom: 1px solid #f1f3f5;
+    padding: 9px 12px;
+    font-size: 0.95rem;
+}
+
+.barrio-dropdown-item:hover {
+    background: #f8f9fa;
+}
+
+.barrio-dropdown-empty {
+    padding: 10px 12px;
+    color: #6c757d;
+    font-size: 0.92rem;
+}
+
+.actividad-lista-item {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.84rem;
+    line-height: 1.2;
+}
+
+.actividad-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.actividad-grid .actividad-lista-item {
+    border: 1px solid #d9dee3;
+    border-radius: 6px;
+    margin: 0;
+    background-color: #f8f9fa;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.actividad-check-icon {
+    color: #198754;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .actividad-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>

@@ -70,6 +70,7 @@
                   <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
                   <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
                   <small>Nac: {{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaCorta(encuesta.fecha) || 'N/A' }}</small>
+                  <AssignedProfessionalsBadge :encuesta="encuesta" />
                 </div>
 
                 <div class="col-5 col-md-6 acciones-col">
@@ -151,6 +152,7 @@
                   <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
                   <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
                   <small>Nac: {{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaCorta(encuesta.fecha) || 'N/A' }}</small>
+                  <AssignedProfessionalsBadge :encuesta="encuesta" />
                   <div class="devolucion-nota mt-2">
                     <div class="devolucion-titulo"><i class="bi bi-arrow-counterclockwise me-1"></i> Paciente devuelto para corrección</div>
                   </div>
@@ -184,10 +186,12 @@ import { construirTooltipEpsCierres, contarCierresPorPeriodo } from "@/utils/ges
 import realtime_api from "@/api/realtimeApi";
 import { formatBandejaShortDate, groupBandejaItemsByDay } from "@/utils/bandejaPresentation";
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
+import AssignedProfessionalsBadge from "@/components/AssignedProfessionalsBadge.vue";
 
 export default {
   components: {
     HoverInfoBadge,
+    AssignedProfessionalsBadge,
   },
   data() {
     return {
@@ -636,5 +640,50 @@ export default {
 
 .devolucion-titulo {
   font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .acciones-col {
+    margin-top: 8px;
+  }
+
+  .btn-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    justify-items: stretch;
+  }
+
+  .btn-row > div {
+    width: 100%;
+  }
+
+  .agendar-btn {
+    width: 100%;
+    min-height: 44px;
+    height: auto;
+    border-radius: 10px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 8px;
+    overflow: hidden;
+  }
+
+  .agendar-btn i {
+    flex: 0 0 auto;
+    text-align: center;
+  }
+
+  .agendar-label {
+    font-size: 0.68rem;
+    line-height: 1.1;
+    width: 100%;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 </style>

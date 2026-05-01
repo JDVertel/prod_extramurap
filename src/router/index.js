@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { clearAuthStorage, isTokenExpired } from "@/utils/authSession";
 
 const routes = [
   /* Soportes */
@@ -247,7 +248,13 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem("token");
-  const loggedIn = !!token;
+  const tokenExpired = token ? isTokenExpired(token) : false;
+
+  if (token && tokenExpired) {
+    clearAuthStorage();
+  }
+
+  const loggedIn = !!token && !tokenExpired;
 
   // Si está logueado y debe cambiar contraseña, forzar la ruta (excepto si ya está en ella o en logout/login)
   if (loggedIn && to.name !== "cambiar_password" && to.name !== "logout" && to.name !== "login") {
