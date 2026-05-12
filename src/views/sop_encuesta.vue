@@ -19,7 +19,7 @@
             <br />
             <!-- FORMULARIO -->
 
-            <form @submit.prevent="addRegistroEncuesta">
+            <form novalidate @submit.prevent="addRegistroEncuesta">
                 <!-- SECCIÓN BÚSQUEDA -->
                 <div class="row mb-4">
                     <div class="col-6 col-md-3 mb-3">
@@ -383,6 +383,46 @@ export default {
         ListtipoActividad: [],
     }),
     methods: {
+        estaVacio(valor) {
+            if (Array.isArray(valor)) return valor.length === 0;
+            if (valor && typeof valor === "object") return Object.keys(valor).length === 0;
+            return String(valor ?? "").trim() === "";
+        },
+
+        obtenerCamposObligatoriosFaltantes() {
+            const campos = [
+                { label: "EPS del paciente", value: this.epsId, id: "eps" },
+                { label: "Regimen del paciente", value: this.regimen, id: "regimen" },
+                { label: "Primer Nombre", value: this.nombre1, id: "nombre1" },
+                { label: "Primer Apellido", value: this.apellido1, id: "apellido1" },
+                { label: "Fecha de nacimiento", value: this.fechaNac, id: "fechaNac" },
+                { label: "Sexo", value: this.sexo, id: "sexo" },
+                { label: "Tipo de Documento", value: this.tipodoc, id: "tipodoc" },
+                { label: "Numero de Documento", value: this.numdoc, id: "numdoc" },
+                { label: "Direccion", value: this.direccion, id: "direccion" },
+                { label: "Telefono", value: this.telefono, id: "telefono" },
+                { label: "Barrio-vereda/comuna", value: this.barrioVeredacomuna, id: "barrioVeredacomuna" },
+                { label: "Tipo de Actividad (Proyectada)", value: this.ListtipoActividad },
+                { label: "Desplazamiento efectivo", value: this.desplazamiento, id: "desplazamiento" },
+                { label: "Requiere remision a procedimiento", value: this.requiereRemision, id: "requiereRemision" },
+                { label: "Documento del encuestador", value: this.userData?.numDocumento },
+                { label: "Medico", value: this.medico, id: "medico" },
+                { label: "Enfermero Jefe", value: this.enfermero, id: "enfermero" },
+            ];
+
+            return campos.filter((campo) => this.estaVacio(campo.value));
+        },
+
+        enfocarCampoObligatorio(campo) {
+            if (!campo?.id) return;
+            this.$nextTick(() => {
+                const elemento = this.$el.querySelector(`#${campo.id}`);
+                if (!elemento) return;
+                elemento.focus();
+                elemento.scrollIntoView({ behavior: "smooth", block: "center" });
+            });
+        },
+
         async addRegistroEncuesta() {
             if (this.enviando) return;
             this.enviando = true;
@@ -405,26 +445,11 @@ export default {
             const requiereNutricionista = this.requiereNutricionista;
 
             // Validación de campos obligatorios
-            if (
-                !this.epsId ||
-                !this.regimen ||
-                !this.nombre1 ||
-                !this.apellido1 ||
-                !this.fechaNac ||
-                !this.sexo ||
-                !this.tipodoc ||
-                !this.numdoc ||
-                !this.direccion ||
-                !this.telefono ||
-                !this.barrioVeredacomuna ||
-                this.ListtipoActividad.length === 0 ||
-                !this.desplazamiento ||
-                !this.requiereRemision ||
-                !this.userData.numDocumento ||
-                !this.medico ||
-                !this.enfermero
-            ) {
-                alert("Por favor, complete todos los campos obligatorios o logeate nuevamente.");
+            const camposFaltantes = this.obtenerCamposObligatoriosFaltantes();
+            if (camposFaltantes.length) {
+                const listadoCampos = camposFaltantes.map((campo) => `- ${campo.label}`).join("\n");
+                alert(`Faltan campos obligatorios por completar:\n${listadoCampos}`);
+                this.enfocarCampoObligatorio(camposFaltantes[0]);
                 this.enviando = false;
                 return;
             }

@@ -536,6 +536,7 @@ const COLUMNAS_FACTURACION = [
     { key: "actividad", label: "Actividad" },
     { key: "cupsNombre", label: "CUPS Nombre" },
     { key: "codigo", label: "Código" },
+    { key: "profesional", label: "Profesional" },
     { key: "facturadorActividad", label: "Facturador Actividad" },
     { key: "facturado", label: "Facturado" },
 ];
@@ -1490,6 +1491,7 @@ export default {
                         actividad: "Sin actividades",
                         cupsNombre: "",
                         codigo: "",
+                        profesional: "",
                         facturadorActividad: "",
                         facturado: "No",
                     });
@@ -1505,6 +1507,9 @@ export default {
                         ""
                     ).trim();
                     const cupId = String(cup?.id || cup?.cupsId || i);
+                    const profesionalDoc = String(cup?.idProf || cup?.idProfesional || "").trim();
+                    const profesionalAsignado = String(cup?.nombreProf || cup?.nombreProfesional || "").trim()
+                        || (profesionalDoc ? this.obtenerNombreProfesional(profesionalDoc).nombre : "");
 
                     filas.push({
                         ...base,
@@ -1520,6 +1525,7 @@ export default {
                         actividad: this.obtenerNombreActividadDesdeKey(cup?.actividadId || cup?.idActividad || "") || "Actividad",
                         cupsNombre: cup?.DescripcionCUP || cup?.cupsNombre || cup?.codigo || "",
                         codigo: cup?.codigo || "",
+                        profesional: profesionalAsignado,
                         facturadorActividad: this.obtenerNombreFacturador(facturadorActividadDoc),
                         facturado: cup?.facturado === true ? "Sí" : "No",
                     });
@@ -2089,6 +2095,9 @@ export default {
                         facturador: "",
                     };
                 } else if (this.fechaInicio && this.fechaFin && this.tipoinforme == "3") {
+                    if (!this.profesionalesDisponibles.length) {
+                        await this.cargarProfesionalesDisponibles();
+                    }
                     await this.actualizarDatosFacturacionInforme();
                     consultaUsada = {
                         tipo: "Facturación",
@@ -2462,6 +2471,7 @@ export default {
                     cupsRolPacienteFinal.forEach((cup) => {
                         const nombreActividad = this.resolverNombreActividadCup(encuesta, cup);
                         const facturado = cup?.facturado === true;
+                        const cantidadCup = this.obtenerCantidadCupReporte(cup);
 
                         rows.push({
                             rowKey: `${encuestaId}-${cup?.id || cup?.cupsId || cup?.codigo || Math.random()}`,
@@ -2471,7 +2481,7 @@ export default {
                             actividad: nombreActividad,
                             codigo: cup?.codigo || "",
                             cupsNombre: cup?.DescripcionCUP || cup?.cupsNombre || "",
-                            cantidad: cup?.cantidad ?? 1,
+                            cantidad: cantidadCup,
                             detalle: cup?.detalle || "",
                             profesional: cup?.nombreProf || profesionalMeta?.nombre || "",
                             rol: cup?.key || this.obtenerRolReportePorCargo(profesionalMeta?.cargo) || "",
@@ -2488,9 +2498,9 @@ export default {
                         }
 
                         const actividadPaciente = actividadPacienteMap.get(nombreActividad);
-                        actividadPaciente.cups += 1;
+                        actividadPaciente.cups += cantidadCup;
                         if (facturado) {
-                            actividadPaciente.facturados += 1;
+                            actividadPaciente.facturados += cantidadCup;
                         }
                     });
 
@@ -2576,7 +2586,10 @@ export default {
             );
 
             const topActividad = rankingActividades[0] || null;
-            const totalCupsDiligenciados = rowsRolProfesional.length;
+            const totalCupsDiligenciados = rowsRolProfesional.reduce(
+                (acc, row) => acc + this.obtenerCantidadCupReporte(row),
+                0
+            );
             const totalActividadesConCups = actividadesRolProfesional.size;
             const hasData = pacientesCerrados.size > 0 || pacientesAbiertos.size > 0 || totalCupsDiligenciados > 0;
 
@@ -2732,9 +2745,11 @@ export default {
         },
         totalCupsFacturacionReporte() {
             if (this.tipoinforme !== "3") return 0;
-            return this.filasFiltradasOrdenadas.filter((fila) => {
-                return String(fila?.cupsNombre || "").trim() || String(fila?.codigo || "").trim();
-            }).length;
+            return this.filasFiltradasOrdenadas.reduce((total, fila) => {
+                const tieneCup = String(fila?.cupsNombre || "").trim() || String(fila?.codigo || "").trim();
+                if (!tieneCup) return total;
+                return total + this.obtenerCantidadCupReporte(fila);
+            }, 0);
         },
         totalRegistrosFacturacionReporte() {
             if (this.tipoinforme !== "3") return 0;
@@ -2761,6 +2776,9 @@ export default {
         tipoinforme(nuevoTipo) {
             if (nuevoTipo === "3" && (!this.facturadoresDisponibles || this.facturadoresDisponibles.length === 0)) {
                 this.cargarFacturadoresDisponibles();
+            }
+            if (nuevoTipo === "3" && (!this.profesionalesDisponibles || this.profesionalesDisponibles.length === 0)) {
+                this.cargarProfesionalesDisponibles();
             }
             if (nuevoTipo === "4" && (!this.profesionalesDisponibles || this.profesionalesDisponibles.length === 0)) {
                 this.cargarProfesionalesDisponibles();

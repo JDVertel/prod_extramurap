@@ -38,6 +38,11 @@
                     <i class="bi bi-calendar-week"></i> {{ cantCerradosSemana }} acumulado{{ cantCerradosSemana !== 1 ? 's' : '' }} semana
                 </span>
             </h4>
+            <div class="d-flex justify-content-end mb-2">
+                <button type="button" class="btn btn-danger btn-sm" @click="exportarPdfInforme">
+                    <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                </button>
+            </div>
 
             <ul class="nav nav-tabs mb-3" role="tablist">
                 <li class="nav-item" role="presentation">
@@ -180,6 +185,11 @@ import { construirTooltipEpsCierres, contarCierresPorPeriodo } from "@/utils/ges
 import { formatBandejaShortDate, groupBandejaItemsByDay } from "@/utils/bandejaPresentation";
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 import AssignedProfessionalsBadge from "@/components/AssignedProfessionalsBadge.vue";
+import pdfMake from "pdfmake/build/pdfmake";
+import pdfFonts from "pdfmake/build/vfs_fonts";
+import appLogoUrl from "@/assets/images/logo_extramurapp.png";
+
+pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 
 export default {
     components: {
@@ -206,7 +216,164 @@ export default {
             "removeRegEnc",
             "getEncuestasPendientesNutricionista",
             "getAsignacionesByEncuesta",
+            "getdataips",
         ]),
+        getGeneratedAtLabel() {
+            return moment().format("YYYY-MM-DD HH:mm");
+        },
+        getLogoSourcesForPdf() {
+            return [
+                appLogoUrl,
+                this.dataips?.logoUrl,
+                this.dataips?.logo_url,
+                this.dataips?.logo,
+                this.dataips?.logoIps,
+                this.dataips?.logo_ips,
+                this.userData?.logoUrl,
+                this.userData?.logo_url,
+            ].map((logo) => String(logo || "").trim()).filter(Boolean)
+                .filter((logo, index, arr) => arr.indexOf(logo) === index);
+        },
+        decodeSvgDataUrl(dataUrl = "") {
+            const [, metadata = "", payload = ""] = dataUrl.match(/^data:image\/svg\+xml([^,]*),(.*)$/i) || [];
+            if (!payload) return "";
+            try {
+                return metadata.includes(";base64") ? atob(payload) : decodeURIComponent(payload);
+            } catch (_error) {
+                return "";
+            }
+        },
+        async loadPdfLogoFromSource(source) {
+            if (!source) return null;
+            if (/^data:image\/svg\+xml/i.test(source)) {
+                const svg = this.decodeSvgDataUrl(source);
+                return svg ? { svg } : null;
+            }
+            if (/^data:image\//i.test(source)) return { image: source };
+            try {
+                const response = await fetch(source);
+                if (!response.ok) return null;
+                const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+                if (contentType.includes("svg") || String(source).toLowerCase().includes(".svg")) {
+                    const svg = await response.text();
+                    return svg ? { svg } : null;
+                }
+                const blob = await response.blob();
+                const image = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result || ""));
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+                return image ? { image } : null;
+            } catch (_error) {
+                return null;
+            }
+        },
+        async getLogoForPdf() {
+            for (const source of this.getLogoSourcesForPdf()) {
+                const logo = await this.loadPdfLogoFromSource(source);
+                if (logo) return logo;
+            }
+            return null;
+        },
+        buildPdfLogoNode(logo, fit, extra = {}) {
+            if (!logo) return null;
+            return { ...(logo.svg ? { svg: logo.svg } : { image: logo.image }), fit, ...extra };
+        },
+        buildPdfWatermark(logoData) {
+            if (!logoData) return null;
+            return (_currentPage, pageSize) => {
+                const tiles = [];
+                const tileWidth = 160;
+                const gapX = 135;
+                const gapY = 115;
+                for (let y = -90; y < pageSize.height + gapY; y += gapY) {
+                    for (let x = -85; x < pageSize.width + gapX; x += gapX) {
+                        tiles.push({
+                            ...this.buildPdfLogoNode(logoData, [tileWidth, tileWidth], { opacity: 0.07, angle: 45 }),
+                            absolutePosition: { x, y },
+                        });
+                    }
+                }
+                return { stack: tiles };
+            };
+        },
+        construirFilasPdf(items = []) {
+            return items.map((encuesta) => [
+                `${encuesta?.tipodoc || ""}-${encuesta?.numdoc || ""}`,
+                `${encuesta?.nombre1 || ""} ${encuesta?.nombre2 || ""} ${encuesta?.apellido1 || ""} ${encuesta?.apellido2 || ""}`.trim(),
+                encuesta?.eps || "",
+                encuesta?.convenio || "",
+                this.formatearFechaCorta(encuesta?.fecha) || "",
+            ]);
+        },
+        async exportarPdfInforme() {
+            const logoData = await this.getLogoForPdf();
+            const ipsNombre = String(
+                this.dataips?.nombre ||
+                this.userData?.ipsNombre ||
+                "Empresa Social del Estado Barrancabermeja"
+            ).trim() || "Empresa Social del Estado Barrancabermeja";
+            const profesional = this.nombreProfesionalSeleccionado || this.userData?.nombre || "-";
+            const headerLogo = logoData ? this.buildPdfLogoNode(logoData, [72, 72], { alignment: "center", margin: [0, 0, 0, 4] }) : { text: "" };
+            const crearTabla = (titulo, filas) => [
+                { text: titulo, style: "subheader", margin: [0, 10, 0, 6] },
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: [70, "*", 80, 70, 60],
+                        body: [["Documento", "Paciente", "EPS", "Convenio", "Fecha"], ...(filas.length ? filas : [["", "Sin registros", "", "", ""]])],
+                    },
+                    layout: "lightHorizontalLines",
+                },
+            ];
+            const content = [
+                {
+                    stack: [
+                        headerLogo,
+                        { text: ipsNombre, style: "ipsHeaderName", alignment: "center", margin: [0, 0, 0, 8] },
+                        {
+                            canvas: [{ type: "line", x1: 0, y1: 0, x2: 540, y2: 0, lineWidth: 1, lineColor: "#9ca3af" }],
+                            margin: [0, 0, 0, 10],
+                        },
+                    ],
+                },
+                { text: `Informe ${this.cargoMostrado || "Profesional"}`, style: "header" },
+                {
+                    table: {
+                        widths: [130, "*"],
+                        body: [
+                            ["Profesional", profesional],
+                            ["Convenio", this.getConvenioObjetivo() || "-"],
+                            ["Pendientes", String(this.cantEncuestasPendientes)],
+                            ["Devueltos", String(this.cantEncuestasDevueltas)],
+                            ["En proceso", String(this.cantEncuestasEnProceso || 0)],
+                            ["Cerrados hoy", String(this.cantCerradosHoy || 0)],
+                            ["Cerrados semana", String(this.cantCerradosSemana || 0)],
+                            ["Generado", this.getGeneratedAtLabel()],
+                        ],
+                    },
+                    layout: "lightHorizontalLines",
+                },
+                ...crearTabla("Pendientes", this.construirFilasPdf(this.encuestasPendientes)),
+                ...crearTabla("Devueltos", this.construirFilasPdf(this.encuestasDevueltas)),
+            ];
+            const docDefinition = {
+                pageSize: "A4",
+                pageMargins: [26, 26, 26, 26],
+                ...(logoData ? { background: this.buildPdfWatermark(logoData) } : {}),
+                content,
+                styles: {
+                    header: { fontSize: 16, bold: true, margin: [0, 0, 0, 10] },
+                    subheader: { fontSize: 12, bold: true },
+                    ipsHeaderName: { fontSize: 13, bold: true },
+                },
+                defaultStyle: { fontSize: 8 },
+            };
+            const archivo = `informe_${String(this.cargoMostrado || "profesional").toLowerCase().replace(/[^a-z0-9]+/g, "_")}_${moment().format("YYYY-MM-DD")}.pdf`;
+            pdfMake.createPdf(docDefinition).download(archivo);
+        },
 
         async eliminarRegistro(idEncuesta) {
             if (!confirm('¿Está seguro de que desea eliminar este registro?\n\nEsta acción eliminará el registro de actividades y la encuesta asociada.')) {
@@ -427,7 +594,7 @@ export default {
     },
 
     computed: {
-        ...mapState(["encuestas", "userData", "cantEncuestas", "cantEncuestasEnProceso"]),
+        ...mapState(["encuestas", "userData", "dataips", "cantEncuestas", "cantEncuestasEnProceso"]),
         esEstadoView() {
             if (String(this.$route?.query?.estadoView || "") !== "1") return false;
             const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
@@ -550,6 +717,11 @@ export default {
         this.rutaAnterior = this.$route.name;
         this.fechaActual = moment().format("YYYY-MM-DD");
         this.cargando = true;
+        try {
+            await this.getdataips(null);
+        } catch (error) {
+            console.error("Error cargando datos IPS para PDF:", error);
+        }
         await this.cargarAuxiliares();
         await this.cargarEncuestas();
     },

@@ -221,6 +221,7 @@ import {
 import realtime_api from "@/api/realtimeApi";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
+import appLogoUrl from "@/assets/images/logo_extramurapp.png";
 
 pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 export default {
@@ -356,41 +357,114 @@ export default {
             const mi = String(now.getMinutes()).padStart(2, "0");
             return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
         },
-        async getLogoDataUrlForPdf() {
-            const logo = String(this.dataips?.logoUrl || this.dataips?.logo_url || "").trim();
-            if (!logo) return null;
-            if (logo.startsWith("data:image/")) return logo;
+        getLogoSourcesForPdf() {
+            return [
+                appLogoUrl,
+                this.dataips?.logoUrl,
+                this.dataips?.logo_url,
+                this.dataips?.logo,
+                this.dataips?.logoIps,
+                this.dataips?.logo_ips,
+                this.userData?.logoUrl,
+                this.userData?.logo_url,
+            ]
+                .map((logo) => String(logo || "").trim())
+                .filter(Boolean)
+                .filter((logo, index, arr) => arr.indexOf(logo) === index);
+        },
+        decodeSvgDataUrl(dataUrl = "") {
+            const [, metadata = "", payload = ""] = dataUrl.match(/^data:image\/svg\+xml([^,]*),(.*)$/i) || [];
+            if (!payload) return "";
             try {
-                const response = await fetch(logo);
+                return metadata.includes(";base64") ? atob(payload) : decodeURIComponent(payload);
+            } catch (_error) {
+                return "";
+            }
+        },
+        async loadPdfLogoFromSource(source) {
+            if (!source) return null;
+            if (/^data:image\/svg\+xml/i.test(source)) {
+                const svg = this.decodeSvgDataUrl(source);
+                return svg ? { svg } : null;
+            }
+            if (/^data:image\//i.test(source)) {
+                return { image: source };
+            }
+            try {
+                const response = await fetch(source);
                 if (!response.ok) return null;
+                const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+                if (contentType.includes("svg") || String(source).toLowerCase().includes(".svg")) {
+                    const svg = await response.text();
+                    return svg ? { svg } : null;
+                }
                 const blob = await response.blob();
-                return await new Promise((resolve, reject) => {
+                const image = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = () => resolve(String(reader.result || ""));
                     reader.onerror = reject;
                     reader.readAsDataURL(blob);
                 });
+                return image ? { image } : null;
             } catch (_error) {
                 return null;
             }
         },
-        async buildPdfHeaderSection() {
-            const ipsNombre = String(this.dataips?.nombre || this.userData?.ipsNombre || "IPS").trim() || "IPS";
-            const logoDataUrl = await this.getLogoDataUrlForPdf();
-            const leftColumn = logoDataUrl
-                ? { image: logoDataUrl, fit: [44, 44], margin: [0, 0, 8, 0] }
-                : { text: " ", width: 0 };
+        async getLogoForPdf() {
+            for (const source of this.getLogoSourcesForPdf()) {
+                const logo = await this.loadPdfLogoFromSource(source);
+                if (logo) return logo;
+            }
+            return null;
+        },
+        buildPdfLogoNode(logo, fit, extra = {}) {
+            if (!logo) return null;
+            return {
+                ...(logo.svg ? { svg: logo.svg } : { image: logo.image }),
+                fit,
+                ...extra,
+            };
+        },
+        async buildPdfHeaderSection(logoData = null) {
+            const ipsNombre = String(
+                this.dataips?.nombre ||
+                this.userData?.ipsNombre ||
+                "Empresa Social del Estado Barrancabermeja"
+            ).trim() || "Empresa Social del Estado Barrancabermeja";
+            const logo = logoData || await this.getLogoForPdf();
             return [
                 {
-                    columns: [
-                        { width: 52, ...leftColumn },
-                        { width: "*", text: ipsNombre, style: "ipsHeaderName", margin: [0, 10, 0, 0] },
+                    stack: [
+                        logo ? this.buildPdfLogoNode(logo, [72, 72], { alignment: "center", margin: [0, 0, 0, 4] }) : { text: "" },
+                        { text: ipsNombre, style: "ipsHeaderName", alignment: "center", margin: [0, 0, 0, 8] },
+                        {
+                            canvas: [{ type: "line", x1: 0, y1: 0, x2: 540, y2: 0, lineWidth: 1, lineColor: "#9ca3af" }],
+                            margin: [0, 0, 0, 10],
+                        },
                     ],
-                    margin: [0, 0, 0, 8],
                 },
             ];
         },
+        buildPdfWatermark(logoData) {
+            if (!logoData) return null;
+            return (_currentPage, pageSize) => {
+                const tiles = [];
+                const tileWidth = 160;
+                const gapX = 135;
+                const gapY = 115;
+                for (let y = -90; y < pageSize.height + gapY; y += gapY) {
+                    for (let x = -85; x < pageSize.width + gapX; x += gapX) {
+                        tiles.push({
+                            ...this.buildPdfLogoNode(logoData, [tileWidth, tileWidth], { opacity: 0.07, angle: 45 }),
+                            absolutePosition: { x, y },
+                        });
+                    }
+                }
+                return { stack: tiles };
+            };
+        },
         async exportarPdfInforme() {
+            const logoData = await this.getLogoForPdf();
             const metaRows = [
                 ["Tipo de informe", this.tipoInformeLabel],
                 ["Rango de fechas", `${this.fechaInicio || "-"} a ${this.fechaFin || "-"}`],
@@ -402,7 +476,7 @@ export default {
             ];
 
             const content = [
-                ...(await this.buildPdfHeaderSection()),
+                ...(await this.buildPdfHeaderSection(logoData)),
                 { text: "Informe de actividades", style: "header" },
                 {
                     table: { widths: [130, "*"], body: metaRows },
@@ -466,9 +540,10 @@ export default {
                 .replace(/^_+|_+$/g, "") || "usuario";
             const rangoArchivo = `${this.fechaInicio || "sin_inicio"}_a_${this.fechaFin || "sin_fin"}`;
 
-            pdfMake.createPdf({
+            const docDefinition = {
                 pageSize: "A4",
                 pageMargins: [26, 26, 26, 26],
+                ...(logoData ? { background: this.buildPdfWatermark(logoData) } : {}),
                 content,
                 styles: {
                     header: { fontSize: 16, bold: true, margin: [0, 0, 0, 10] },
@@ -476,7 +551,9 @@ export default {
                     ipsHeaderName: { fontSize: 13, bold: true },
                 },
                 defaultStyle: { fontSize: 9 },
-            }).download(`${tipoArchivo}_${usuarioArchivo}_${rangoArchivo}.pdf`);
+            };
+
+            pdfMake.createPdf(docDefinition).download(`${tipoArchivo}_${usuarioArchivo}_${rangoArchivo}.pdf`);
         },
         async cargarActividadesPorEncuesta() {
             const mapa = {};
