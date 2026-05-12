@@ -5,18 +5,11 @@
 
     <!-- FORMULARIO DE BÚSQUEDA -->
     <form class="row mb-3" @submit.prevent="consultarP">
-      <div class="col-6 col-md-3 mb-3">
-        <label for="tipodoc" class="form-label">Tipo de Documento</label>
-        <select id="tipodoc" v-model="tipodoc" class="form-select" required>
-          <option value="">Seleccione</option>
-          <option v-for="doc in tipoDocumentoOptions" :key="doc.value" :value="doc.value">{{ doc.label }}</option>
-        </select>
-      </div>
-      <div class="col-6 col-md-3 mb-3">
+      <div class="col-12 col-md-4 mb-3">
         <label for="numdoc" class="form-label">Número de Documento</label>
         <input type="text" id="numdoc" v-model="numdoc" class="form-control" required />
       </div>
-      <div class="col-6 col-md-2">
+      <div class="col-12 col-md-2">
         <button class="btn btn-sm btn-primary mt-4" type="submit" :disabled="cargandoPacientes">
           <i class="bi bi-search"></i> Consultar
         </button>
@@ -46,23 +39,74 @@
         No hay registros para esa consulta.
       </div>
 
-      <!-- VISTA DETALLADA DE PACIENTES -->
+      <!-- LISTADO DE PACIENTES ENCONTRADOS -->
       <div v-if="datosPaciente && datosPaciente.length > 0">
-        <div v-for="(paciente, index) in datosPaciente" :key="paciente.id" class="card mb-4">
-          <div class="card-header bg-primary text-white">
-            <div class="d-flex justify-content-between align-items-center">
+        <div class="card consulta-resultados-card mb-3">
+          <div class="card-header consulta-resultados-header">
+            <div>
+              <span class="consulta-eyebrow">Resultados de búsqueda</span>
+              <strong>Pacientes encontrados con el documento {{ numdoc }}</strong>
+            </div>
+            <span class="badge rounded-pill bg-primary">{{ datosPaciente.length }} registro(s)</span>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive mb-0">
+              <table class="table table-sm table-hover mb-0 consulta-resultados-table">
+                <thead class="table-light">
+                  <tr>
+                    <th>Tipo de documento</th>
+                    <th>Número de documento</th>
+                    <th>Nombres</th>
+                    <th>Apellidos</th>
+                    <th>Fecha de nacimiento</th>
+                    <th>EPS</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="paciente in datosPaciente" :key="`resumen-${paciente.id}`">
+                    <td><span class="badge bg-secondary-subtle text-dark border">{{ paciente.tipodoc || '-' }}</span></td>
+                    <td><strong>{{ paciente.numdoc || '-' }}</strong></td>
+                    <td>{{ nombresPaciente(paciente) || '-' }}</td>
+                    <td>{{ apellidosPaciente(paciente) || '-' }}</td>
+                    <td>{{ formatearFechaSoloDia(paciente.fechaNac) || 'N/A' }}</td>
+                    <td><span class="consulta-eps">{{ paciente.eps || 'N/A' }}</span></td>
+                    <td>
+                      <button
+                        class="btn btn-sm btn-success"
+                        type="button"
+                        @click="abrirPanelPaciente(paciente.id)"
+                      >
+                        <i class="bi bi-box-arrow-up-right"></i>
+                        {{ pacienteDetalleAbiertoId === paciente.id ? 'Panel abierto' : 'Abrir panel' }}
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- VISTA DETALLADA DE PACIENTES -->
+        <template v-for="(paciente, index) in datosPaciente" :key="`detalle-${paciente.id}`">
+        <div v-if="pacienteDetalleAbiertoId === paciente.id" class="card consulta-detalle-card mb-4">
+          <div class="card-header consulta-detalle-header">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
               <div>
-                <strong>{{ paciente.nombre1 }} {{ paciente.nombre2 }} {{ paciente.apellido1 }} {{ paciente.apellido2
-                }}</strong>
-                <span class="badge bg-light text-dark ms-2">{{ paciente.tipodoc }}-{{ paciente.numdoc }}</span>
-                <span class="badge bg-light text-dark ms-2">{{ paciente.eps }}</span>
+                <span class="consulta-eyebrow text-white-50">Panel del paciente</span>
+                <h5 class="mb-2">{{ paciente.nombre1 }} {{ paciente.nombre2 }} {{ paciente.apellido1 }} {{ paciente.apellido2
+                }}</h5>
+                <span class="badge bg-light text-dark me-2">{{ paciente.tipodoc }}-{{ paciente.numdoc }}</span>
+                <span class="badge bg-warning text-dark me-2">{{ paciente.eps || 'Sin EPS' }}</span>
+                <span v-if="paciente.grupo" class="badge bg-info text-dark">Grupo {{ paciente.grupo }}</span>
               </div>
-              <div class="d-flex gap-2">
+              <div class="consulta-detalle-actions d-flex flex-column flex-sm-row gap-2">
                 <button class="btn btn-sm btn-warning" type="button" @click="iniciarEdicionEncuesta(paciente)">
                   <i class="bi bi-pencil-square"></i> Editar encuesta
                 </button>
-                <button v-if="esAdministrador" class="btn btn-sm btn-danger" type="button"
-                  @click="eliminarPaciente(paciente.id)">
+                <button v-if="puedeEliminarPaciente(paciente)" class="btn btn-sm btn-danger" type="button"
+                  @click="eliminarPaciente(paciente)">
                   <i class="bi bi-trash"></i> Eliminar
                 </button>
               </div>
@@ -368,6 +412,7 @@
             </div>
           </div>
         </div>
+        </template>
       </div>
     </div>
   </div>
@@ -385,8 +430,8 @@ export default {
       cargandoPacientes: false,
       guardandoEdicion: false,
       searchPerformed: false,
-      tipodoc: "",
       numdoc: "",
+      pacienteDetalleAbiertoId: null,
       pacienteEditandoId: null,
       encuestaEdit: {
         tipodoc: "",
@@ -424,7 +469,12 @@ export default {
   computed: {
     ...mapState(["datosPaciente", "userData", "actividadesExtra"]),
     esAdministrador() {
-      return this.userData && (this.userData.cargo === "Administrador" || this.userData.cargo === "admin");
+      const cargo = this.normalizarTexto(this.userData?.cargo);
+      return cargo === "administrador" || cargo === "admin" || cargo === "superusuario";
+    },
+    esJefe() {
+      const cargo = this.normalizarTexto(this.userData?.cargo);
+      return cargo === "jefe" || cargo === "jefe de enfermeria" || cargo === "enfermero" || cargo === "enfermera";
     },
     convenioOptions() {
       const opciones = new Set();
@@ -455,21 +505,21 @@ export default {
     limpiarConsultaPacientes() {
       this.setDatosPaciente([]);
       this.pacienteEditandoId = null;
-      this.tipodoc = "";
+      this.pacienteDetalleAbiertoId = null;
       this.numdoc = "";
       this.searchPerformed = false;
     },
 
     async consultarP() {
-      if (this.tipodoc === "" || this.numdoc === "") {
-        alert("Por favor, complete todos los campos.");
+      if (this.numdoc === "") {
+        alert("Por favor, ingrese el número de documento.");
         return;
       }
       this.cargandoPacientes = true;
       this.searchPerformed = true;
+      this.pacienteDetalleAbiertoId = null;
       try {
         await this.getAllByPacientesID({
-          tipodoc: this.tipodoc,
           numdoc: this.numdoc,
         });
       } catch (error) {
@@ -478,6 +528,46 @@ export default {
       } finally {
         this.cargandoPacientes = false;
       }
+    },
+
+    nombresPaciente(paciente = {}) {
+      return [paciente.nombre1, paciente.nombre2]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .join(" ");
+    },
+
+    apellidosPaciente(paciente = {}) {
+      return [paciente.apellido1, paciente.apellido2]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .join(" ");
+    },
+
+    abrirPanelPaciente(pacienteId) {
+      this.pacienteDetalleAbiertoId = pacienteId;
+    },
+
+    normalizarTexto(valor) {
+      return String(valor || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+    },
+
+    normalizarGrupo(valor) {
+      return String(valor ?? "").trim().toLowerCase();
+    },
+
+    pacientePerteneceAlGrupoDelUsuario(paciente = {}) {
+      const grupoUsuario = this.normalizarGrupo(this.userData?.grupo);
+      const grupoPaciente = this.normalizarGrupo(paciente?.grupo || paciente?.Grupo);
+      return Boolean(grupoUsuario && grupoPaciente && grupoUsuario === grupoPaciente);
+    },
+
+    puedeEliminarPaciente(paciente = {}) {
+      return this.esAdministrador || (this.esJefe && this.pacientePerteneceAlGrupoDelUsuario(paciente));
     },
 
     getNombreActividad(actividadKey) {
@@ -799,12 +889,12 @@ export default {
       }
     },
 
-    async eliminarPaciente(idEncuesta) {
+    async eliminarPaciente(paciente) {
+      const idEncuesta = typeof paciente === "object" ? paciente?.id : paciente;
       if (!idEncuesta) return;
 
-      // Validar que sea administrador
-      if (!this.esAdministrador) {
-        alert("⚠️ Solo los administradores pueden eliminar pacientes.");
+      if (!this.puedeEliminarPaciente(typeof paciente === "object" ? paciente : {})) {
+        alert("⚠️ Solo administradores o la jefe del grupo que registró al paciente pueden eliminarlo.");
         return;
       }
 
@@ -888,6 +978,109 @@ Esta acción NO se puede deshacer.`;
 .card {
   border-radius: 0.5rem;
   box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.consulta-resultados-card,
+.consulta-detalle-card {
+  border: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+}
+
+.consulta-resultados-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: linear-gradient(135deg, #f8fafc 0%, #e8f1ff 100%);
+  border-bottom: 1px solid #dbe7f8;
+  padding: 16px 18px;
+}
+
+.consulta-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.consulta-resultados-table {
+  vertical-align: middle;
+}
+
+.consulta-resultados-table thead th {
+  color: #334155;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: #f8fafc;
+  border-bottom: 1px solid #dbe7f8;
+}
+
+.consulta-resultados-table tbody tr {
+  transition: background-color 0.16s ease, transform 0.16s ease;
+}
+
+.consulta-resultados-table tbody tr:hover {
+  background: #fff7df;
+}
+
+.consulta-eps {
+  display: inline-block;
+  max-width: 240px;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-weight: 600;
+}
+
+.consulta-detalle-card {
+  border: 1px solid rgba(13, 110, 253, 0.15);
+}
+
+.consulta-detalle-header {
+  color: #fff;
+  background: linear-gradient(135deg, #0d6efd 0%, #174ea6 100%);
+  padding: 18px;
+}
+
+.consulta-detalle-header h5 {
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+}
+
+.consulta-detalle-actions {
+  width: 100%;
+}
+
+.consulta-detalle-card .card-body {
+  background: #fbfdff;
+}
+
+@media (min-width: 992px) {
+  .consulta-detalle-actions {
+    width: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .consulta-resultados-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .consulta-resultados-table {
+    min-width: 760px;
+  }
+
+  .consulta-detalle-header .btn {
+    width: 100%;
+  }
 }
 
 .table-responsive {

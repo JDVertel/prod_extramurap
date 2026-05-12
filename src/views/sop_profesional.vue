@@ -66,15 +66,25 @@
                             <div v-for="(encuesta, index) in grupo.items" :key="`pend-${encuesta.id || index}`"
                                 class="container rounded-lg p-2 mb-2" style="border-radius: 24px;">
                                 <div :class="['row', 'paciente', 'shadow-sm', pacienteClass(encuesta)]">
-                                    <div class="col-10 col-md-10">
-                                        <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong></small> |
-                                        <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
-                                        <small>Auxiliar: {{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</small>
-                                        <small>Nac: {{ formatearFechaSoloDia(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaSoloDia(encuesta.fecha) || 'N/A' }}</small>
+                                    <div class="col-12 col-md-10 paciente-info-col">
+                                        <div class="paciente-nombre">
+                                            <strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong>
+                                        </div>
+                                        <small class="paciente-meta">
+                                            <span v-if="encuesta.eps">EPS: {{ encuesta.eps }}</span>
+                                            <span v-if="encuesta.poblacionRiesgo">Riesgo: {{ encuesta.poblacionRiesgo }}</span>
+                                        </small>
+                                        <small class="paciente-meta">
+                                            <span>Auxiliar: {{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</span>
+                                        </small>
+                                        <small class="paciente-meta">
+                                            <span>Nac: {{ formatearFechaSoloDia(encuesta.fechaNac) || 'N/A' }}</span>
+                                            <span>Enc: {{ formatearFechaSoloDia(encuesta.fecha) || 'N/A' }}</span>
+                                        </small>
                                         <AssignedProfessionalsBadge :encuesta="encuesta" />
                                     </div>
 
-                                    <div class="col-2 col-md-2 acciones-col ">
+                                    <div class="col-12 col-md-2 acciones-col">
                                         <div class="btn-grid">
                                             <div class="btn-row">
                                                 <div v-if="cargoMostrado === 'Auxiliar de enfermeria' || cargoMostrado === 'Medico'">
@@ -108,18 +118,28 @@
                             <div v-for="(encuesta, index) in grupo.items" :key="`dev-${encuesta.id || index}`"
                                 class="container rounded-lg p-2 mb-2" style="border-radius: 24px;">
                                 <div :class="['row', 'paciente', 'paciente-devuelto', 'shadow-sm']">
-                                    <div class="col-10 col-md-10">
-                                        <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong></small> |
-                                        <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
-                                        <small>Auxiliar: {{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</small>
-                                        <small>Nac: {{ formatearFechaSoloDia(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaSoloDia(encuesta.fecha) || 'N/A' }}</small>
+                                    <div class="col-12 col-md-10 paciente-info-col">
+                                        <div class="paciente-nombre">
+                                            <strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong>
+                                        </div>
+                                        <small class="paciente-meta">
+                                            <span v-if="encuesta.eps">EPS: {{ encuesta.eps }}</span>
+                                            <span v-if="encuesta.poblacionRiesgo">Riesgo: {{ encuesta.poblacionRiesgo }}</span>
+                                        </small>
+                                        <small class="paciente-meta">
+                                            <span>Auxiliar: {{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</span>
+                                        </small>
+                                        <small class="paciente-meta">
+                                            <span>Nac: {{ formatearFechaSoloDia(encuesta.fechaNac) || 'N/A' }}</span>
+                                            <span>Enc: {{ formatearFechaSoloDia(encuesta.fecha) || 'N/A' }}</span>
+                                        </small>
                                         <AssignedProfessionalsBadge :encuesta="encuesta" />
                                         <div class="devolucion-nota mt-2">
                                             <div class="devolucion-titulo"><i class="bi bi-arrow-counterclockwise me-1"></i> Paciente devuelto para corrección</div>
                                         </div>
                                     </div>
 
-                                    <div class="col-2 col-md-2 acciones-col ">
+                                    <div class="col-12 col-md-2 acciones-col">
                                         <div class="btn-grid">
                                             <div class="btn-row">
                                                 <div v-if="cargoMostrado === 'Auxiliar de enfermeria' || cargoMostrado === 'Medico'">
@@ -726,6 +746,30 @@ export default {
     justify-content: center;
 }
 
+.paciente-info-col {
+    min-width: 0;
+}
+
+.paciente-nombre {
+    color: #ffffff;
+    font-size: 0.92rem;
+    line-height: 1.2;
+    margin-bottom: 2px;
+}
+
+.paciente-meta {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    align-items: center;
+}
+
+.paciente-meta span + span::before {
+    content: "|";
+    margin-right: 12px;
+    color: rgba(255, 255, 255, 0.65);
+}
+
 /* Layout horizontal para botones */
 .btn-row {
     display: flex;
@@ -781,7 +825,6 @@ export default {
 }
 
 .row.paciente small {
-    display: block;
     color: #e6fffa;
     line-height: 1.4;
 }
@@ -808,14 +851,37 @@ export default {
 }
 
 @media (max-width: 768px) {
+    .row.paciente {
+        gap: 8px;
+        padding: 10px;
+    }
+
+    .paciente-nombre {
+        font-size: 0.98rem;
+        margin-bottom: 4px;
+    }
+
+    .paciente-meta {
+        gap: 2px 8px;
+    }
+
+    .paciente-meta span + span::before {
+        margin-right: 8px;
+    }
+
     .acciones-col {
         margin-top: 8px;
+        justify-content: stretch;
+    }
+
+    .btn-grid {
+        width: 100%;
     }
 
     .btn-row {
         width: 100%;
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 1fr);
         gap: 8px;
         justify-items: stretch;
     }

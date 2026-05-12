@@ -7,7 +7,12 @@
           aria-controls="offcanvasNavbar" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
-        <img src="@/assets/images/logo_extramurapp.png" alt="ExtramuApp Logo" class="navbar-logo" />
+        <div class="navbar-company-brand">
+          <img v-if="ipsLogoUrl && !logoLoadFailed" :src="ipsLogoUrl" alt="Logo empresa" class="navbar-company-logo"
+            @error="onIpsLogoError" />
+          <i v-else class="bi bi-building navbar-company-logo-fallback" aria-hidden="true"></i>
+          <span class="navbar-company-name">{{ ipsNombreMostrado || "Empresa" }}</span>
+        </div>
         <div class="user-info-badge">
           <h6 v-if="userData && userData.nombre" class="text-center text-capitalize blanco user-info-text">
             <span class="user-info-line user-info-line-top">{{ userData.convenio || "" }}/ {{ userData.cargo || "" }}</span>
@@ -23,107 +28,106 @@
           aria-labelledby="offcanvasNavbarLabel">
           <div class="offcanvas-header">
             <div class="offcanvas-profile" id="offcanvasNavbarLabel">
-              <i class="bi bi-grid-fill offcanvas-profile-icon"></i>
               <h1 class="offcanvas-profile-name text-capitalize">Menú</h1>
             </div>
 
           </div>
 
           <div class="offcanvas-body">
-            <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
+            <ul class="navbar-nav justify-content-end flex-grow-1 pe-3 small">
               <li class="nav-item" v-if="userData && userData.cargo === 'Fact'">
                 <router-link class="nav-link" to="/sop_facturacion" @click="onNavLinkClick">
-                  <i class="bi bi-person-circle"></i> Facturador
+                  <i class="bi bi-person-circle"></i> <span class="nav-label">Facturador</span>
                 </router-link>
               </li>
 
               <li class="nav-item" v-if="userData && userData.cargo === 'Auxiliar de enfermeria'">
                 <router-link class="nav-link" to="/sop_aux" @click="onNavLinkClick">
-                  <i class="bi bi-person-circle"></i> Auxiliar
+                  <i class="bi bi-person-circle"></i> <span class="nav-label">Auxiliar</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Auxiliar de enfermeria' && esConvenioExtramural">
                 <router-link class="nav-link" to="/sop_agendas" @click="onNavLinkClick">
-                  <i class="bi bi-calendar2-date"></i> Agendas
+                  <i class="bi bi-calendar2-date"></i> <span class="nav-label">Agendas</span>
                 </router-link>
               </li>
 
               <li class="nav-item" v-if="userData && userData.cargo === 'Medico'">
                 <router-link class="nav-link" to="/sop_profesional" @click="onNavLinkClick">
-                  <i class="bi bi-person-circle"></i> Medico
+                  <i class="bi bi-person-circle"></i> <span class="nav-label">Medico</span>
                 </router-link>
               </li>
                 <li class="nav-item" v-if="userData && userData.cargo === 'Psicologo'">
                  <router-link class="nav-link" to="/sop_psicologo" @click="onNavLinkClick">
-                  <i class="bi bi-person-circle"></i> Psicologo
+                  <i class="bi bi-person-circle"></i> <span class="nav-label">Psicologo</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Tsocial'">
                 <router-link class="nav-link" to="/sop_tsocial" @click="onNavLinkClick">
-                  <i class="bi bi-person-circle"></i> Trabajador Social
+                  <i class="bi bi-person-circle"></i> <span class="nav-label">Trabajador<br>Social</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Nutricionista'">
                 <router-link class="nav-link" to="/sop_nutricionista" @click="onNavLinkClick">
-                  <i class="bi bi-person-circle"></i> Nutricionista
+                  <i class="bi bi-person-circle"></i> <span class="nav-label">Nutricionista</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Enfermero'">
                 <router-link class="nav-link" to="/sop_enfermero" @click="onNavLinkClick">
-                  <i class="bi bi-person-circle"></i> Enfermer@
+                  <i class="bi bi-person-circle"></i> <span class="nav-label">Enfermer@</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Admin'">
                 <router-link class="nav-link" to="/admin_informes" @click="onNavLinkClick">
-                  <i class="bi bi-bar-chart-fill"></i> Informes
+                  <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Medico'">
                 <router-link class="nav-link" to="/medico_informes" @click="onNavLinkClick">
-                  <i class="bi bi-bar-chart-fill"></i> Informes
+                  <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Auxiliar de enfermeria'">
                 <router-link class="nav-link" to="/aux_informes" @click="onNavLinkClick">
-                  <i class="bi bi-bar-chart-fill"></i> Informes
+                  <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Psicologo'">
-                <router-link class="nav-link" to="/aux_informes" @click="onNavLinkClick">
-                  <i class="bi bi-bar-chart-fill"></i> Informes
+                <router-link class="nav-link" to="/psicologo_informes" @click="onNavLinkClick">
+                  <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Tsocial'">
-                <router-link class="nav-link" to="/aux_informes" @click="onNavLinkClick">
-                  <i class="bi bi-bar-chart-fill"></i> Informes
+                <router-link class="nav-link" to="/tsocial_informes" @click="onNavLinkClick">
+                  <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Nutricionista'">
-                <router-link class="nav-link" to="/aux_informes" @click="onNavLinkClick">
-                  <i class="bi bi-bar-chart-fill"></i> Informes
+                <router-link class="nav-link" to="/nutricionista_informes" @click="onNavLinkClick">
+                  <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
                 </router-link>
               </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Enfermero'">
                 <router-link class="nav-link" to="/enfermero_informes" @click="onNavLinkClick">
-                  <i class="bi bi-bar-chart-fill"></i> Informes
+                  <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
                 </router-link>
               </li>
 
               <li class="nav-item">
                 <router-link class="nav-link" to="/consulta_pacientes" @click="onNavLinkClick">
-                  <i class="bi bi-search"></i> Pacientes
+                  <i class="bi bi-search"></i> <span class="nav-label">Pacientes</span>
                 </router-link>
               </li>
 
               <template v-if="userData && userData.cargo === 'superusuario'">
                 <li class="nav-item">
                   <router-link class="nav-link" to="/superusuario" @click="onNavLinkClick">
-                    <i class="bi bi-shield-lock-fill"></i> Panel Super
+                    <i class="bi bi-shield-lock-fill"></i> <span class="nav-label">Panel<br>Super</span>
                   </router-link>
                 </li>
                 <li class="nav-item">
                   <router-link class="nav-link" to="/registrousuarios" @click="onNavLinkClick">
-                    <i class="bi bi-people-fill"></i> Usuarios
+                    <i class="bi bi-people-fill"></i> <span class="nav-label">Usuarios</span>
                   </router-link>
                 </li>
               </template>
@@ -131,77 +135,72 @@
               <template v-if="userData && userData.cargo === 'admin'">
                 <li class="nav-item">
                   <router-link class="nav-link" to="/admin_programavisitas" @click="onNavLinkClick">
-                    <i class="bi bi-car-front"></i> Prog Visitas
+                    <i class="bi bi-car-front"></i> <span class="nav-label">Prog<br>Visitas</span>
                   </router-link>
                 </li>
 
                 <li class="nav-item">
                   <router-link class="nav-link" to="/registrousuarios" @click="onNavLinkClick">
-                    <i class="bi bi-person-fill"></i> Usuarios
+                    <i class="bi bi-person-fill"></i> <span class="nav-label">Usuarios</span>
                   </router-link>
                 </li>
 
                 <li class="nav-item">
                   <router-link class="nav-link" to="/admin_parametros" @click="onNavLinkClick">
-                    <i class="bi bi-sliders"></i> Parámetros
+                    <i class="bi bi-sliders"></i> <span class="nav-label">Parámetros</span>
                   </router-link>
                 </li>
 
                 <li class="nav-item">
                   <router-link class="nav-link" to="/admin_informes" @click="onNavLinkClick">
-                    <i class="bi bi-file-earmark-medical"></i> Informes
+                    <i class="bi bi-file-earmark-medical"></i> <span class="nav-label">Informes</span>
                   </router-link>
                 </li>
 
                 <li class="nav-item">
                   <router-link class="nav-link" to="/admin_caracterizacion" @click="onNavLinkClick">
-                    <i class="bi bi-file-person"></i> Reg Caract
+                    <i class="bi bi-file-person"></i> <span class="nav-label">Reg<br>Caract</span>
                   </router-link>
                 </li>
               </template>
 
               <li class="nav-item" v-if="canViewEstadoProfesional">
                 <router-link class="nav-link" to="/admin_estado_profesional" @click="onNavLinkClick">
-                  <i class="bi bi-person-badge-fill"></i> Profesionales delegados
+                  <i class="bi bi-person-badge-fill"></i> <span class="nav-label">Profesionales<br>delegados</span>
                 </router-link>
               </li>
 
               <li class="nav-item">
                 <router-link class="nav-link" to="/homeviews" @click="onNavLinkClick">
-                  <i class="bi bi-house-door-fill"></i> Home
+                  <i class="bi bi-house-door-fill"></i> <span class="nav-label">Home</span>
                 </router-link>
               </li>
 
               <li class="nav-item">
                 <router-link class="nav-link" to="/info" @click="onNavLinkClick">
-                  <i class="bi bi-info-circle"></i> Info
+                  <i class="bi bi-info-circle"></i> <span class="nav-label">Info</span>
                 </router-link>
               </li>
 
               <li class="nav-item">
                 <router-link class="nav-link" to="/cambiar-password" @click="onNavLinkClick">
-                  <i class="bi bi-key-fill"></i> Cambiar clave
+                  <i class="bi bi-key-fill"></i> <span class="nav-label">Cambiar<br>clave</span>
                 </router-link>
               </li>
 
               <li class="nav-item">
                 <button type="button" class="logout-btn" @click="logoutUser">
-                  <i class="bi bi-x-circle"></i> Salir
+                  <i class="bi bi-x-circle"></i> <span class="nav-label">Salir</span>
                 </button>
               </li>
             </ul>
+            <div class="offcanvas-logo-footer">
+              <img src="@/assets/images/logo_extramurapp.png" alt="ExtramuApp Logo" class="offcanvas-app-logo" />
+            </div>
           </div>
         </div>
       </div>
     </nav>
-    <div v-if="ipsNombreMostrado" class="ips-subtle-bar">
-      <span class="ips-subtle-text" :style="ipsSubtleStyle">
-        <img v-if="ipsLogoUrl && !logoLoadFailed" :src="ipsLogoUrl" alt="Logo IPS" class="ips-subtle-logo"
-          @error="onIpsLogoError" />
-        <i v-else class="bi bi-building ips-subtle-logo-fallback" aria-hidden="true"></i>
-        <span>{{ ipsNombreMostrado }}</span>
-      </span>
-    </div>
   </div>
 </template>
 
@@ -406,6 +405,9 @@ export default {
 
 .container-fluid {
   padding: 0 0.3rem !important;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .navbar-toggler {
@@ -425,56 +427,42 @@ export default {
 }
 
 .offcanvas {
-  background: linear-gradient(
-    180deg,
-    #0b4f7d 0%,
-    #0369a1 24%,
-    #0ea5e9 48%,
-    #38bdf8 72%,
-    #0ea5e9 88%,
-    #0284c7 100%
-  ) !important;
-  width: 124px !important;
+  background: #0369a1 !important;
+  width: fit-content !important;
+  min-width: 116px;
+  max-width: min(76vw, 190px);
 }
 
 .tema-ebasicos .offcanvas {
-  background: linear-gradient(
-    180deg,
-    #0f766e 0%,
-    #0d9488 24%,
-    #14b8a6 48%,
-    #5eead4 72%,
-    #2dd4bf 88%,
-    #14b8a6 100%
-  ) !important;
+  background: #0d9488 !important;
 }
 
 .tema-pic .offcanvas {
-  background: linear-gradient(
-    180deg,
-    #9a3412 0%,
-    #c2410c 24%,
-    #f97316 48%,
-    #fb923c 72%,
-    #f97316 88%,
-    #ea580c 100%
-  ) !important;
+  background: #c2410c !important;
 }
 
 .tema-admin-dorado .offcanvas {
-  background: linear-gradient(
-    180deg,
-    #6f4e00 0%,
-    #8b6508 22%,
-    #b8860b 44%,
-    #d4af37 66%,
-    #b8860b 84%,
-    #8b6508 100%
-  ) !important;
+  background: #8b6508 !important;
 }
 
 .offcanvas-body {
   padding: 0.35rem 0.25rem !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.offcanvas-body .navbar-nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-right: 0 !important;
+  width: max-content;
+  min-width: 100%;
+  max-width: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start !important;
+  gap: 0.28rem;
 }
 
 .offcanvas-header {
@@ -497,6 +485,17 @@ export default {
   flex-direction: column;
   gap: 0.3rem;
   width: 100%;
+}
+
+.offcanvas-app-logo {
+  width: 86px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.42));
 }
 
 .offcanvas-profile-icon {
@@ -539,8 +538,8 @@ export default {
 .navbar-nav strong,
 .navbar-nav .nav-item {
   color: #fff !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-  font-size: 0.54rem;
+  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.5), 0 2px 5px rgba(0, 0, 0, 0.28);
+  font-size: 0.31rem;
   font-weight: 400;
   letter-spacing: 0.01em;
   padding: 0.28rem 0.24rem !important;
@@ -550,13 +549,17 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 0.06rem;
-  min-height: 56px;
+  min-height: 48px;
   text-align: center;
   width: 100%;
+  min-width: max-content;
   line-height: 1.1;
   overflow: hidden;
   white-space: normal;
   text-overflow: ellipsis;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
   transition: all 0.18s ease;
 }
 
@@ -576,32 +579,47 @@ export default {
   padding-top: 0.2rem;
 }
 
+.nav-label {
+  display: block;
+  line-height: 1.08;
+  white-space: nowrap;
+}
+
+.offcanvas-logo-footer {
+  margin-top: auto;
+  padding: 0.65rem 0.2rem 0.35rem;
+  display: flex;
+  justify-content: center;
+}
+
 .navbar-nav .nav-link.router-link-exact-active {
-  color: #e0f2fe !important;
-  background: rgba(255, 255, 255, 0.08);
+  color: #FFC107 !important;
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 5px;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.75), 0 1px 4px rgba(15, 23, 42, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 193, 7, 0.5), 0 2px 6px rgba(15, 23, 42, 0.18);
   transition: all 0.2s ease;
 }
 
 .tema-admin-dorado .navbar-nav .nav-link.router-link-exact-active {
-  color: #fff7db !important;
-  background: rgba(255, 243, 205, 0.2);
+  color: #FFC107 !important;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .navbar-nav i {
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   margin-right: 0;
   vertical-align: middle;
   flex-shrink: 0;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.55), 0 2px 5px rgba(0, 0, 0, 0.32);
 }
 
 .logout-btn {
   background: none;
   border: none;
   color: #fff !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-  font-size: 0.54rem;
+  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.5), 0 2px 5px rgba(0, 0, 0, 0.28);
+  font-size: 0.31rem;
   font-weight: 400;
   padding: 0.28rem 0.24rem !important;
   margin: 0.1rem 0 !important;
@@ -611,9 +629,10 @@ export default {
   align-items: center;
   justify-content: center;
   gap: 0.06rem;
-  min-height: 56px;
+  min-height: 48px;
   transition: all 0.18s ease;
   width: 100%;
+  min-width: max-content;
   text-align: center;
   justify-self: stretch;
   line-height: 1.1;
@@ -643,56 +662,51 @@ export default {
   font-size: 0.85rem;
 }
 
-.navbar-logo {
+.navbar-company-brand {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #fff;
+  text-align: center;
+  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.navbar-company-logo {
+  width: 42px;
   height: 42px;
-  width: auto;
+  border-radius: 8px;
   object-fit: contain;
-  margin: 0 0.25rem;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  background: rgba(255, 255, 255, 0.92);
+  padding: 3px;
+  flex-shrink: 0;
 }
 
-.ips-subtle-bar {
-  position: fixed;
-  top: 54px;
-  left: 0;
-  right: 0;
-  z-index: 1031;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.ips-subtle-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.66rem;
-  color: rgba(255, 255, 255, 0.85);
-  background: rgba(0, 0, 0, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  padding: 2px 8px;
-  letter-spacing: 0.02em;
-}
-
-.ips-subtle-logo {
-  width: 24px;
-  height: 24px;
-  border-radius: 3px;
-  object-fit: contain;
-  background: rgba(255, 255, 255, 0.85);
-}
-
-.ips-subtle-logo-fallback {
-  width: 24px;
-  height: 24px;
+.navbar-company-logo-fallback {
+  width: 42px;
+  height: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.95rem;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.85);
+  font-size: 1.35rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
   color: #0f172a;
+  flex-shrink: 0;
+}
+
+.navbar-company-name {
+  min-width: 0;
+  max-width: min(58vw, 720px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 1.08rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .user-info-badge {
@@ -732,7 +746,9 @@ export default {
   }
 
   .offcanvas {
-    width: 89px !important;
+    width: fit-content !important;
+    min-width: 84px;
+    max-width: min(82vw, 160px);
   }
 
   .offcanvas-body {
@@ -745,6 +761,9 @@ export default {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.3rem;
     padding-right: 0 !important;
+    width: max-content;
+    min-width: 100%;
+    max-width: 150px;
   }
 
   .offcanvas-body .navbar-nav .nav-item {
@@ -755,7 +774,7 @@ export default {
 
   .navbar-nav .nav-link,
   .logout-btn {
-    min-height: 49px;
+    min-height: 42px;
     padding: 0.24rem 0.14rem !important;
     margin: 0 !important;
     border: 1px solid rgba(255, 255, 255, 0.22);
@@ -767,32 +786,44 @@ export default {
     justify-content: center;
     gap: 0.08rem;
     text-align: center;
-    font-size: 0.135rem;
+    font-size: 0.078rem;
     font-weight: 300;
-    text-shadow: none;
+    text-shadow: 0 1px 2px rgba(15, 23, 42, 0.28);
     line-height: 1.02;
     white-space: normal;
     overflow: hidden;
     text-overflow: ellipsis;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    hyphens: auto;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
   }
 
   .navbar-nav .nav-link i,
   .logout-btn i {
-    font-size: 1.33rem;
+    font-size: 1.13rem;
     margin-right: 0;
   }
 
   .navbar-nav .nav-link.router-link-exact-active {
-    background: rgba(14, 165, 233, 0.2);
-    border-color: rgba(125, 211, 252, 0.5);
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 193, 7, 0.55);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.75), 0 1px 4px rgba(15, 23, 42, 0.35);
   }
 
-  .navbar-logo {
+  .navbar-company-brand {
+    gap: 7px;
+  }
+
+  .navbar-company-logo,
+  .navbar-company-logo-fallback {
+    width: 36px;
     height: 36px;
-    margin: 0px 0.18rem;
+    border-radius: 7px;
+  }
+
+  .navbar-company-name {
+    max-width: 46vw;
+    font-size: 0.86rem;
   }
 
   .user-info-badge {
@@ -838,7 +869,9 @@ export default {
   }
 
   .offcanvas {
-    width: 84px !important;
+    width: fit-content !important;
+    min-width: 79px;
+    max-width: min(86vw, 150px);
   }
 
   .offcanvas-body .navbar-nav {
@@ -847,22 +880,28 @@ export default {
 
   .navbar-nav .nav-link,
   .logout-btn {
-    min-height: 43px;
-    font-size: 0.126rem;
+    min-height: 37px;
+    font-size: 0.073rem;
     font-weight: 300;
     padding: 0.2rem 0.1rem !important;
     line-height: 1;
-    text-shadow: none;
+    text-shadow: 0 1px 2px rgba(15, 23, 42, 0.28);
   }
 
   .navbar-nav .nav-link i,
   .logout-btn i {
-    font-size: 1.23rem;
+    font-size: 1.05rem;
   }
 
-  .navbar-logo {
+  .navbar-company-logo,
+  .navbar-company-logo-fallback {
+    width: 32px;
     height: 32px;
-    margin: 0px 0.12rem;
+  }
+
+  .navbar-company-name {
+    max-width: 42vw;
+    font-size: 0.72rem;
   }
 
   .user-info-badge {
@@ -881,24 +920,13 @@ export default {
     font-weight: 400;
   }
 
-  .offcanvas-profile-icon {
-    font-size: 1.6rem;
-    width: 38px;
-    height: 38px;
+  .offcanvas-app-logo {
+    width: 69px;
   }
 
   .offcanvas-profile-name {
     font-size: 0.9rem;
     font-weight: 600;
-  }
-
-  .ips-subtle-bar {
-    top: 48px;
-  }
-
-  .ips-subtle-text {
-    font-size: 0.6rem;
-    padding: 2px 7px;
   }
 }
 </style>

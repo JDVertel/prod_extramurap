@@ -1,51 +1,54 @@
 <template>
-    <div class="container-fluid">
+    <div class="container-fluid informes-page px-2 px-md-4 py-3">
 
         <h1>Informes Enfermero</h1>
 
         <hr>
 
         <h5>Seleccione el rango de fechas a mostrar</h5>
-        <div class="row">
-            <div class="col-6 col-md-4">
+        <div class="row g-3 informe-filter-card">
+            <div class="col-12 col-md-6 col-xl-3">
                 <label for="fechaInicio" class="form-label">Fecha de Inicio</label>
                 <input type="date" id="fechaInicio" class="form-control" v-model="fechaInicio" required />
             </div>
-            <div class="col-6 col-md-4">
+            <div class="col-12 col-md-6 col-xl-3">
                 <label for="fechaFin" class="form-label">Fecha de Fin</label>
                 <input type="date" id="fechaFin" class="form-control" v-model="fechaFin" required />
             </div>
-            <div class="col-6 col-md-4">
+            <div class="col-12 col-md-6 col-xl-3">
                 <label for="tipoInformeEnf" class="form-label">Tipo de informe</label>
                 <select id="tipoInformeEnf" v-model="tipoInforme" class="form-select">
                     <option value="1">Pacientes cerrados</option>
                     <option value="2">Actividades</option>
+                    <option value="3">Pacientes facturados/CUPS</option>
                 </select>
             </div>
-            <div class="col-12 col-md-4">
-                <button type="button" class="btn btn-warning mt-4" @click="generarInforme()">
+            <div class="col-12 col-md-6 col-xl-3 d-flex align-items-end">
+                <button type="button" class="btn btn-warning w-100" @click="generarInforme()">
                     Generar Informe
                 </button>
             </div>
         </div>
 
-        <button class="btn btn-primary mb-2" v-if="activacion" @click="copiarTabla">
-            <i class="bi bi-clipboard"></i> Copiar tabla
-        </button>
-        <button class="btn btn-danger mb-2 ms-2" v-if="activacion" @click="exportarPdfInforme">
-            <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
-        </button>
+        <div v-if="activacion" class="informe-actions d-flex flex-column flex-sm-row flex-wrap gap-2 align-items-stretch align-items-sm-center mt-3 mb-2">
+            <button class="btn btn-primary" @click="copiarTabla">
+                <i class="bi bi-clipboard"></i> Copiar tabla
+            </button>
+            <button class="btn btn-danger" @click="exportarPdfInforme">
+                <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+            </button>
+        </div>
         <br />
         <div v-if="activacion" class="alert alert-light border mb-3">
-            <h5 class="mb-1">Informe de actividades</h5>
+            <h5 class="mb-1">{{ tipoInformeLabel }}</h5>
             <div><strong>Tipo:</strong> {{ tipoInformeLabel }}</div>
             <div><strong>Rango:</strong> {{ fechaInicio || "-" }} a {{ fechaFin || "-" }}</div>
             <div><strong>Usuario:</strong> {{ userData?.nombre || "-" }}</div>
             <div><strong>Convenio:</strong> {{ userData?.convenio || "-" }}</div>
             <div><strong>Grupo:</strong> {{ userData?.grupo || "-" }}</div>
         </div>
-        <div class="table-responsive" v-if="activacion && tipoInforme === '1'" style="max-height: 70vh; overflow-y: auto;">
-            <table class="table table-bordered table-striped table-sm" style="border-collapse: collapse; width: 100%">
+        <div class="table-responsive informe-table-scroll" v-if="activacion && tipoInforme === '1'" style="max-height: 70vh; overflow-y: auto;">
+            <table class="table table-bordered table-striped table-sm informe-wide-table" style="border-collapse: collapse; width: 100%">
                 <thead>
                     <tr>
                         <th colspan="5" style="background: #d0e6f7">DATOS DE IPS</th>
@@ -161,8 +164,97 @@
                 </div>
             </div>
         </div>
+        <div v-if="activacion && tipoInforme === '3'" class="mt-3">
+            <div class="row g-3 mb-3">
+                <div class="col-12 col-md-3"><div class="alert alert-primary mb-0"><strong>Total pacientes:</strong> {{ resumenFacturacion.totalPacientes }}</div></div>
+                <div class="col-12 col-md-3"><div class="alert alert-success mb-0"><strong>Total CUPS:</strong> {{ resumenFacturacion.totalCups }}</div></div>
+            </div>
+            <div class="table-responsive informe-table-scroll" style="max-height: 70vh; overflow-y: auto;">
+                <table class="table table-bordered table-striped table-sm informe-facturacion-table" style="border-collapse: collapse; width: 100%">
+                    <thead>
+                        <tr>
+                            <th>Fecha cierre facturación</th>
+                            <th>Tipo ID</th>
+                            <th>Número ID</th>
+                            <th>Paciente</th>
+                            <th>EPS</th>
+                            <th>Convenio</th>
+                            <th>Código CUPS</th>
+                            <th>Nombre CUPS</th>
+                            <th>Cantidad</th>
+                            <th>Número factura</th>
+                            <th>Profesional CUPS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="row in encuestasFiltradas" :key="row.asignacionCupId || `${row.encuestaId}-${row.cupsId}-${row.numeroFactura}`">
+                            <td>{{ formatearFechaYYYYMMDD(row.fechaCierreFacturacion) }}</td>
+                            <td>{{ row.tipodoc }}</td>
+                            <td>{{ row.numdoc }}</td>
+                            <td>{{ nombrePaciente(row) }}</td>
+                            <td>{{ row.eps }}</td>
+                            <td>{{ row.convenio }}</td>
+                            <td>{{ row.cupsCodigo }}</td>
+                            <td>{{ row.cupsNombre }}</td>
+                            <td>{{ row.cantidad || 1 }}</td>
+                            <td>{{ row.numeroFactura }}</td>
+                            <td>{{ row.profesionalNombreCup || userData?.nombre }}</td>
+                        </tr>
+                        <tr v-if="encuestasFiltradas.length === 0">
+                            <td colspan="11" class="text-center">Sin datos</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </template>
+
+<style scoped>
+.informes-page {
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+
+.informe-filter-card {
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    padding: 16px 8px;
+}
+
+.alert-light {
+    background: transparent;
+}
+
+.informe-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.informe-wide-table {
+    min-width: 1180px;
+}
+
+.informe-facturacion-table {
+    min-width: 980px;
+}
+
+@media (max-width: 575.98px) {
+    .informes-page h1 {
+        font-size: 1.35rem;
+    }
+
+    .informe-actions .btn {
+        width: 100%;
+    }
+
+    .informe-filter-card {
+        padding: 12px 4px;
+    }
+}
+</style>
 
 <script>
 import {
@@ -173,6 +265,7 @@ import realtime_api from "@/api/realtimeApi";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 import appLogoUrl from "@/assets/images/logo_extramurapp.png";
+import esebLogoUrl from "@/assets/images/logo_eseb.png";
 
 pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 export default {
@@ -209,7 +302,7 @@ export default {
         };
     },
     methods: {
-        ...mapActions(["GetAllRegistersbyRangeEnf", "getAllActividadesExtra", "getdataips"]),
+        ...mapActions(["GetAllRegistersbyRangeEnf", "GetInformeFacturacionProfesional", "getAllActividadesExtra", "getdataips"]),
 
         copiarTabla() {
             // Selecciona la tabla por referencia
@@ -307,6 +400,9 @@ export default {
             }
             return null;
         },
+        async getEsebLogoForPdf() {
+            return this.loadPdfLogoFromSource(esebLogoUrl);
+        },
         buildPdfLogoNode(logo, fit, extra = {}) {
             if (!logo) return null;
             return {
@@ -322,10 +418,12 @@ export default {
                 "Empresa Social del Estado Barrancabermeja"
             ).trim() || "Empresa Social del Estado Barrancabermeja";
             const logo = logoData || await this.getLogoForPdf();
+            const esebLogo = await this.getEsebLogoForPdf();
+            const headerLogo = esebLogo || logo;
             return [
                 {
                     stack: [
-                        logo ? this.buildPdfLogoNode(logo, [72, 72], { alignment: "center", margin: [0, 0, 0, 4] }) : { text: "" },
+                        headerLogo ? this.buildPdfLogoNode(headerLogo, [72, 72], { alignment: "center", margin: [0, 0, 0, 4] }) : { text: "" },
                         { text: ipsNombre, style: "ipsHeaderName", alignment: "center", margin: [0, 0, 0, 8] },
                         {
                             canvas: [{ type: "line", x1: 0, y1: 0, x2: 540, y2: 0, lineWidth: 1, lineColor: "#9ca3af" }],
@@ -342,15 +440,87 @@ export default {
                 const tileWidth = 160;
                 const gapX = 135;
                 const gapY = 115;
+                let rowIndex = 0;
                 for (let y = -90; y < pageSize.height + gapY; y += gapY) {
-                    for (let x = -85; x < pageSize.width + gapX; x += gapX) {
+                    const rowOffset = rowIndex % 2 === 0 ? 0 : tileWidth / 2;
+                    for (let x = -85 + rowOffset; x < pageSize.width + gapX; x += gapX) {
                         tiles.push({
                             ...this.buildPdfLogoNode(logoData, [tileWidth, tileWidth], { opacity: 0.07, angle: 45 }),
                             absolutePosition: { x, y },
                         });
                     }
+                    rowIndex += 1;
                 }
                 return { stack: tiles };
+            };
+        },
+        buildPacientesCerradosPdfTable() {
+            const headers = [
+                "DPTO",
+                "MUNICIPIO",
+                "NOMBRE",
+                "CODIGO",
+                "FECHA",
+                "NOMBRE DEL USUARIO",
+                "TIPO ID",
+                "NUMERO ID",
+                "DIRECCION DEL USUARIO",
+                "TELEFONO DE USUARIO",
+                "BARRIO/VEREDA",
+                "DESPLAZAMIENTO EFECTIVO (Si/No)",
+                ...this.columnasTipoActividad,
+                ...this.columnasPoblacionRiesgo,
+                "REQUIERE REMISION A PROCEDIMIENTOS (Si/No)",
+                "NOMBRE",
+                "CARGO",
+                "DOCUMENTO",
+            ];
+
+            const body = [
+                [
+                    { text: "DATOS DE IPS", colSpan: 5, fillColor: "#d0e6f7", bold: true }, {}, {}, {}, {},
+                    { text: "DATOS DEL USUARIO", colSpan: 7, fillColor: "#d0e6f7", bold: true }, {}, {}, {}, {}, {}, {},
+                    { text: "TIPO ACTIVIDAD REALIZADA", colSpan: this.columnasTipoActividad.length, fillColor: "#4aed31", bold: true },
+                    ...Array(Math.max(this.columnasTipoActividad.length - 1, 0)).fill({}),
+                    { text: "POBLACION DE RIESGO", colSpan: this.columnasPoblacionRiesgo.length, fillColor: "#d0e6f7", bold: true },
+                    ...Array(Math.max(this.columnasPoblacionRiesgo.length - 1, 0)).fill({}),
+                    { text: "REQUIERE REMISION", fillColor: "#d0e6f7", bold: true },
+                    { text: "ENCUESTADOR", colSpan: 3, fillColor: "#d0e6f7", bold: true }, {}, {},
+                ],
+                headers,
+                ...(this.encuestasFiltradas || []).map((row) => [
+                    this.dataips?.dpto || "",
+                    this.dataips?.municipio || "",
+                    this.dataips?.nombre || "",
+                    this.dataips?.codHab || "",
+                    this.formatearFechaYYYYMMDD(row?.fecha),
+                    this.nombrePaciente(row),
+                    row?.tipodoc || "",
+                    row?.numdoc || "",
+                    row?.direccion || "",
+                    row?.telefono || "",
+                    row?.barrioVeredacomuna?.barrio || row?.barrioVeredacomuna || "",
+                    row?.desplazamiento || "",
+                    ...this.columnasTipoActividad.map((col) => this.actividadRealizada(row, col) ? "X" : ""),
+                    ...this.columnasPoblacionRiesgo.map((col) => row?.poblacionRiesgo && String(row.poblacionRiesgo).includes(col) ? "X" : ""),
+                    row?.requiereRemision || "",
+                    this.userData?.nombre || "",
+                    this.userData?.cargo || "",
+                    this.userData?.numDocumento || "",
+                ]),
+            ];
+
+            const widths = headers.map((_, index) => {
+                const header = headers[index];
+                if (["NOMBRE DEL USUARIO", "DIRECCION DEL USUARIO", "BARRIO/VEREDA"].includes(header)) return 52;
+                if ([...this.columnasTipoActividad, ...this.columnasPoblacionRiesgo].includes(header)) return 24;
+                return 38;
+            });
+
+            return {
+                table: { headerRows: 2, widths, body },
+                layout: "lightHorizontalLines",
+                margin: [0, 0, 0, 8],
             };
         },
         async exportarPdfInforme() {
@@ -400,28 +570,49 @@ export default {
                         layout: "lightHorizontalLines",
                     }
                 );
-            } else {
+            } else if (this.tipoInforme === "3") {
                 content.push(
-                    { text: "Pacientes cerrados", style: "subheader" },
+                    { text: "Pacientes facturados/CUPS", style: "subheader" },
+                    { text: `Total pacientes: ${this.resumenFacturacion.totalPacientes}`, margin: [0, 0, 0, 3] },
+                    { text: `Total CUPS: ${this.resumenFacturacion.totalCups}`, margin: [0, 0, 0, 10] },
                     {
                         table: {
                             headerRows: 1,
-                            widths: [70, "*", 90],
+                            widths: [50, 32, 45, "*", 50, 55, 45, "*", 32, 50, 60],
                             body: [
-                                ["Documento", "Paciente", "Fecha"],
+                                ["Fecha cierre facturacion", "Tipo ID", "Numero ID", "Paciente", "EPS", "Convenio", "Codigo CUPS", "Nombre CUPS", "Cantidad", "Numero factura", "Profesional CUPS"],
                                 ...(this.encuestasFiltradas || []).map((row) => [
+                                    this.formatearFechaYYYYMMDD(row?.fechaCierreFacturacion),
+                                    String(row?.tipodoc || ""),
                                     String(row?.numdoc || ""),
-                                    `${row?.nombre1 || ""} ${row?.nombre2 || ""} ${row?.apellido1 || ""} ${row?.apellido2 || ""}`.trim(),
-                                    this.formatearFechaYYYYMMDD(row?.fecha),
+                                    this.nombrePaciente(row),
+                                    String(row?.eps || ""),
+                                    String(row?.convenio || ""),
+                                    String(row?.cupsCodigo || ""),
+                                    String(row?.cupsNombre || ""),
+                                    String(row?.cantidad || 1),
+                                    String(row?.numeroFactura || ""),
+                                    String(row?.profesionalNombreCup || this.userData?.nombre || ""),
                                 ]),
                             ],
                         },
                         layout: "lightHorizontalLines",
                     }
                 );
+            } else {
+                content.push(
+                    { text: "Pacientes cerrados", style: "subheader" },
+                    { text: `Total pacientes: ${(this.encuestasFiltradas || []).length}`, margin: [0, 0, 0, 3] },
+                    { text: `Total CUPS: ${this.resumenActividades.totalCups}`, margin: [0, 0, 0, 10] },
+                    this.buildPacientesCerradosPdfTable()
+                );
             }
 
-            const tipoArchivo = this.tipoInforme === "2" ? "actividades" : "pacientes_cerrados";
+            const tipoArchivo = this.tipoInforme === "2"
+                ? "actividades"
+                : this.tipoInforme === "3"
+                    ? "pacientes_facturados_cups"
+                    : "pacientes_cerrados";
             const usuarioArchivo = String(this.userData?.nombre || "usuario")
                 .normalize("NFD")
                 .replace(/[\u0300-\u036f]/g, "")
@@ -431,8 +622,9 @@ export default {
             const rangoArchivo = `${this.fechaInicio || "sin_inicio"}_a_${this.fechaFin || "sin_fin"}`;
 
             const docDefinition = {
-                pageSize: "A4",
-                pageMargins: [26, 26, 26, 26],
+                pageSize: ["1", "3"].includes(this.tipoInforme) ? "A3" : "A4",
+                pageOrientation: ["1", "3"].includes(this.tipoInforme) ? "landscape" : "portrait",
+                pageMargins: ["1", "3"].includes(this.tipoInforme) ? [18, 18, 18, 18] : [26, 26, 26, 26],
                 ...(logoData ? { background: this.buildPdfWatermark(logoData) } : {}),
                 content,
                 styles: {
@@ -440,7 +632,7 @@ export default {
                     subheader: { fontSize: 12, bold: true, margin: [0, 6, 0, 6] },
                     ipsHeaderName: { fontSize: 13, bold: true },
                 },
-                defaultStyle: { fontSize: 9 },
+                defaultStyle: { fontSize: ["1", "3"].includes(this.tipoInforme) ? 5 : 9 },
             };
 
             pdfMake.createPdf(docDefinition).download(`${tipoArchivo}_${usuarioArchivo}_${rangoArchivo}.pdf`);
@@ -456,16 +648,32 @@ export default {
 
         /* metodo para cargar los datos del profesional, y los datos de la ips */
         async generarInforme() {
+            if (!this.fechaInicio || !this.fechaFin) {
+                alert("Debe seleccionar fecha de inicio y fecha fin.");
+                return;
+            }
+            if (this.fechaInicio > this.fechaFin) {
+                alert("La fecha de inicio no puede ser mayor que la fecha fin.");
+                return;
+            }
+
             let rango = {
                 fechaInicio: this.fechaInicio,
                 fechaFin: this.fechaFin,
                 idempleado: this.userData.numDocumento,
                 cargo: this.userData.cargo,
+                nombre: this.userData.nombre,
             };
             await this.cargarDatosIps();
-            await this.GetAllRegistersbyRangeEnf(rango);
-            await this.getAllActividadesExtra();
-            await this.cargarActividadesPorEncuesta();
+            if (this.tipoInforme === "3") {
+                await this.GetInformeFacturacionProfesional(rango);
+                this.actividadesPorEncuesta = {};
+                this.cupsPorEncuesta = {};
+            } else {
+                await this.GetAllRegistersbyRangeEnf(rango);
+                await this.getAllActividadesExtra();
+                await this.cargarActividadesPorEncuesta();
+            }
             this.activacion = true;
         },
         async cargarActividadesPorEncuesta() {
@@ -534,6 +742,10 @@ export default {
             const cantidad = Number(cup?.cantidad);
             return Number.isFinite(cantidad) && cantidad > 0 ? cantidad : 1;
         },
+        obtenerCantidadCupsPaciente(encuesta = {}) {
+            const cups = this.cupsPorEncuesta?.[encuesta.id] || [];
+            return cups.reduce((total, cup) => total + this.obtenerCantidadCup(cup), 0);
+        },
         obtenerNombresTipoActividad(encuesta) {
             return this.actividadesPorEncuesta[encuesta.id] || [];
         },
@@ -569,13 +781,24 @@ export default {
             }
 
             return texto;
+        },
+        nombrePaciente(row = {}) {
+            return String(
+                row.pacienteNombre ||
+                `${row.nombre1 || ""} ${row.nombre2 || ""} ${row.apellido1 || ""} ${row.apellido2 || ""}`
+            ).trim();
         }
 
     },
     computed: {
         ...mapState(["encuestasFiltradas", "dataips", "userData", "actividadesExtra"]),
         tipoInformeLabel() {
-            return this.tipoInforme === "2" ? "Actividades" : "Pacientes cerrados";
+            const labels = {
+                1: "Pacientes cerrados",
+                2: "Actividades",
+                3: "Pacientes facturados/CUPS",
+            };
+            return labels[this.tipoInforme] || "Pacientes cerrados";
         },
         resumenActividades() {
             const actividadCounter = new Map();
@@ -613,6 +836,17 @@ export default {
                 totalCups,
                 actividades,
                 cups,
+            };
+        },
+        resumenFacturacion() {
+            const pacientes = new Set(
+                (this.encuestasFiltradas || [])
+                    .map((row) => String(row.encuestaId || row.id || "").trim())
+                    .filter(Boolean)
+            );
+            return {
+                totalPacientes: pacientes.size,
+                totalCups: (this.encuestasFiltradas || []).length,
             };
         },
     },

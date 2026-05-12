@@ -44,8 +44,6 @@
                         <table class="table table-bordered table-striped table-sm align-middle">
                             <thead class="table-light">
                                 <tr>
-                                    <th @click="ordenarPendientes('id')" role="button">id {{
-                                        indicadorOrdenPendientes('id') }}</th>
                                     <th @click="ordenarPendientes('grupo')" role="button">Grupo {{
                                         indicadorOrdenPendientes('grupo') }}</th>
                                     <th @click="ordenarPendientes('paciente')" role="button">Paciente {{
@@ -77,7 +75,6 @@
                                     <th>Acciones</th>
                                 </tr>
                                 <tr>
-                                    <th></th>
                                     <th>
                                         <select v-model="filtrosPendientes.grupo" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -94,7 +91,10 @@
                                         </select>
                                     </th>
                                     <th></th>
-                                    <th></th>
+                                    <th>
+                                        <input v-model="filtrosPendientes.fechaNac" type="date"
+                                            class="form-control form-control-sm" />
+                                    </th>
                                     <th></th>
                                     <th>
                                         <select v-model="filtrosPendientes.eps" class="form-select form-select-sm">
@@ -132,14 +132,19 @@
                                                 :key="`pend-comuna-${item}`" :value="item">{{ item }}</option>
                                         </select>
                                     </th>
-                                    <th></th>
-                                    <th></th>
+                                    <th>
+                                        <input v-model="filtrosPendientes.fecha" type="date"
+                                            class="form-control form-control-sm" />
+                                    </th>
+                                    <th>
+                                        <input v-model="filtrosPendientes.fechagestEnfermera" type="date"
+                                            class="form-control form-control-sm" />
+                                    </th>
                                     <th></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-for="paciente in encuestasPendientesProcesadas" :key="paciente.id">
-                                    <td>{{ paciente.id }}</td>
                                     <td>{{ paciente.grupo }}</td>
                                     <td>
                                         {{ paciente.nombre1 }} {{ paciente.apellido1 }}
@@ -147,7 +152,7 @@
                                     </td>
                                     <td>{{ paciente.sexo }}</td>
                                     <td>{{ paciente.tipodoc }}-{{ paciente.numdoc }}</td>
-                                    <td>{{ paciente.fechaNac }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechaNac) }}</td>
                                     <td>{{ calcularEdad(paciente.fechaNac) }}</td>
                                     <td>{{ paciente.eps }}</td>
                                     <td>{{ paciente.convenio }}</td>
@@ -155,8 +160,8 @@
                                     <td>{{ paciente.direccion }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.barrio }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.comuna }}</td>
-                                    <td>{{ paciente.fecha }}</td>
-                                    <td>{{ paciente.fechagestEnfermera }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(paciente.fecha) }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechagestEnfermera) }}</td>
                                     <td>
                                         <div class="d-flex gap-2">
                                             <button type="button" class="btn btn-primary" data-bs-toggle="modal"
@@ -172,7 +177,7 @@
                                     </td>
                                 </tr>
                                 <tr v-if="encuestasPendientesProcesadas.length === 0">
-                                    <td colspan="16" class="text-center text-muted py-4">
+                                    <td colspan="15" class="text-center text-muted py-4">
                                         No hay pacientes visibles en la bandeja.
                                         <span v-if="totalPendientesCargados > 0">Hay registros cargados, pero quedaron ocultos por filtros o por la pestaña actual.</span>
                                         <span v-else>No se cargaron pendientes para este facturador.</span>
@@ -276,6 +281,8 @@
                                     <!--  <th>id</th> -->
                                     <th @click="ordenarRegistro('grupo')" role="button">Grupo {{ indicadorOrden('grupo')
                                         }}</th>
+                                    <th @click="ordenarRegistro('profesional')" role="button">Profesional {{
+                                        indicadorOrden('profesional') }}</th>
                                     <th @click="ordenarRegistro('paciente')" role="button">Paciente {{
                                         indicadorOrden('paciente') }}</th>
                                     <th @click="ordenarRegistro('sexo')" role="button">Sexo {{ indicadorOrden('sexo') }}
@@ -311,6 +318,7 @@
                                         </select>
                                     </th>
                                     <th></th>
+                                    <th></th>
                                     <th>
                                         <select v-model="filtrosRegistro.sexo" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -319,7 +327,10 @@
                                         </select>
                                     </th>
                                     <th></th>
-                                    <th></th>
+                                    <th>
+                                        <input v-model="filtrosRegistro.fechaNac" type="date"
+                                            class="form-control form-control-sm" />
+                                    </th>
                                     <th>
                                         <select v-model="filtrosRegistro.eps" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -349,8 +360,14 @@
                                                 :key="`comuna-${item}`" :value="item">{{ item }}</option>
                                         </select>
                                     </th>
-                                    <th></th>
-                                    <th></th>
+                                    <th>
+                                        <input v-model="filtrosRegistro.fecha" type="date"
+                                            class="form-control form-control-sm" />
+                                    </th>
+                                    <th>
+                                        <input v-model="filtrosRegistro.fechagestEnfermera" type="date"
+                                            class="form-control form-control-sm" />
+                                    </th>
                                     <th>
                                         <select v-model="filtrosRegistro.remision" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -365,20 +382,21 @@
                                 <tr v-for="paciente in encuestasFactProcesadas" :key="paciente.id">
                                     <!-- <td>{{paciente.id }}</td> -->
                                     <td>{{ paciente.grupo }}</td>
+                                    <td>{{ obtenerProfesionalAprovisionamiento(paciente) }}</td>
                                     <td>
                                         {{ paciente.nombre1 }} {{ paciente.nombre2 }}
                                         {{ paciente.apellido1 }} {{ paciente.apellido2 }}
                                     </td>
                                     <td>{{ paciente.sexo }}</td>
                                     <td>{{ paciente.tipodoc }}-{{ paciente.numdoc }}</td>
-                                    <td>{{ paciente.fechaNac }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechaNac) }}</td>
                                     <td>{{ paciente.eps }}</td>
                                     <td>{{ paciente.regimen }}</td>
                                     <td>{{ paciente.direccion }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.barrio }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.comuna }}</td>
-                                    <td>{{ paciente.fecha }}</td>
-                                    <td>{{ paciente.fechagestEnfermera }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(paciente.fecha) }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechagestEnfermera) }}</td>
                                     <td>{{ paciente.requiereRemision }}</td>
                                     <td>
                                         <button type="button" class="btn btn-warning"
@@ -446,7 +464,7 @@
                                     </td>
                                     <td>{{ paciente.sexo }}</td>
                                     <td>{{ paciente.tipodoc }}-{{ paciente.numdoc }}</td>
-                                    <td>{{ paciente.fechaNac }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechaNac) }}</td>
                                     <td>{{ calcularEdad(paciente.fechaNac) }}</td>
                                     <td>{{ paciente.eps }}</td>
                                     <td>{{ paciente.regimen }}</td>
@@ -467,7 +485,7 @@
                                     <td>
                                         {{
                                             paciente.status_gest_aux
-                                                ? paciente.fechagestAuxiliar
+                                                ? formatearFechaYYYYMMDD(paciente.fechagestAuxiliar)
                                                 : "No"
                                         }}
                                     </td>
@@ -475,14 +493,14 @@
                                     <td>
                                         {{
                                             paciente.status_gest_medica
-                                                ? paciente.fechagestMedica
+                                                ? formatearFechaYYYYMMDD(paciente.fechagestMedica)
                                                 : "No"
                                         }}
                                     </td>
                                     <td>
                                         {{
                                             paciente.status_gest_enfermera
-                                                ? paciente.fechagestEnfermera
+                                                ? formatearFechaYYYYMMDD(paciente.fechagestEnfermera)
                                                 : "No"
                                         }}
                                     </td>
@@ -652,10 +670,13 @@ export default {
             filtrosRegistro: {
                 grupo: "",
                 sexo: "",
+                fechaNac: "",
                 eps: "",
                 regimen: "",
                 barrio: "",
                 comuna: "",
+                fecha: "",
+                fechagestEnfermera: "",
                 remision: "",
             },
             ordenRegistro: {
@@ -665,11 +686,14 @@ export default {
             filtrosPendientes: {
                 grupo: "",
                 sexo: "",
+                fechaNac: "",
                 eps: "",
                 convenio: "",
                 regimen: "",
                 barrio: "",
                 comuna: "",
+                fecha: "",
+                fechagestEnfermera: "",
             },
             ordenPendientes: {
                 campo: "",
@@ -791,13 +815,16 @@ export default {
             const filtradas = filas.filter(paciente => {
                 const cumpleGrupo = !this.filtrosRegistro.grupo || String(paciente.grupo || "").trim() === this.filtrosRegistro.grupo;
                 const cumpleSexo = !this.filtrosRegistro.sexo || String(paciente.sexo || "").trim() === this.filtrosRegistro.sexo;
+                const cumpleFechaNac = !this.filtrosRegistro.fechaNac || this.formatearFechaYYYYMMDD(paciente.fechaNac) === this.filtrosRegistro.fechaNac;
                 const cumpleEps = !this.filtrosRegistro.eps || String(paciente.eps || "").trim() === this.filtrosRegistro.eps;
                 const cumpleRegimen = !this.filtrosRegistro.regimen || String(paciente.regimen || "").trim() === this.filtrosRegistro.regimen;
                 const cumpleBarrio = !this.filtrosRegistro.barrio || String(paciente.barrioVeredacomuna?.barrio || "").trim() === this.filtrosRegistro.barrio;
                 const cumpleComuna = !this.filtrosRegistro.comuna || String(paciente.barrioVeredacomuna?.comuna || "").trim() === this.filtrosRegistro.comuna;
+                const cumpleFecha = !this.filtrosRegistro.fecha || this.formatearFechaYYYYMMDD(paciente.fecha) === this.filtrosRegistro.fecha;
+                const cumpleFechaCierre = !this.filtrosRegistro.fechagestEnfermera || this.formatearFechaYYYYMMDD(paciente.fechagestEnfermera) === this.filtrosRegistro.fechagestEnfermera;
                 const cumpleRemision = !this.filtrosRegistro.remision || String(paciente.requiereRemision || "").trim() === this.filtrosRegistro.remision;
 
-                return cumpleGrupo && cumpleSexo && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleRemision;
+                return cumpleGrupo && cumpleSexo && cumpleFechaNac && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre && cumpleRemision;
             });
 
             if (!this.ordenRegistro.campo) return filtradas;
@@ -839,13 +866,16 @@ export default {
             const filtradas = filas.filter(paciente => {
                 const cumpleGrupo = !this.filtrosPendientes.grupo || String(paciente.grupo || "").trim() === this.filtrosPendientes.grupo;
                 const cumpleSexo = !this.filtrosPendientes.sexo || String(paciente.sexo || "").trim() === this.filtrosPendientes.sexo;
+                const cumpleFechaNac = !this.filtrosPendientes.fechaNac || this.formatearFechaYYYYMMDD(paciente.fechaNac) === this.filtrosPendientes.fechaNac;
                 const cumpleEps = !this.filtrosPendientes.eps || String(paciente.eps || "").trim() === this.filtrosPendientes.eps;
                 const cumpleConvenio = !this.filtrosPendientes.convenio || String(paciente.convenio || "").trim() === this.filtrosPendientes.convenio;
                 const cumpleRegimen = !this.filtrosPendientes.regimen || String(paciente.regimen || "").trim() === this.filtrosPendientes.regimen;
                 const cumpleBarrio = !this.filtrosPendientes.barrio || String(paciente.barrioVeredacomuna?.barrio || "").trim() === this.filtrosPendientes.barrio;
                 const cumpleComuna = !this.filtrosPendientes.comuna || String(paciente.barrioVeredacomuna?.comuna || "").trim() === this.filtrosPendientes.comuna;
+                const cumpleFecha = !this.filtrosPendientes.fecha || this.formatearFechaYYYYMMDD(paciente.fecha) === this.filtrosPendientes.fecha;
+                const cumpleFechaCierre = !this.filtrosPendientes.fechagestEnfermera || this.formatearFechaYYYYMMDD(paciente.fechagestEnfermera) === this.filtrosPendientes.fechagestEnfermera;
 
-                return cumpleGrupo && cumpleSexo && cumpleEps && cumpleConvenio && cumpleRegimen && cumpleBarrio && cumpleComuna;
+                return cumpleGrupo && cumpleSexo && cumpleFechaNac && cumpleEps && cumpleConvenio && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre;
             });
 
             if (!this.ordenPendientes.campo) return filtradas;
@@ -1075,6 +1105,7 @@ export default {
         obtenerValorColumnaRegistro(paciente, campo) {
             const mapaValores = {
                 grupo: paciente.grupo,
+                profesional: this.obtenerProfesionalAprovisionamiento(paciente),
                 paciente: `${paciente.nombre1 || ""} ${paciente.nombre2 || ""} ${paciente.apellido1 || ""} ${paciente.apellido2 || ""}`,
                 sexo: paciente.sexo,
                 documento: `${paciente.tipodoc || ""}-${paciente.numdoc || ""}`,
@@ -1108,10 +1139,13 @@ export default {
             this.filtrosRegistro = {
                 grupo: "",
                 sexo: "",
+                fechaNac: "",
                 eps: "",
                 regimen: "",
                 barrio: "",
                 comuna: "",
+                fecha: "",
+                fechagestEnfermera: "",
                 remision: "",
             };
             this.ordenRegistro = {
@@ -1157,11 +1191,14 @@ export default {
             this.filtrosPendientes = {
                 grupo: "",
                 sexo: "",
+                fechaNac: "",
                 eps: "",
                 convenio: "",
                 regimen: "",
                 barrio: "",
                 comuna: "",
+                fecha: "",
+                fechagestEnfermera: "",
             };
             this.ordenPendientes = {
                 campo: "",
@@ -1370,6 +1407,40 @@ export default {
                 edad--;
             }
             return edad;
+        },
+        formatearFechaYYYYMMDD(valorFecha) {
+            if (!valorFecha) return "";
+
+            const texto = String(valorFecha).trim();
+            if (!texto) return "";
+
+            const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+            const latam = texto.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})/);
+            if (latam) return `${latam[3]}-${latam[2]}-${latam[1]}`;
+
+            const fecha = new Date(texto);
+            if (!Number.isNaN(fecha.getTime())) {
+                return fecha.toISOString().slice(0, 10);
+            }
+
+            return texto;
+        },
+        obtenerProfesionalAprovisionamiento(paciente = {}) {
+            const candidatos = [
+                { rol: "Jefe/Enf", documento: paciente.idEnfermeroAtiende },
+                { rol: "Medico", documento: paciente.idMedicoAtiende },
+                { rol: "Auxiliar", documento: paciente.idEncuestador },
+                { rol: "Psicologo", documento: paciente.idPsicologoAtiende },
+                { rol: "T. Social", documento: paciente.idTsocialAtiende },
+                { rol: "Nutricionista", documento: paciente.idNutricionistaAtiende || paciente.idNutriAtiende },
+            ];
+
+            const profesional = candidatos.find((item) => String(item.documento || "").trim());
+            if (!profesional) return "-";
+
+            return `${profesional.rol}: ${String(profesional.documento).trim()}`;
         },
         obtenerNombreActividad(actividadId) {
             if (!actividadId || !this.actividadesExtra) return actividadId || '-';

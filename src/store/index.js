@@ -6,6 +6,7 @@
 // IMPORTS
 // ============================================================================
 import realtime_api from "@/api/realtimeApi.js";
+import { informesApi } from "@/api/informesApi";
 import { caracterizacionApi, encuestasApi, encuestaActividadesApi } from "@/api/modulesApi";
 import { workflowApi } from "@/api/workflowApi";
 import persistedState from "./persistedstate";
@@ -1433,6 +1434,22 @@ export default createStore({
         return encuestasFiltradas;
       } catch (error) {
         console.error("Error en GetAllRegistersbyRangeMed:", error);
+        throw error;
+      }
+    },
+
+    GetInformeFacturacionProfesional: async ({ commit }, rango) => {
+      const { fechaInicio, fechaFin } = rango || {};
+      try {
+        if (!fechaInicio || !fechaFin) {
+          throw new Error("Debes proporcionar ambas fechas para el filtro.");
+        }
+
+        const { rows } = await informesApi.getProfesionalFacturacion(rango);
+        commit("setEncuestasfiltradas", rows);
+        return rows;
+      } catch (error) {
+        console.error("Error en GetInformeFacturacionProfesional:", error);
         throw error;
       }
     },

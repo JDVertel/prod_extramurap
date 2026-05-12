@@ -1,12 +1,12 @@
 <template>
-    <div class="w-100 px-4 py-3">
+    <div class="informes-page w-100 px-2 px-md-4 py-3">
 
         <div class="w-100">
             <h2>{{ tituloInforme }}</h2>
 
-            <div class="row">
-                <div class="col-2" v-if="!activacion">
-                    <div class="container">
+            <div class="row g-3">
+                <div class="col-12 col-lg-3 col-xl-2" v-if="!activacion">
+                    <div class="container-fluid p-0 informe-filter-card">
                         <h5>Seleccione el rango de fechas a mostrar</h5>
                         <label for="fechaInicio" class="form-label">Fecha de Inicio</label>
                         <input type="date" id="fechaInicio" class="form-control" v-model="fechaInicio" required />
@@ -16,30 +16,31 @@
                         <select id="tipoInformeAux" v-model="tipoInforme" class="form-select">
                             <option value="1">Pacientes cerrados</option>
                             <option value="2">Actividades</option>
+                            <option value="3">Pacientes facturados/CUPS</option>
                         </select>
-                        <button type="button" class="btn btn-warning mt-4" @click="generarInforme()">
+                        <button type="button" class="btn btn-warning mt-4 w-100" @click="generarInforme()">
                             Generar Informe
                         </button>
                     </div>
 
                 </div>
-                <div :class="activacion ? 'col-12' : 'col-10'">
-                    <div v-if="activacion" class="d-flex justify-content-between align-items-center mb-2">
-                        <div>
+                <div :class="activacion ? 'col-12' : 'col-12 col-lg-9 col-xl-10'">
+                    <div v-if="activacion" class="informe-toolbar d-flex flex-column flex-lg-row justify-content-between align-items-stretch align-items-lg-center gap-2 mb-2">
+                        <div class="informe-actions d-flex flex-column flex-sm-row flex-wrap gap-2 align-items-stretch align-items-sm-center">
                             <button class="btn btn-primary" @click="copiarTabla">
                                 <i class="bi bi-clipboard"></i> Copiar tabla
                             </button>
-                            <button class="btn btn-danger ms-2" @click="exportarPdfInforme">
+                            <button class="btn btn-danger" @click="exportarPdfInforme">
                                 <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
                             </button>
-                            <button class="btn btn-secondary ms-2" @click="resetInforme">
+                            <button class="btn btn-secondary" @click="resetInforme">
                                 Nuevo informe
                             </button>
-                            <span class="ms-3 text-muted">
+                            <span class="text-muted informe-count">
                                 Mostrando {{ registroInicio }} - {{ registroFin }} de {{ totalRegistros }} registros
                             </span>
                         </div>
-                        <div class="d-flex align-items-center">
+                        <div class="informe-page-size d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2">
                             <label class="me-2 mb-0">Registros por página:</label>
                             <select v-model.number="itemsPorPagina" class="form-select form-select-sm"
                                 style="width: auto;">
@@ -53,7 +54,7 @@
                     </div>
 
                     <div v-if="activacion" class="alert alert-light border mb-3">
-                        <h5 class="mb-1">Informe de actividades</h5>
+                        <h5 class="mb-1">{{ tipoInformeLabel }}</h5>
                         <div><strong>Tipo:</strong> {{ tipoInformeLabel }}</div>
                         <div><strong>Rango:</strong> {{ fechaInicio || "-" }} a {{ fechaFin || "-" }}</div>
                         <div><strong>Usuario:</strong> {{ userData?.nombre || "-" }}</div>
@@ -61,8 +62,8 @@
                         <div><strong>Grupo:</strong> {{ userData?.grupo || "-" }}</div>
                     </div>
 
-                    <div v-if="activacion && tipoInforme === '1'" class="table-responsive" style="max-height: 60vh; overflow-y: auto;">
-                        <table class="table table-bordered table-striped table-sm"
+                    <div v-if="activacion && tipoInforme === '1'" class="table-responsive informe-table-scroll" style="max-height: 60vh; overflow-y: auto;">
+                        <table class="table table-bordered table-striped table-sm informe-wide-table"
                             style="border-collapse: collapse; width: 100%">
                             <thead>
                                 <tr>
@@ -178,8 +179,52 @@
                         </div>
                     </div>
 
-                    <nav v-if="activacion && tipoInforme === '1' && totalPaginas > 1" aria-label="Paginación" class="mt-3">
-                        <ul class="pagination justify-content-center">
+                    <div v-if="activacion && tipoInforme === '3'" class="mt-3">
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-md-3"><div class="alert alert-primary mb-0"><strong>Total pacientes:</strong> {{ resumenFacturacion.totalPacientes }}</div></div>
+                            <div class="col-12 col-md-3"><div class="alert alert-success mb-0"><strong>Total CUPS:</strong> {{ resumenFacturacion.totalCups }}</div></div>
+                        </div>
+                        <div class="table-responsive informe-table-scroll" style="max-height: 60vh; overflow-y: auto;">
+                            <table class="table table-bordered table-striped table-sm informe-facturacion-table" style="border-collapse: collapse; width: 100%">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha cierre facturación</th>
+                                        <th>Tipo ID</th>
+                                        <th>Número ID</th>
+                                        <th>Paciente</th>
+                                        <th>EPS</th>
+                                        <th>Convenio</th>
+                                        <th>Código CUPS</th>
+                                        <th>Nombre CUPS</th>
+                                        <th>Cantidad</th>
+                                        <th>Número factura</th>
+                                        <th>Profesional CUPS</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="row in encuestasPaginadas" :key="row.asignacionCupId || `${row.encuestaId}-${row.cupsId}-${row.numeroFactura}`">
+                                        <td>{{ formatearFechaYYYYMMDD(row.fechaCierreFacturacion) }}</td>
+                                        <td>{{ row.tipodoc }}</td>
+                                        <td>{{ row.numdoc }}</td>
+                                        <td>{{ nombrePaciente(row) }}</td>
+                                        <td>{{ row.eps }}</td>
+                                        <td>{{ row.convenio }}</td>
+                                        <td>{{ row.cupsCodigo }}</td>
+                                        <td>{{ row.cupsNombre }}</td>
+                                        <td>{{ row.cantidad || 1 }}</td>
+                                        <td>{{ row.numeroFactura }}</td>
+                                        <td>{{ row.profesionalNombreCup || userData?.nombre }}</td>
+                                    </tr>
+                                    <tr v-if="encuestasPaginadas.length === 0">
+                                        <td colspan="11" class="text-center">Sin datos</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <nav v-if="activacion && ['1', '3'].includes(tipoInforme) && totalPaginas > 1" aria-label="Paginación" class="mt-3">
+                        <ul class="pagination justify-content-center flex-wrap gap-1">
                             <li class="page-item" :class="{ disabled: paginaActual === 1 }">
                                 <a class="page-link" href="#" @click.prevent="cambiarPagina(1)">
                                     <i class="bi bi-chevron-double-left"></i>
@@ -213,6 +258,62 @@
     </div>
 </template>
 
+<style scoped>
+.informes-page {
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+
+.informe-filter-card {
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    padding: 16px;
+}
+
+.alert-light {
+    background: transparent;
+}
+
+.informe-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.informe-wide-table {
+    min-width: 1180px;
+}
+
+.informe-facturacion-table {
+    min-width: 980px;
+}
+
+.informe-count {
+    align-self: center;
+}
+
+@media (max-width: 575.98px) {
+    .informes-page h2 {
+        font-size: 1.35rem;
+    }
+
+    .informe-toolbar .btn,
+    .informe-page-size select {
+        width: 100% !important;
+    }
+
+    .informe-count {
+        align-self: flex-start;
+        font-size: 0.9rem;
+    }
+
+    .informe-filter-card {
+        padding: 12px;
+    }
+}
+</style>
+
 <script>
 import {
     mapState,
@@ -222,6 +323,7 @@ import realtime_api from "@/api/realtimeApi";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 import appLogoUrl from "@/assets/images/logo_extramurapp.png";
+import esebLogoUrl from "@/assets/images/logo_eseb.png";
 
 pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 export default {
@@ -260,7 +362,7 @@ export default {
         };
     },
     methods: {
-        ...mapActions(["GetAllRegistersbyRangeAux", "getAllActividadesExtra", "getdataips"]),
+        ...mapActions(["GetAllRegistersbyRangeAux", "GetInformeFacturacionProfesional", "getAllActividadesExtra", "getdataips"]),
 
         async cargarDatosIps() {
             try {
@@ -288,12 +390,19 @@ export default {
                     fechaFin: this.fechaFin,
                     idempleado: this.userData.numDocumento,
                     cargo: this.userData.cargo,
+                    nombre: this.userData.nombre,
                 };
 
                 await this.cargarDatosIps();
-                await this.GetAllRegistersbyRangeAux(rango);
-                await this.getAllActividadesExtra();
-                await this.cargarActividadesPorEncuesta();
+                if (this.tipoInforme === "3") {
+                    await this.GetInformeFacturacionProfesional(rango);
+                    this.actividadesPorEncuesta = {};
+                    this.cupsPorEncuesta = {};
+                } else {
+                    await this.GetAllRegistersbyRangeAux(rango);
+                    await this.getAllActividadesExtra();
+                    await this.cargarActividadesPorEncuesta();
+                }
                 this.paginaActual = 1;
                 this.activacion = true;
             } catch (error) {
@@ -417,6 +526,9 @@ export default {
             }
             return null;
         },
+        async getEsebLogoForPdf() {
+            return this.loadPdfLogoFromSource(esebLogoUrl);
+        },
         buildPdfLogoNode(logo, fit, extra = {}) {
             if (!logo) return null;
             return {
@@ -432,10 +544,12 @@ export default {
                 "Empresa Social del Estado Barrancabermeja"
             ).trim() || "Empresa Social del Estado Barrancabermeja";
             const logo = logoData || await this.getLogoForPdf();
+            const esebLogo = await this.getEsebLogoForPdf();
+            const headerLogo = esebLogo || logo;
             return [
                 {
                     stack: [
-                        logo ? this.buildPdfLogoNode(logo, [72, 72], { alignment: "center", margin: [0, 0, 0, 4] }) : { text: "" },
+                        headerLogo ? this.buildPdfLogoNode(headerLogo, [72, 72], { alignment: "center", margin: [0, 0, 0, 4] }) : { text: "" },
                         { text: ipsNombre, style: "ipsHeaderName", alignment: "center", margin: [0, 0, 0, 8] },
                         {
                             canvas: [{ type: "line", x1: 0, y1: 0, x2: 540, y2: 0, lineWidth: 1, lineColor: "#9ca3af" }],
@@ -452,15 +566,87 @@ export default {
                 const tileWidth = 160;
                 const gapX = 135;
                 const gapY = 115;
+                let rowIndex = 0;
                 for (let y = -90; y < pageSize.height + gapY; y += gapY) {
-                    for (let x = -85; x < pageSize.width + gapX; x += gapX) {
+                    const rowOffset = rowIndex % 2 === 0 ? 0 : tileWidth / 2;
+                    for (let x = -85 + rowOffset; x < pageSize.width + gapX; x += gapX) {
                         tiles.push({
                             ...this.buildPdfLogoNode(logoData, [tileWidth, tileWidth], { opacity: 0.07, angle: 45 }),
                             absolutePosition: { x, y },
                         });
                     }
+                    rowIndex += 1;
                 }
                 return { stack: tiles };
+            };
+        },
+        buildPacientesCerradosPdfTable() {
+            const headers = [
+                "DPTO",
+                "MUNICIPIO",
+                "NOMBRE",
+                "CODIGO",
+                "FECHA",
+                "NOMBRE DEL USUARIO",
+                "TIPO ID",
+                "NUMERO ID",
+                "DIRECCION DEL USUARIO",
+                "TELEFONO DE USUARIO",
+                "BARRIO/VEREDA",
+                "DESPLAZAMIENTO EFECTIVO (Si/No)",
+                ...this.columnasTipoActividad,
+                ...this.columnasPoblacionRiesgo,
+                "A PROCEDIMIENTOS (Si/No) REQUIERE REMISION",
+                "NOMBRE",
+                "CARGO",
+                "DOCUMENTO",
+            ];
+
+            const body = [
+                [
+                    { text: "DATOS DE IPS", colSpan: 5, fillColor: "#d0e6f7", bold: true }, {}, {}, {}, {},
+                    { text: "DATOS DEL USUARIO", colSpan: 7, fillColor: "#d0e6f7", bold: true }, {}, {}, {}, {}, {}, {},
+                    { text: "TIPO ACTIVIDAD REALIZADA", colSpan: this.columnasTipoActividad.length, fillColor: "#4aed31", bold: true },
+                    ...Array(Math.max(this.columnasTipoActividad.length - 1, 0)).fill({}),
+                    { text: "POBLACION DE RIESGO", colSpan: this.columnasPoblacionRiesgo.length, fillColor: "#d0e6f7", bold: true },
+                    ...Array(Math.max(this.columnasPoblacionRiesgo.length - 1, 0)).fill({}),
+                    { text: "REQUIERE REMISION", fillColor: "#d0e6f7", bold: true },
+                    { text: "ENCUESTADOR", colSpan: 3, fillColor: "#d0e6f7", bold: true }, {}, {},
+                ],
+                headers,
+                ...(this.encuestasFiltradas || []).map((row) => [
+                    this.dataips?.dpto || "",
+                    this.dataips?.municipio || "",
+                    this.dataips?.nombre || "",
+                    this.dataips?.codHab || "",
+                    this.formatearFechaYYYYMMDD(row?.fecha),
+                    this.nombrePaciente(row),
+                    row?.tipodoc || "",
+                    row?.numdoc || "",
+                    row?.direccion || "",
+                    row?.telefono || "",
+                    row?.barrioVeredacomuna?.barrio || row?.barrioVeredacomuna || "",
+                    row?.desplazamiento || "",
+                    ...this.columnasTipoActividad.map((col) => this.actividadRealizada(row, col) ? "X" : ""),
+                    ...this.columnasPoblacionRiesgo.map((col) => row?.poblacionRiesgo && String(row.poblacionRiesgo).includes(col) ? "X" : ""),
+                    row?.requiereRemision || "",
+                    this.userData?.nombre || "",
+                    this.userData?.cargo || "",
+                    this.userData?.numDocumento || "",
+                ]),
+            ];
+
+            const widths = headers.map((_, index) => {
+                const header = headers[index];
+                if (["NOMBRE DEL USUARIO", "DIRECCION DEL USUARIO", "BARRIO/VEREDA"].includes(header)) return 52;
+                if ([...this.columnasTipoActividad, ...this.columnasPoblacionRiesgo].includes(header)) return 24;
+                return 38;
+            });
+
+            return {
+                table: { headerRows: 2, widths, body },
+                layout: "lightHorizontalLines",
+                margin: [0, 0, 0, 8],
             };
         },
         async exportarPdfInforme() {
@@ -510,28 +696,49 @@ export default {
                         layout: "lightHorizontalLines",
                     }
                 );
-            } else {
+            } else if (this.tipoInforme === "3") {
                 content.push(
-                    { text: "Pacientes cerrados", style: "subheader" },
+                    { text: "Pacientes facturados/CUPS", style: "subheader" },
+                    { text: `Total pacientes: ${this.resumenFacturacion.totalPacientes}`, margin: [0, 0, 0, 3] },
+                    { text: `Total CUPS: ${this.resumenFacturacion.totalCups}`, margin: [0, 0, 0, 10] },
                     {
                         table: {
                             headerRows: 1,
-                            widths: [70, "*", 90],
+                            widths: [50, 32, 45, "*", 50, 55, 45, "*", 32, 50, 60],
                             body: [
-                                ["Documento", "Paciente", "Fecha"],
+                                ["Fecha cierre facturacion", "Tipo ID", "Numero ID", "Paciente", "EPS", "Convenio", "Codigo CUPS", "Nombre CUPS", "Cantidad", "Numero factura", "Profesional CUPS"],
                                 ...(this.encuestasFiltradas || []).map((row) => [
+                                    this.formatearFechaYYYYMMDD(row?.fechaCierreFacturacion),
+                                    String(row?.tipodoc || ""),
                                     String(row?.numdoc || ""),
-                                    `${row?.nombre1 || ""} ${row?.nombre2 || ""} ${row?.apellido1 || ""} ${row?.apellido2 || ""}`.trim(),
-                                    this.formatearFechaYYYYMMDD(row?.fecha),
+                                    this.nombrePaciente(row),
+                                    String(row?.eps || ""),
+                                    String(row?.convenio || ""),
+                                    String(row?.cupsCodigo || ""),
+                                    String(row?.cupsNombre || ""),
+                                    String(row?.cantidad || 1),
+                                    String(row?.numeroFactura || ""),
+                                    String(row?.profesionalNombreCup || this.userData?.nombre || ""),
                                 ]),
                             ],
                         },
                         layout: "lightHorizontalLines",
                     }
                 );
+            } else {
+                content.push(
+                    { text: "Pacientes cerrados", style: "subheader" },
+                    { text: `Total pacientes: ${this.totalRegistros}`, margin: [0, 0, 0, 3] },
+                    { text: `Total CUPS: ${this.resumenActividades.totalCups}`, margin: [0, 0, 0, 10] },
+                    this.buildPacientesCerradosPdfTable()
+                );
             }
 
-            const tipoArchivo = this.tipoInforme === "2" ? "actividades" : "pacientes_cerrados";
+            const tipoArchivo = this.tipoInforme === "2"
+                ? "actividades"
+                : this.tipoInforme === "3"
+                    ? "pacientes_facturados_cups"
+                    : "pacientes_cerrados";
             const usuarioArchivo = String(this.userData?.nombre || "usuario")
                 .normalize("NFD")
                 .replace(/[\u0300-\u036f]/g, "")
@@ -541,8 +748,9 @@ export default {
             const rangoArchivo = `${this.fechaInicio || "sin_inicio"}_a_${this.fechaFin || "sin_fin"}`;
 
             const docDefinition = {
-                pageSize: "A4",
-                pageMargins: [26, 26, 26, 26],
+                pageSize: ["1", "3"].includes(this.tipoInforme) ? "A3" : "A4",
+                pageOrientation: ["1", "3"].includes(this.tipoInforme) ? "landscape" : "portrait",
+                pageMargins: ["1", "3"].includes(this.tipoInforme) ? [18, 18, 18, 18] : [26, 26, 26, 26],
                 ...(logoData ? { background: this.buildPdfWatermark(logoData) } : {}),
                 content,
                 styles: {
@@ -550,7 +758,7 @@ export default {
                     subheader: { fontSize: 12, bold: true, margin: [0, 6, 0, 6] },
                     ipsHeaderName: { fontSize: 13, bold: true },
                 },
-                defaultStyle: { fontSize: 9 },
+                defaultStyle: { fontSize: ["1", "3"].includes(this.tipoInforme) ? 5 : 9 },
             };
 
             pdfMake.createPdf(docDefinition).download(`${tipoArchivo}_${usuarioArchivo}_${rangoArchivo}.pdf`);
@@ -625,6 +833,10 @@ export default {
             const cantidad = Number(cup?.cantidad);
             return Number.isFinite(cantidad) && cantidad > 0 ? cantidad : 1;
         },
+        obtenerCantidadCupsPaciente(encuesta = {}) {
+            const cups = this.cupsPorEncuesta?.[encuesta.id] || [];
+            return cups.reduce((total, cup) => total + this.obtenerCantidadCup(cup), 0);
+        },
         obtenerNombresTipoActividad(encuesta) {
             return this.actividadesPorEncuesta[encuesta.id] || [];
         },
@@ -660,6 +872,12 @@ export default {
             }
 
             return texto;
+        },
+        nombrePaciente(row = {}) {
+            return String(
+                row.pacienteNombre ||
+                `${row.nombre1 || ""} ${row.nombre2 || ""} ${row.apellido1 || ""} ${row.apellido2 || ""}`
+            ).trim();
         }
 
     },
@@ -671,7 +889,12 @@ export default {
             return `${cargo} Informes`;
         },
         tipoInformeLabel() {
-            return this.tipoInforme === "2" ? "Actividades" : "Pacientes cerrados";
+            const labels = {
+                1: "Pacientes cerrados",
+                2: "Actividades",
+                3: "Pacientes facturados/CUPS",
+            };
+            return labels[this.tipoInforme] || "Pacientes cerrados";
         },
 
         totalRegistros() {
@@ -748,6 +971,17 @@ export default {
                 totalCups,
                 actividades,
                 cups,
+            };
+        },
+        resumenFacturacion() {
+            const pacientes = new Set(
+                (this.encuestasFiltradas || [])
+                    .map((row) => String(row.encuestaId || row.id || "").trim())
+                    .filter(Boolean)
+            );
+            return {
+                totalPacientes: pacientes.size,
+                totalCups: (this.encuestasFiltradas || []).length,
             };
         },
     },

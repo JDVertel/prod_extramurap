@@ -134,6 +134,24 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/psicologo_informes",
+    name: "psicologo_informes",
+    component: () => import("../views/psicologo_informes.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/tsocial_informes",
+    name: "tsocial_informes",
+    component: () => import("../views/tsocial_informes.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/nutricionista_informes",
+    name: "nutricionista_informes",
+    component: () => import("../views/nutricionista_informes.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/admin_informes",
     name: "admin_informes",
     component: () => import("../views/admin_informes.vue"),

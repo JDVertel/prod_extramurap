@@ -15,16 +15,16 @@
                 <div class="text-muted small">{{ mensajeProgreso }}</div>
             </div>
         </div>
-        <div class="container-fluid px-3 px-xl-4">
+        <div class="container-fluid px-3 px-xl-4 informe-param-container">
 
 
-            <h1><i class="bi bi-clipboard2-data h1"></i>Informe X Profesional</h1>
+            <h1 class="admin-informe-title"><i class="bi bi-clipboard2-data h1"></i>Informe X Profesional</h1>
             <div v-if="tieneContenidoInforme" class="mb-3">
-                <button type="button" class="btn btn-primary" @click="parametrizarNuevoInforme">
+                <button type="button" class="btn btn-primary admin-informe-action" @click="parametrizarNuevoInforme">
                     <i class="bi bi-sliders"></i> Parametrizar nuevo informe
                 </button>
             </div>
-            <div v-if="mostrarFormulario && !tieneContenidoInforme" class="row">
+            <div v-if="mostrarFormulario && !tieneContenidoInforme" class="row g-3 informe-form-row">
                 <h5>Seleccione:</h5>
                 <div class="col-12 col-md-2">
 
@@ -75,7 +75,7 @@
                     </select>
                 </div>
                 <div class="col-12 col-md-2 mt-3" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3' || tipoinforme == '4'">
-                    <button type="button" class="btn btn-warning  mt-3" @click="generarInforme()">
+                    <button type="button" class="btn btn-warning mt-3 admin-informe-action" @click="generarInforme()">
                         <i class="bi bi-clipboard2-data h6"></i> Generar Informe
                     </button>
                 </div>
@@ -103,7 +103,7 @@
                 <span><strong>CUPS:</strong> {{ totalCupsFacturacionReporte }}</span>
             </div>
 
-            <button v-if="tieneDatosTabla" class="btn btn-outline-success mb-2" @click="exportarExcelFiltrado">
+            <button v-if="tieneDatosTabla" class="btn btn-outline-success mb-2 admin-informe-action" @click="exportarExcelFiltrado">
                 <i class="bi bi-file-earmark-excel"></i> Exportar Excel
             </button>
             <div v-if="tipoinforme !== '4' && tieneDatosTabla">
@@ -340,6 +340,11 @@
     max-width: 100%;
 }
 
+.informe-param-container,
+.informe-form-row {
+    background: transparent;
+}
+
 .resumen-profesionales {
     background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
     border: 1px solid #dbe7f3;
@@ -451,6 +456,56 @@
 
 .chart-bar-fill-alt {
     background: linear-gradient(90deg, #16a34a 0%, #4ade80 100%);
+}
+
+@media (max-width: 767.98px) {
+    .datos {
+        padding: 0 8px;
+    }
+
+    .admin-informe-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1.35rem;
+        line-height: 1.2;
+    }
+
+    .admin-informe-title .h1 {
+        font-size: 1.35rem;
+        margin-bottom: 0;
+    }
+
+    .informe-form-row > [class*="col-"] {
+        width: 100%;
+    }
+
+    .admin-informe-action {
+        width: 100%;
+    }
+
+    .tabla-wrapper {
+        height: 62vh;
+        max-height: 62vh;
+    }
+
+    .top-scrollbar {
+        height: 14px;
+    }
+
+    .resumen-profesionales {
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .metric-value {
+        font-size: 1.6rem;
+    }
+
+    .chart-header {
+        flex-direction: column;
+        gap: 2px;
+    }
 }
 </style>
 
