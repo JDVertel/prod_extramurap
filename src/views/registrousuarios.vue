@@ -25,14 +25,12 @@
                 <div class="nav nav-tabs" id="nav-tab" role="tablist">
                     <button class="nav-link active" id="nav-home-tab" data-bs-toggle="tab" data-bs-target="#nav-home"
                         type="button" role="tab" aria-controls="nav-home" aria-selected="true">
-                        Gestionar
+                        <i class="bi bi-people-fill me-1"></i> Gestionar
                     </button>
                     <button class="nav-link" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-profile"
                         type="button" role="tab" aria-controls="nav-profile" aria-selected="false">
-                        + Crear
+                        <i class="bi bi-person-plus-fill me-1"></i> Crear
                     </button>
-                    <!-- <button class="nav-link" id="nav-contact-tab" data-bs-toggle="tab" data-bs-target="#nav-contact" type="button" role="tab" aria-controls="nav-contact" aria-selected="false">Contact</button>
-        <button class="nav-link" id="nav-disabled-tab" data-bs-toggle="tab" data-bs-target="#nav-disabled" type="button" role="tab" aria-controls="nav-disabled" aria-selected="false" disabled>Disabled</button> -->
                 </div>
             </nav>
             <div class="tab-content" id="nav-tabContent">
@@ -68,20 +66,41 @@
                         </div>
                     </div>
 
-                    <!-- Filtro por Convenio -->
+                    <!-- Buscar + tabs por convenio -->
                     <div class="filter-section mb-3">
-                        <label class="me-2"><strong>Filtrar por Convenio:</strong></label>
-                        <button v-for="conv in convenios" :key="conv"
-                            @click="convenioSeleccionado = convenioSeleccionado === conv ? '' : conv"
-                            :class="['btn btn-sm me-2 mb-2', convenioSeleccionado === conv ? 'btn-primary' : 'btn-outline-primary']">
-                            {{ conv === 'sin-convenio' ? 'Usuarios Administrativos' : conv }} ({{
-                                usuariosPorConvenio[conv] || 0 }})
-                        </button>
-                        <div class="mt-2">
-                            <label for="busquedaUsuario" class="me-2"><strong>Buscar:</strong></label>
+                        <div class="mb-3">
+                            <label for="busquedaUsuario" class="form-label mb-1"><strong>Buscar:</strong></label>
                             <input id="busquedaUsuario" v-model="busquedaUsuario" type="text" class="form-control"
                                 placeholder="Correo o número de documento" />
                         </div>
+
+                        <ul v-if="conveniosTabs.length" class="nav nav-tabs convenios-usuarios-tabs flex-wrap" role="tablist">
+                            <li
+                                v-for="conv in conveniosTabs"
+                                :key="`tab-conv-${conv}`"
+                                class="nav-item"
+                                role="presentation"
+                            >
+                                <button
+                                    type="button"
+                                    class="nav-link"
+                                    :class="{ active: convenioSeleccionado === conv }"
+                                    @click="seleccionarConvenioTab(conv)"
+                                >
+                                    <i
+                                        :class="conv === 'sin-convenio' ? 'bi bi-shield-check' : 'bi bi-building'"
+                                        class="me-1"
+                                    ></i>
+                                    {{ etiquetaConvenioTab(conv) }}
+                                    <span
+                                        class="badge rounded-pill ms-1"
+                                        :class="convenioSeleccionado === conv ? 'bg-primary' : 'bg-secondary'"
+                                    >
+                                        {{ contarUsuariosTabConvenio(conv) }}
+                                    </span>
+                                </button>
+                            </li>
+                        </ul>
                     </div>
 
                     <!-- Acciones masivas -->
@@ -153,50 +172,53 @@
                             No hay usuarios registrados en el sistema.
                         </div>
 
-                        <!-- Tabla compacta agrupada por convenio y luego por grupo -->
-                        <div v-else-if="!loadingUsers">
-                            <div v-if="Object.keys(usuariosAgrupadosPorConvenioYGrupoFiltrado).length === 0"
-                                class="alert alert-info">
-                                No se encontraron usuarios con el correo o documento ingresado.
+                        <!-- Contenido del convenio activo -->
+                        <div v-else-if="!loadingUsers" class="convenio-tab-content">
+                            <div v-if="!convenioSeleccionado || !gruposConvenioActivo" class="alert alert-info">
+                                Seleccione un convenio para ver sus usuarios.
                             </div>
-                            <!-- Convenios -->
-                            <div v-for="(gruposPorConvenio, convenio) in usuariosAgrupadosPorConvenioYGrupoFiltrado"
-                                :key="convenio" class="convenio-section mb-4">
+                            <div v-else-if="Object.keys(gruposConvenioActivo).length === 0" class="alert alert-info">
+                                No se encontraron usuarios en
+                                <strong>{{ etiquetaConvenioTab(convenioSeleccionado) }}</strong>
+                                con el correo o documento ingresado.
+                            </div>
+                            <template v-else>
+                            <div class="convenio-section mb-4">
                                 <div class="convenio-header">
                                     <span class="convenio-title">
-                                        <i :class="convenio === 'sin-convenio' ? 'bi bi-shield-check' : 'bi bi-building'"
+                                        <i :class="convenioSeleccionado === 'sin-convenio' ? 'bi bi-shield-check' : 'bi bi-building'"
                                             class="me-2"></i>
-                                        {{ convenio === 'sin-convenio' ? 'Usuarios Administrativos' : convenio }}
+                                        {{ etiquetaConvenioTab(convenioSeleccionado) }}
                                     </span>
-                                    <span class="convenio-count">{{ contarUsuariosConvenio(gruposPorConvenio) }}</span>
+                                    <span class="convenio-count">{{ contarUsuariosConvenio(gruposConvenioActivo) }}</span>
                                 </div>
 
                                 <!-- Acordeón con grupos colapsables -->
-                                <div class="accordion" :id="'accordion-' + sanitizeId(convenio)">
-                                    <div v-for="grupo in ordenarGruposConvenio(gruposPorConvenio)"
-                                        :key="`${convenio}-${grupo}`"
+                                <div class="accordion" :id="'accordion-' + sanitizeId(convenioSeleccionado)">
+                                    <div v-for="grupo in ordenarGruposConvenio(gruposConvenioActivo)"
+                                        :key="`${convenioSeleccionado}-${grupo}`"
                                         class="accordion-item">
                                         <h2 class="accordion-header">
                                             <button
                                                 class="accordion-button collapsed"
                                                 type="button"
                                                 data-bs-toggle="collapse"
-                                                :data-bs-parent="'#accordion-' + sanitizeId(convenio)"
-                                                :data-bs-target="'#collapse-' + sanitizeId(convenio) + '-' + sanitizeId(grupo)"
-                                                :aria-controls="'collapse-' + sanitizeId(convenio) + '-' + sanitizeId(grupo)"
+                                                :data-bs-parent="'#accordion-' + sanitizeId(convenioSeleccionado)"
+                                                :data-bs-target="'#collapse-' + sanitizeId(convenioSeleccionado) + '-' + sanitizeId(grupo)"
+                                                :aria-controls="'collapse-' + sanitizeId(convenioSeleccionado) + '-' + sanitizeId(grupo)"
                                                 aria-expanded="false"
                                             >
                                                 <i class="bi bi-people-fill me-2"></i>
                                                 <span class="grupo-title-text">
                                                     {{ etiquetaGrupoListado(grupo) }}
                                                 </span>
-                                                <span class="ms-auto grupo-count">{{ gruposPorConvenio[grupo].length }}</span>
+                                                <span class="ms-auto grupo-count">{{ gruposConvenioActivo[grupo].length }}</span>
                                             </button>
                                         </h2>
                                         <div
-                                            :id="'collapse-' + sanitizeId(convenio) + '-' + sanitizeId(grupo)"
+                                            :id="'collapse-' + sanitizeId(convenioSeleccionado) + '-' + sanitizeId(grupo)"
                                             class="accordion-collapse collapse"
-                                            :data-bs-parent="'#accordion-' + sanitizeId(convenio)"
+                                            :data-bs-parent="'#accordion-' + sanitizeId(convenioSeleccionado)"
                                         >
                                             <div class="accordion-body p-0">
                                                 <div class="tabla-usuarios">
@@ -207,9 +229,9 @@
                                                                     <input
                                                                         type="checkbox"
                                                                         class="form-check-input"
-                                                                        :checked="grupoEstaSeleccionadoCompleto(gruposPorConvenio[grupo])"
-                                                                        :indeterminate="grupoEstaParcialmenteSeleccionado(gruposPorConvenio[grupo])"
-                                                                        @change="toggleSeleccionGrupo(gruposPorConvenio[grupo], $event.target.checked)"
+                                                                        :checked="grupoEstaSeleccionadoCompleto(gruposConvenioActivo[grupo])"
+                                                                        :indeterminate="grupoEstaParcialmenteSeleccionado(gruposConvenioActivo[grupo])"
+                                                                        @change="toggleSeleccionGrupo(gruposConvenioActivo[grupo], $event.target.checked)"
                                                                         :title="'Seleccionar grupo ' + grupo"
                                                                     />
                                                                 </th>
@@ -224,7 +246,7 @@
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            <tr v-for="user in gruposPorConvenio[grupo]" :key="user.uid || user.id || user.numDocumento"
+                                                            <tr v-for="user in gruposConvenioActivo[grupo]" :key="user.uid || user.id || user.numDocumento"
                                                                 :class="[
                                                                     'cargo-' + getCargoClass(user.cargo),
                                                                     { 'usuario-inactivo': esUsuarioInactivo(user), 'usuario-seleccionado': estaUsuarioSeleccionado(user) }
@@ -304,6 +326,7 @@
                                     </div>
                                 </div>
                             </div>
+                            </template>
                         </div>
                     </div>
                 </div>
@@ -413,7 +436,7 @@
                                                 <label class="form-check-label" for="editGrupoFactTodos">Todos</label>
                                             </div>
                                             <p v-if="gruposFacturadorDisponibles('edit').length === 0" class="small text-muted mb-2">
-                                                No hay grupos operativos cargados. Desmarque "Todos" y guarde cuando existan profesionales con grupo asignado.
+                                                No hay grupos operativos en el convenio seleccionado. Desmarque "Todos" solo cuando existan profesionales con grupo en ese convenio.
                                             </p>
                                             <div v-for="grupoItem in gruposFacturadorDisponibles('edit')" :key="`edit-fact-grupo-${grupoItem}`"
                                                 class="form-check">
@@ -579,341 +602,397 @@
 
                 <div class="tab-pane fade" id="nav-profile" role="tabpanel" aria-labelledby="nav-profile-tab"
                     tabindex="0">
-                    <!-- Carga masiva de usuarios por CSV -->
-                    <div class="mt-5 p-4 border rounded bg-light">
-                        <!-- La IPS efectiva depende del perfil autenticado -->
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">
-                                {{ isSuperUser ? 'Superusuario: cada fila debe indicar su IPS en la columna idips.' : 'Los usuarios cargados quedarán asociados a la IPS de tu sesión:' }}
-                                <span v-if="!isSuperUser" class="text-primary">
-                                    {{ $store?.state?.userData?.ipsId ? $store.state.userData.ipsId : 'No disponible' }}
-                                </span>
-                            </label>
-                            <div v-if="!isSuperUser && !$store?.state?.userData?.ipsId" class="alert alert-danger mt-2">
-                                No se detectó una IPS válida en tu sesión. No podrás cargar usuarios masivamente.
-                            </div>
-                        </div>
-                        <h2 class="h5 mb-3"><i class="bi bi-upload"></i> Carga masiva de usuarios por CSV</h2>
-                        <p class="mb-2">
-                            Sube un archivo CSV con estas columnas (encabezados exactos).
-                            <strong v-if="isSuperUser">Para superusuario, <span class="text-primary">idips</span> es obligatorio en cada fila.</strong>
-                            <strong v-else>La columna <span class="text-primary">idips</span> es opcional; se usará la IPS de tu sesión.</strong>
-                        </p>
-                        <ul class="small text-muted mb-3">
-                            <li><strong>Cargo:</strong> Auxiliar de enfermeria, Enfermero, Medico, Fact, Psicologo, Tsocial, Nutricionista, Higienista oral.</li>
-                            <li><strong>Convenio:</strong> Extramural, E Basicos, PIC, Unidesa.</li>
-                            <li><strong>Grupo:</strong> número(s) operativos (<code>1</code> o <code>1,2</code>). Para facturadores use <code>F</code> (todos) o grupos específicos.</li>
-                            <li><strong>Telefono</strong> y <strong>FechaFinContrato</strong> son opcionales (<code>YYYY-MM-DD</code> o <code>DD/MM/YYYY</code>).</li>
-                            <li>Si el <strong>documento</strong> o el <strong>email</strong> ya existen, el usuario se <strong>salta</strong> (no se crea) y aparece en el informe final.</li>
+                    <div class="crear-usuarios-panel mt-3">
+                        <ul class="nav nav-tabs crear-subtabs mb-3" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button
+                                    type="button"
+                                    class="nav-link"
+                                    :class="{ active: crearSubTab === 'individual' }"
+                                    @click="crearSubTab = 'individual'"
+                                >
+                                    <i class="bi bi-person-plus me-1"></i> Individual
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button
+                                    type="button"
+                                    class="nav-link"
+                                    :class="{ active: crearSubTab === 'masiva' }"
+                                    @click="crearSubTab = 'masiva'"
+                                >
+                                    <i class="bi bi-filetype-csv me-1"></i> Carga masiva
+                                </button>
+                            </li>
                         </ul>
-                        <div class="table-responsive mb-2">
-                            <table class="table table-bordered table-sm align-middle mb-0">
-                                <thead class="table-secondary">
-                                    <tr>
-                                        <th>Nombre <span class="text-danger">*</span></th>
-                                        <th>Email <span class="text-danger">*</span></th>
-                                        <th>Cargo <span class="text-danger">*</span></th>
-                                        <th>Grupo <span class="text-danger">*</span></th>
-                                        <th>Convenio <span class="text-danger">*</span></th>
-                                        <th>Documento <span class="text-danger">*</span></th>
-                                        <th>Telefono</th>
-                                        <th>FechaFinContrato</th>
-                                        <th v-if="isSuperUser">idips <span class="text-danger">*</span></th>
-                                        <th v-else>idips <span class="text-muted">(opcional)</span></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>Juan Pérez</td>
-                                        <td>juan@email.com</td>
-                                        <td>Medico</td>
-                                        <td>1</td>
-                                        <td>PIC</td>
-                                        <td>12345678</td>
-                                        <td>3001234567</td>
-                                        <td>2026-12-31</td>
-                                        <td>{{ isSuperUser ? 'ips_001' : '—' }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Ana Gómez</td>
-                                        <td>ana@email.com</td>
-                                        <td>Fact</td>
-                                        <td>F</td>
-                                        <td>Unidesa</td>
-                                        <td>87654321</td>
-                                        <td>3109876543</td>
-                                        <td>31/12/2026</td>
-                                        <td>{{ isSuperUser ? 'ips_001' : '—' }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Luis Rojas</td>
-                                        <td>luis@email.com</td>
-                                        <td>Higienista oral</td>
-                                        <td>2</td>
-                                        <td>Unidesa</td>
-                                        <td>11223344</td>
-                                        <td>3201112233</td>
-                                        <td>2027-06-30</td>
-                                        <td>{{ isSuperUser ? 'ips_002' : '—' }}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <p class="small text-muted mb-3">
-                            Separador recomendado: coma (<code>,</code>). Codificación UTF-8 o Windows-1252.
-                            La contraseña inicial del usuario será su número de documento.
-                        </p>
-                        <input type="file" accept=".csv" @change="handleCsvUpload" class="form-control mb-2" />
-                        <button class="btn btn-success mt-2" :disabled="!(csvUsers && csvUsers.length) || loadingCsv || (!isSuperUser && !$store?.state?.userData?.ipsId)" @click="enviarCsvUsuarios">
-                            <i class="bi bi-person-plus-fill"></i>
-                            {{ loadingCsv ? 'Procesando...' : 'Crear usuarios masivamente' }}
-                        </button>
-                        <div v-if="csvError" class="alert alert-danger mt-2">{{ csvError }}</div>
-                        <div v-if="csvSuccess" class="alert alert-success mt-2">{{ csvSuccess }}</div>
 
-                        <div v-if="csvInformeNoCreados && csvInformeNoCreados.length" class="mt-3">
-                            <div class="alert alert-warning mb-2">
-                                <strong>Informe de usuarios no creados:</strong>
-                                {{ csvInformeNoCreados.length }} registro(s) no se crearon (saltados o con error).
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered align-middle">
-                                    <thead class="table-warning">
-                                        <tr>
-                                            <th>Fila</th>
-                                            <th>Nombre</th>
-                                            <th>Email</th>
-                                            <th>Documento</th>
-                                            <th>Estado</th>
-                                            <th>Descripción</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr v-for="(item, idx) in csvInformeNoCreados" :key="`csv-nocreado-${idx}`">
-                                            <td>{{ item.fila || '—' }}</td>
-                                            <td>{{ item.nombre || '—' }}</td>
-                                            <td>{{ item.email || '—' }}</td>
-                                            <td>{{ item.documento || '—' }}</td>
-                                            <td>
-                                                <span
-                                                    class="badge"
-                                                    :class="item.status === 'saltado' ? 'bg-warning text-dark' : 'bg-danger'"
-                                                >
-                                                    {{ item.status === 'saltado' ? 'Saltado' : 'Error' }}
+                        <!-- Subtab: creación individual -->
+                        <div v-show="crearSubTab === 'individual'" class="crear-subpanel">
+                            <form @submit.prevent="createUserByAdmin" :class="['form-convenio-wrapper', convenioFormClass]">
+                                <h1 class="display-6 mb-2">Crear usuario</h1>
+                                <p class="text-muted mb-3">
+                                    Registra un usuario a la vez. Completa los campos obligatorios y verifica documento y correo antes de guardar.
+                                </p>
+
+                                <!-- Selector de IPS (solo visible para el superusuario) -->
+                                <div v-if="isSuperUser" class="alert alert-primary border border-primary mb-3">
+                                    <label class="form-label fw-bold mb-1">
+                                        <i class="bi bi-hospital me-1"></i> IPS a la que pertenecerá el usuario
+                                    </label>
+                                    <input
+                                        type="text"
+                                        v-model="ipsSearch"
+                                        class="form-control mb-2"
+                                        placeholder="Filtrar IPS por nombre o ID..."
+                                        autocomplete="off"
+                                    />
+                                    <select v-model="selectedIpsId" class="form-select" :class="{ 'is-invalid': isAdmin && !selectedIpsId && formularioIntentado }">
+                                        <option value="" disabled>— Seleccione una IPS —</option>
+                                        <option v-for="ips in ipsListFiltrada" :key="ips.id" :value="ips.id">
+                                            {{ ips.nombre || ips.name || ips.id }}
+                                        </option>
+                                    </select>
+                                    <div class="invalid-feedback" v-if="isAdmin && !selectedIpsId && formularioIntentado">
+                                        Debes seleccionar una IPS para el nuevo usuario.
+                                    </div>
+                                    <small class="text-muted mt-1 d-block" v-if="!selectedIpsId">
+                                        Campo obligatorio — el usuario quedará asociado a la IPS seleccionada.
+                                    </small>
+                                    <small class="text-success mt-1 d-block" v-else>
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        IPS seleccionada: <strong>{{ ipsNombreSeleccionada }}</strong>
+                                    </small>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col col-12 col-md-4 mb-3">
+                                        <label for="convenio">IPS / Programa</label>
+                                        <select id="convenio" v-model="convenio" class="form-select" required @change="onConvenioChange">
+                                            <option value="">Seleccione una opción</option>
+                                            <option v-for="conv in conveniosPrograma" :key="`create-conv-${conv}`" :value="conv">
+                                                {{ conv }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="col col-12 col-md-4 mb-3">
+                                        <label for="ips">Cargo</label>
+                                        <select id="rol" v-model="cargo" class="form-select" required>
+                                            <option value="Auxiliar de enfermeria">Auxiliar</option>
+                                            <option value="Enfermero">Enfermero</option>
+                                            <option value="Medico">Medico</option>
+                                            <option value="Fact">Facturador</option>
+                                            <option v-if="convenio === 'E Basicos'" value="Psicologo">Psicologo</option>
+                                            <option v-if="convenio === 'E Basicos'" value="Tsocial">Trabajador social</option>
+                                            <option v-if="convenio === 'PIC'" value="Psicologo">Psicologo</option>
+                                            <option v-if="convenio === 'PIC'" value="Tsocial">Trabajador social</option>
+                                            <option v-if="convenio === 'PIC'" value="Nutricionista">Nutricionista</option>
+                                            <option v-if="convenio === 'Unidesa'" value="Higienista oral">Higienista oral</option>
+                                        </select>
+                                    </div>
+                                    <div class="col col-12 col-md-4 mb-3">
+                                        <label for="numDocumento">Número de Documento:</label>
+                                        <div class="input-group">
+                                            <input type="text" id="numDocumento" v-model="numDocumento"
+                                                @blur="verificarDocumento" class="form-control"
+                                                :class="{ 'is-valid': documentoValido === true, 'is-invalid': documentoValido === false }"
+                                                required />
+                                            <span class="input-group-text" v-if="verificandoDocumento">
+                                                <span class="mini-progress" role="progressbar" aria-label="Verificando documento">
+                                                    <span class="mini-progress-bar"></span>
                                                 </span>
-                                            </td>
-                                            <td class="small">{{ item.motivo || item.error || 'Sin detalle' }}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                                            </span>
+                                            <span class="input-group-text" v-else-if="documentoValido === true">
+                                                <i class="bi bi-check-circle-fill text-success"></i>
+                                            </span>
+                                            <span class="input-group-text" v-else-if="documentoValido === false">
+                                                <i class="bi bi-x-circle-fill text-danger"></i>
+                                            </span>
+                                        </div>
+                                        <div class="valid-feedback" v-if="documentoValido === true">
+                                            Documento disponible
+                                        </div>
+                                        <div class="invalid-feedback" v-if="documentoValido === false">
+                                            Este documento ya está registrado
+                                        </div>
+                                    </div>
+                                    <div class="col col-12 col-md-4 mb-3">
+                                        <label for="email">Email del Usuario:</label>
+                                        <div class="input-group">
+                                            <input type="email" id="email" v-model="userEmail" @blur="verificarEmail"
+                                                class="form-control"
+                                                :class="{ 'is-valid': emailValido === true, 'is-invalid': emailValido === false }"
+                                                required />
+                                            <span class="input-group-text" v-if="verificandoEmail">
+                                                <span class="mini-progress" role="progressbar" aria-label="Verificando correo">
+                                                    <span class="mini-progress-bar"></span>
+                                                </span>
+                                            </span>
+                                            <span class="input-group-text" v-else-if="emailValido === true">
+                                                <i class="bi bi-check-circle-fill text-success"></i>
+                                            </span>
+                                            <span class="input-group-text" v-else-if="emailValido === false">
+                                                <i class="bi bi-x-circle-fill text-danger"></i>
+                                            </span>
+                                        </div>
+                                        <div class="valid-feedback" v-if="emailValido === true">
+                                            Email disponible
+                                        </div>
+                                        <div class="invalid-feedback" v-if="emailValido === false">
+                                            Este email ya está registrado
+                                        </div>
+                                    </div>
+                                    <div class="col col-12 col-md-4">
+                                        <label for="nombre">Nombre Completo:</label>
+                                        <input type="text" id="nombre" v-model="nombre" required />
+                                    </div>
+                                    <div class="col col-12 col-md-4 mb-3">
+                                        <label for="telefono">Número de teléfono:</label>
+                                        <input type="tel" id="telefono" v-model="telefono" class="form-control"
+                                            placeholder="Ej: 3001234567" />
+                                    </div>
+                                    <div class="col col-12 col-md-4 mb-3">
+                                        <label for="fechaFinContrato">Fecha de finalización de contrato:</label>
+                                        <input type="date" id="fechaFinContrato" v-model="fechaFinContrato" class="form-control" />
+                                    </div>
+
+                                    <div class="col col-12 col-md-4 mb-3" v-if="
+                                        cargo === 'Auxiliar de enfermeria' ||
+                                        cargo === 'Enfermero' ||
+                                        cargo === 'Medico' ||
+                                        cargo === 'Psicologo' ||
+                                        cargo === 'Tsocial' ||
+                                        cargo === 'Nutricionista' ||
+                                        cargo === 'Higienista oral'
+                                    ">
+                                        <label for="grupo"># Grupo(s)</label>
+                                        <input type="text" id="grupo" v-model="grupo" placeholder="Ej: 1,2,F" required />
+                                    </div>
+                                    <div class="col col-12 mb-3" v-if="cargo === 'Fact'">
+                                        <label class="form-label">Grupos asignados</label>
+                                        <div class="grupos-facturador-panel border rounded p-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="grupoFactTodos"
+                                                    :checked="facturadorSeleccionoTodos(grupo)"
+                                                    @change="toggleGrupoFacturador('todos', 'create')" />
+                                                <label class="form-check-label" for="grupoFactTodos">Todos</label>
+                                            </div>
+                                            <p v-if="gruposFacturadorDisponibles('create').length === 0" class="small text-muted mb-2">
+                                                No hay grupos operativos en el convenio seleccionado. Puede dejar "Todos" o crear profesionales con grupo en ese convenio.
+                                            </p>
+                                            <div v-for="grupoItem in gruposFacturadorDisponibles('create')" :key="`fact-grupo-${grupoItem}`"
+                                                class="form-check">
+                                                <input class="form-check-input" type="checkbox" :id="`fact-grupo-${grupoItem}`"
+                                                    :checked="gruposFacturadorSeleccionados(grupo).includes(grupoItem)"
+                                                    :disabled="facturadorSeleccionoTodos(grupo)"
+                                                    @change="toggleGrupoFacturador(grupoItem, 'create')" />
+                                                <label class="form-check-label" :for="`fact-grupo-${grupoItem}`">
+                                                    Grupo {{ grupoItem }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" :disabled="loading || !formularioValido" class="btn btn-warning">
+                                    {{ loading ? "Creando..." : "Crear Usuario y Enviar Enlace de Contraseña" }}
+                                </button>
+                                <small class="text-muted ms-2" v-if="!formularioValido">
+                                    * Completa todos los campos requeridos y verifica que documento y email sean válidos
+                                </small>
+                            </form>
                         </div>
 
-                        <div v-if="csvPreview && csvPreview.length">
-                            <h6 class="mt-3">Vista previa de los primeros registros:</h6>
-                            <table class="table table-sm table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Nombre</th>
-                                        <th>Email</th>
-                                        <th>Cargo</th>
-                                        <th>Grupo</th>
-                                        <th>Convenio</th>
-                                        <th>Documento</th>
-                                        <th v-if="isSuperUser">idips</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="(row, idx) in csvPreview" :key="idx">
-                                        <td>{{ row.Nombre }}</td>
-                                        <td>{{ row.Email }}</td>
-                                        <td>{{ row.Cargo }}</td>
-                                        <td>{{ row.Grupo }}</td>
-                                        <td>{{ row.Convenio }}</td>
-                                        <td>{{ row.Documento }}</td>
-                                        <td v-if="isSuperUser">{{ row.idips || '—' }}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <!-- Subtab: carga masiva CSV -->
+                        <div v-show="crearSubTab === 'masiva'" class="crear-subpanel">
+                            <div class="p-3 p-md-4 border rounded bg-light">
+                                <h2 class="h4 mb-2">
+                                    <i class="bi bi-upload"></i> Carga masiva de usuarios por CSV
+                                </h2>
+                                <p class="text-muted mb-3">
+                                    Ideal para registrar varios usuarios de una sola vez. Descarga o arma un CSV con los encabezados indicados, cárgalo y revisa la vista previa antes de confirmar.
+                                </p>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold mb-1">
+                                        {{ isSuperUser
+                                            ? 'Superusuario: cada fila debe indicar su IPS en la columna idips.'
+                                            : 'Los usuarios cargados quedarán asociados a la IPS de tu sesión:' }}
+                                        <span v-if="!isSuperUser" class="text-primary">
+                                            {{ $store?.state?.userData?.ipsId ? $store.state.userData.ipsId : 'No disponible' }}
+                                        </span>
+                                    </label>
+                                    <div v-if="!isSuperUser && !$store?.state?.userData?.ipsId" class="alert alert-danger mt-2 mb-0">
+                                        No se detectó una IPS válida en tu sesión. No podrás cargar usuarios masivamente.
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-info small mb-3">
+                                    <strong>Instrucciones rápidas</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>
+                                            Encabezados exactos requeridos:
+                                            <code>Nombre</code>, <code>Email</code>, <code>Cargo</code>,
+                                            <code>Grupo</code>, <code>Convenio</code>, <code>Documento</code>.
+                                        </li>
+                                        <li>
+                                            Opcionales: <code>Telefono</code>, <code>FechaFinContrato</code>
+                                            (<span v-if="isSuperUser">; <code>idips</code> es <strong>obligatorio</strong></span>
+                                            <span v-else>; <code>idips</code> es opcional (se usa la IPS de sesión)</span>.
+                                        </li>
+                                        <li>Separador recomendado: coma (<code>,</code>). Codificación UTF-8 o Windows-1252.</li>
+                                        <li>La contraseña inicial del usuario será su número de documento.</li>
+                                        <li>Si el documento o el email ya existen, el registro se <strong>salta</strong> y queda en el informe final.</li>
+                                    </ul>
+                                </div>
+
+                                <h3 class="h6 mb-2">Valores aceptados</h3>
+                                <ul class="small text-muted mb-3">
+                                    <li><strong>Cargo:</strong> Auxiliar de enfermeria, Enfermero, Medico, Fact, Psicologo, Tsocial, Nutricionista, Higienista oral.</li>
+                                    <li><strong>Convenio:</strong> Extramural, E Basicos, PIC, Unidesa.</li>
+                                    <li><strong>Grupo:</strong> número(s) operativos (<code>1</code> o <code>1,2</code>). Para facturadores use <code>F</code> (todos) o grupos específicos.</li>
+                                    <li><strong>FechaFinContrato:</strong> <code>YYYY-MM-DD</code> o <code>DD/MM/YYYY</code>.</li>
+                                </ul>
+
+                                <h3 class="h6 mb-2">Ejemplo de columnas</h3>
+                                <div class="table-responsive mb-3">
+                                    <table class="table table-bordered table-sm align-middle mb-0 bg-white">
+                                        <thead class="table-secondary">
+                                            <tr>
+                                                <th>Nombre <span class="text-danger">*</span></th>
+                                                <th>Email <span class="text-danger">*</span></th>
+                                                <th>Cargo <span class="text-danger">*</span></th>
+                                                <th>Grupo <span class="text-danger">*</span></th>
+                                                <th>Convenio <span class="text-danger">*</span></th>
+                                                <th>Documento <span class="text-danger">*</span></th>
+                                                <th>Telefono</th>
+                                                <th>FechaFinContrato</th>
+                                                <th v-if="isSuperUser">idips <span class="text-danger">*</span></th>
+                                                <th v-else>idips <span class="text-muted">(opcional)</span></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>Juan Pérez</td>
+                                                <td>juan@email.com</td>
+                                                <td>Medico</td>
+                                                <td>1</td>
+                                                <td>PIC</td>
+                                                <td>12345678</td>
+                                                <td>3001234567</td>
+                                                <td>2026-12-31</td>
+                                                <td>{{ isSuperUser ? 'ips_001' : '—' }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Ana Gómez</td>
+                                                <td>ana@email.com</td>
+                                                <td>Fact</td>
+                                                <td>F</td>
+                                                <td>Unidesa</td>
+                                                <td>87654321</td>
+                                                <td>3109876543</td>
+                                                <td>31/12/2026</td>
+                                                <td>{{ isSuperUser ? 'ips_001' : '—' }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Luis Rojas</td>
+                                                <td>luis@email.com</td>
+                                                <td>Higienista oral</td>
+                                                <td>2</td>
+                                                <td>Unidesa</td>
+                                                <td>11223344</td>
+                                                <td>3201112233</td>
+                                                <td>2027-06-30</td>
+                                                <td>{{ isSuperUser ? 'ips_002' : '—' }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <label class="form-label fw-semibold">Archivo CSV</label>
+                                <input type="file" accept=".csv" @change="handleCsvUpload" class="form-control mb-2" />
+                                <button
+                                    class="btn btn-success"
+                                    type="button"
+                                    :disabled="!(csvUsers && csvUsers.length) || loadingCsv || (!isSuperUser && !$store?.state?.userData?.ipsId)"
+                                    @click="enviarCsvUsuarios"
+                                >
+                                    <i class="bi bi-person-plus-fill"></i>
+                                    {{ loadingCsv ? 'Procesando...' : 'Crear usuarios masivamente' }}
+                                </button>
+
+                                <div v-if="csvError" class="alert alert-danger mt-3 mb-0">{{ csvError }}</div>
+                                <div v-if="csvSuccess" class="alert alert-success mt-3 mb-0">{{ csvSuccess }}</div>
+
+                                <div v-if="csvInformeNoCreados && csvInformeNoCreados.length" class="mt-3">
+                                    <div class="alert alert-warning mb-2">
+                                        <strong>Informe de usuarios no creados:</strong>
+                                        {{ csvInformeNoCreados.length }} registro(s) no se crearon (saltados o con error).
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered align-middle bg-white">
+                                            <thead class="table-warning">
+                                                <tr>
+                                                    <th>Fila</th>
+                                                    <th>Nombre</th>
+                                                    <th>Email</th>
+                                                    <th>Documento</th>
+                                                    <th>Estado</th>
+                                                    <th>Descripción</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="(item, idx) in csvInformeNoCreados" :key="`csv-nocreado-${idx}`">
+                                                    <td>{{ item.fila || '—' }}</td>
+                                                    <td>{{ item.nombre || '—' }}</td>
+                                                    <td>{{ item.email || '—' }}</td>
+                                                    <td>{{ item.documento || '—' }}</td>
+                                                    <td>
+                                                        <span
+                                                            class="badge"
+                                                            :class="item.status === 'saltado' ? 'bg-warning text-dark' : 'bg-danger'"
+                                                        >
+                                                            {{ item.status === 'saltado' ? 'Saltado' : 'Error' }}
+                                                        </span>
+                                                    </td>
+                                                    <td class="small">{{ item.motivo || item.error || 'Sin detalle' }}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div v-if="csvPreview && csvPreview.length" class="mt-3">
+                                    <h6 class="mb-2">Vista previa de los primeros registros</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped bg-white mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Nombre</th>
+                                                    <th>Email</th>
+                                                    <th>Cargo</th>
+                                                    <th>Grupo</th>
+                                                    <th>Convenio</th>
+                                                    <th>Documento</th>
+                                                    <th v-if="isSuperUser">idips</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="(row, idx) in csvPreview" :key="idx">
+                                                    <td>{{ row.Nombre }}</td>
+                                                    <td>{{ row.Email }}</td>
+                                                    <td>{{ row.Cargo }}</td>
+                                                    <td>{{ row.Grupo }}</td>
+                                                    <td>{{ row.Convenio }}</td>
+                                                    <td>{{ row.Documento }}</td>
+                                                    <td v-if="isSuperUser">{{ row.idips || '—' }}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <form @submit.prevent="createUserByAdmin" :class="['form-convenio-wrapper', convenioFormClass]">
-                    <h1 class="display-6 mb-3">Crear Usuario</h1>
-
-                        <!-- Selector de IPS (solo visible para el superusuario) -->
-                        <div v-if="isSuperUser" class="alert alert-primary border border-primary mb-3">
-                            <label class="form-label fw-bold mb-1">
-                                <i class="bi bi-hospital me-1"></i> IPS a la que pertenecerá el usuario
-                            </label>
-                            <input
-                                type="text"
-                                v-model="ipsSearch"
-                                class="form-control mb-2"
-                                placeholder="Filtrar IPS por nombre o ID..."
-                                autocomplete="off"
-                            />
-                            <select v-model="selectedIpsId" class="form-select" :class="{ 'is-invalid': isAdmin && !selectedIpsId && formularioIntentado }">
-                                <option value="" disabled>— Seleccione una IPS —</option>
-                                <option v-for="ips in ipsListFiltrada" :key="ips.id" :value="ips.id">
-                                    {{ ips.nombre || ips.name || ips.id }}
-                                </option>
-                            </select>
-                            <div class="invalid-feedback" v-if="isAdmin && !selectedIpsId && formularioIntentado">
-                                Debes seleccionar una IPS para el nuevo usuario.
-                            </div>
-                            <small class="text-muted mt-1 d-block" v-if="!selectedIpsId">
-                                Campo obligatorio — el usuario quedará asociado a la IPS seleccionada.
-                            </small>
-                            <small class="text-success mt-1 d-block" v-else>
-                                <i class="bi bi-check-circle-fill"></i>
-                                IPS seleccionada: <strong>{{ ipsNombreSeleccionada }}</strong>
-                            </small>
-                        </div>
-
-                        <div class="row">
-                            <div class="col col-12 col-md-4 mb-3">
-                                <label for="convenio">IPS / Programa</label>
-                                <select id="convenio" v-model="convenio" class="form-select" required @change="onConvenioChange">
-                                    <option value="">Seleccione una opción</option>
-                                    <option v-for="conv in conveniosPrograma" :key="`create-conv-${conv}`" :value="conv">
-                                        {{ conv }}
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="col col-12 col-md-4 mb-3">
-                                <label for="ips">Cargo</label>
-                                <select id="rol" v-model="cargo" class="form-select" required>
-                                    <option value="Auxiliar de enfermeria">Auxiliar</option>
-                                    <option value="Enfermero">Enfermero</option>
-                                    <option value="Medico">Medico</option>
-                                    <option value="Fact">Facturador</option>
-                                    <option v-if="convenio === 'E Basicos'" value="Psicologo">Psicologo</option>
-                                    <option v-if="convenio === 'E Basicos'" value="Tsocial">Trabajador social</option>
-                                    <option v-if="convenio === 'PIC'" value="Psicologo">Psicologo</option>
-                                    <option v-if="convenio === 'PIC'" value="Tsocial">Trabajador social</option>
-                                    <option v-if="convenio === 'PIC'" value="Nutricionista">Nutricionista</option>
-                                    <option v-if="convenio === 'Unidesa'" value="Higienista oral">Higienista oral</option>
-                                </select>
-                            </div>
-                            <div class="col col-12 col-md-4 mb-3">
-                                <label for="numDocumento">Número de Documento:</label>
-                                <div class="input-group">
-                                    <input type="text" id="numDocumento" v-model="numDocumento"
-                                        @blur="verificarDocumento" class="form-control"
-                                        :class="{ 'is-valid': documentoValido === true, 'is-invalid': documentoValido === false }"
-                                        required />
-                                    <span class="input-group-text" v-if="verificandoDocumento">
-                                        <span class="mini-progress" role="progressbar" aria-label="Verificando documento">
-                                            <span class="mini-progress-bar"></span>
-                                        </span>
-                                    </span>
-                                    <span class="input-group-text" v-else-if="documentoValido === true">
-                                        <i class="bi bi-check-circle-fill text-success"></i>
-                                    </span>
-                                    <span class="input-group-text" v-else-if="documentoValido === false">
-                                        <i class="bi bi-x-circle-fill text-danger"></i>
-                                    </span>
-                                </div>
-                                <div class="valid-feedback" v-if="documentoValido === true">
-                                    Documento disponible
-                                </div>
-                                <div class="invalid-feedback" v-if="documentoValido === false">
-                                    Este documento ya está registrado
-                                </div>
-                            </div>
-                            <div class="col col-12 col-md-4 mb-3">
-                                <label for="email">Email del Usuario:</label>
-                                <div class="input-group">
-                                    <input type="email" id="email" v-model="userEmail" @blur="verificarEmail"
-                                        class="form-control"
-                                        :class="{ 'is-valid': emailValido === true, 'is-invalid': emailValido === false }"
-                                        required />
-                                    <span class="input-group-text" v-if="verificandoEmail">
-                                        <span class="mini-progress" role="progressbar" aria-label="Verificando correo">
-                                            <span class="mini-progress-bar"></span>
-                                        </span>
-                                    </span>
-                                    <span class="input-group-text" v-else-if="emailValido === true">
-                                        <i class="bi bi-check-circle-fill text-success"></i>
-                                    </span>
-                                    <span class="input-group-text" v-else-if="emailValido === false">
-                                        <i class="bi bi-x-circle-fill text-danger"></i>
-                                    </span>
-                                </div>
-                                <div class="valid-feedback" v-if="emailValido === true">
-                                    Email disponible
-                                </div>
-                                <div class="invalid-feedback" v-if="emailValido === false">
-                                    Este email ya está registrado
-                                </div>
-                            </div>
-                            <div class="col col-12 col-md-4">
-                                <label for="nombre">Nombre Completo:</label>
-                                <input type="text" id="nombre" v-model="nombre" required />
-                            </div>
-                            <div class="col col-12 col-md-4 mb-3">
-                                <label for="telefono">Número de teléfono:</label>
-                                <input type="tel" id="telefono" v-model="telefono" class="form-control"
-                                    placeholder="Ej: 3001234567" />
-                            </div>
-                            <div class="col col-12 col-md-4 mb-3">
-                                <label for="fechaFinContrato">Fecha de finalización de contrato:</label>
-                                <input type="date" id="fechaFinContrato" v-model="fechaFinContrato" class="form-control" />
-                            </div>
-
-                            <div class="col col-12 col-md-4 mb-3" v-if="
-                                cargo === 'Auxiliar de enfermeria' ||
-                                cargo === 'Enfermero' ||
-                                cargo === 'Medico' ||
-                                cargo === 'Psicologo' ||
-                                cargo === 'Tsocial' ||
-                                cargo === 'Nutricionista' ||
-                                cargo === 'Higienista oral'
-                            ">
-                                <label for="grupo"># Grupo(s)</label>
-                                <input type="text" id="grupo" v-model="grupo" placeholder="Ej: 1,2,F" required />
-                            </div>
-                            <div class="col col-12 mb-3" v-if="cargo === 'Fact'">
-                                <label class="form-label">Grupos asignados</label>
-                                <div class="grupos-facturador-panel border rounded p-2">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="grupoFactTodos"
-                                            :checked="facturadorSeleccionoTodos(grupo)"
-                                            @change="toggleGrupoFacturador('todos', 'create')" />
-                                        <label class="form-check-label" for="grupoFactTodos">Todos</label>
-                                    </div>
-                                    <p v-if="gruposFacturadorDisponibles('create').length === 0" class="small text-muted mb-2">
-                                        No hay grupos operativos cargados todavía. Puede dejar "Todos" o asignar grupos cuando existan profesionales.
-                                    </p>
-                                    <div v-for="grupoItem in gruposFacturadorDisponibles('create')" :key="`fact-grupo-${grupoItem}`"
-                                        class="form-check">
-                                        <input class="form-check-input" type="checkbox" :id="`fact-grupo-${grupoItem}`"
-                                            :checked="gruposFacturadorSeleccionados(grupo).includes(grupoItem)"
-                                            :disabled="facturadorSeleccionoTodos(grupo)"
-                                            @change="toggleGrupoFacturador(grupoItem, 'create')" />
-                                        <label class="form-check-label" :for="`fact-grupo-${grupoItem}`">
-                                            Grupo {{ grupoItem }}
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button type="submit" :disabled="loading || !formularioValido" class="btn btn-warning">
-                            {{ loading ? "Creando..." : "Crear Usuario y Enviar Enlace de Contraseña" }}
-                        </button>
-                        <small class="text-muted ms-2" v-if="!formularioValido">
-                            * Completa todos los campos requeridos y verifica que documento y email sean válidos
-                        </small>
-                    </form>
-                </div>
-                <div class="tab-pane fade" id="nav-contact" role="tabpanel" aria-labelledby="nav-contact-tab"
-                    tabindex="0">
-                    ...
-                </div>
-                <div class="tab-pane fade" id="nav-disabled" role="tabpanel" aria-labelledby="nav-disabled-tab"
-                    tabindex="0">
-                    ...
                 </div>
             </div>
         </div>
@@ -930,10 +1009,12 @@ import {
     parseGruposUsuario,
     formatearGruposFacturador,
     facturadorSeleccionoTodosExplicito,
+    facturadorVeTodosLosGrupos,
     validarGruposFacturador,
     esFacturadorCargo as esCargoFacturador,
 } from "@/utils/grupoUtils";
 import {
+    bulkCreateUsers,
     createUser,
     deleteUserById,
     documentExists,
@@ -943,6 +1024,7 @@ import {
     updateUserPasswordById,
     updateUser,
 } from "@/api/usersApi";
+import { formatApiError } from "@/utils/apiError";
 import {
     mapActions
 } from "vuex";
@@ -1012,6 +1094,7 @@ export default {
             filtroIpsSearch: "",
 
             /* Carga masiva de usuarios por CSV */
+            crearSubTab: "individual",
             csvUsers: [],
             csvPreview: [],
             csvError: "",
@@ -1041,8 +1124,33 @@ export default {
             return Array.from(convSet).sort();
         },
 
+        conveniosTabs() {
+            const presentes = new Set((this.users || []).map((u) => u.convenio || 'sin-convenio'));
+            const ordenados = [];
+
+            (this.conveniosPrograma || CONVENIOS_PROGRAMA).forEach((conv) => {
+                if (presentes.has(conv)) ordenados.push(conv);
+            });
+
+            Array.from(presentes)
+                .filter((conv) => conv !== 'sin-convenio' && !ordenados.includes(conv))
+                .sort((a, b) => a.localeCompare(b, 'es'))
+                .forEach((conv) => ordenados.push(conv));
+
+            if (presentes.has('sin-convenio')) {
+                ordenados.push('sin-convenio');
+            }
+
+            return ordenados;
+        },
+
+        gruposConvenioActivo() {
+            if (!this.convenioSeleccionado) return null;
+            return this.usuariosAgrupadosPorConvenioYGrupoFiltrado[this.convenioSeleccionado] || {};
+        },
+
         usuariosPorConvenio() {
-            if (!this.users | this.users.length === 0) return {};
+            if (!this.users || this.users.length === 0) return {};
             const resultado = {};
             this.users.forEach(user => {
                 const conv = user.convenio || 'sin-convenio';
@@ -1121,11 +1229,6 @@ export default {
                     const userIpsId = user.ipsId ?? user.ips_id ?? user.idips ?? null;
                     if (String(userIpsId || '').trim() !== this.filtroIpsId) return false;
                 }
-
-                const convenioUser = user.convenio || 'sin-convenio';
-                const cumpleConvenio = !this.convenioSeleccionado || convenioUser === this.convenioSeleccionado;
-
-                if (!cumpleConvenio) return false;
 
                 if (!busqueda) return true;
 
@@ -1238,7 +1341,10 @@ export default {
             return Array.from(convenios).sort((a, b) => a.localeCompare(b));
         },
         gruposOperativosDisponibles() {
-            return obtenerGruposOperativosDesdeUsuarios(this.users || []);
+            return obtenerGruposOperativosDesdeUsuarios(this.users || [], this.convenio);
+        },
+        gruposOperativosDisponiblesEdicion() {
+            return obtenerGruposOperativosDesdeUsuarios(this.users || [], this.editConvenio);
         },
         profesionalesDisponiblesParaAcceso() {
             const cargos = new Set(['Auxiliar de enfermeria', 'Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista', 'Higienista oral']);
@@ -1313,6 +1419,7 @@ export default {
                 } else {
                     this.grupo = normalizarGruposFacturador(this.grupo);
                 }
+                this.sincronizarGruposFacturadorConConvenio('create');
             }
         },
         editCargo(newVal) {
@@ -1325,6 +1432,12 @@ export default {
                     this.editGrupo = GRUPO_FACTURADOR_TODOS;
                 }
                 this.editAccesosProfesionales = [];
+                this.sincronizarGruposFacturadorConConvenio('edit');
+            }
+        },
+        editConvenio() {
+            if (esCargoFacturador(this.editCargo)) {
+                this.sincronizarGruposFacturadorConConvenio('edit');
             }
         },
         numDocumento() {
@@ -1332,9 +1445,32 @@ export default {
         },
         userEmail() {
             this.emailValido = null;
-        }
+        },
+        conveniosTabs(nuevos) {
+            if (!Array.isArray(nuevos) || !nuevos.length) {
+                this.convenioSeleccionado = '';
+                return;
+            }
+            if (!nuevos.includes(this.convenioSeleccionado)) {
+                this.convenioSeleccionado = nuevos[0];
+            }
+        },
     },
     methods: {
+        seleccionarConvenioTab(conv) {
+            this.convenioSeleccionado = conv;
+        },
+
+        etiquetaConvenioTab(conv) {
+            return conv === 'sin-convenio' ? 'Administrativos' : conv;
+        },
+
+        contarUsuariosTabConvenio(conv) {
+            const grupos = this.usuariosAgrupadosPorConvenioYGrupoFiltrado?.[conv];
+            if (!grupos) return 0;
+            return this.contarUsuariosConvenio(grupos);
+        },
+
         puntuarTextoCsv(texto) {
             const valor = String(texto || '');
             let puntaje = 0;
@@ -1410,7 +1546,7 @@ export default {
             this.csvSuccess = "";
             this.csvInformeNoCreados = [];
             try {
-                const res = await this.$api.bulkCreateUsers(this.csvUsers);
+                const res = await bulkCreateUsers(this.csvUsers);
                 const noCreados = Array.isArray(res?.noCreados)
                     ? res.noCreados
                     : (Array.isArray(res?.detalles)
@@ -1463,13 +1599,36 @@ export default {
         },
 
         gruposFacturadorDisponibles(modo = 'create') {
-            const base = this.gruposOperativosDisponibles;
+            const base = modo === 'edit'
+                ? this.gruposOperativosDisponiblesEdicion
+                : this.gruposOperativosDisponibles;
             const valor = modo === 'edit' ? this.editGrupo : this.grupo;
-            const asignados = this.gruposFacturadorSeleccionados(valor);
+            const asignados = this.gruposFacturadorSeleccionados(valor)
+                .filter((grupo) => base.includes(grupo));
 
             return Array.from(new Set([...base, ...asignados])).sort((a, b) =>
                 a.localeCompare(b, 'es', { numeric: true, sensitivity: 'base' })
             );
+        },
+
+        sincronizarGruposFacturadorConConvenio(modo = 'create') {
+            const campo = modo === 'edit' ? 'editGrupo' : 'grupo';
+            const valorActual = this[campo];
+
+            if (this.facturadorSeleccionoTodos(valorActual) || !String(valorActual || '').trim()) {
+                this[campo] = GRUPO_FACTURADOR_TODOS;
+                return;
+            }
+
+            const disponibles = new Set(
+                modo === 'edit'
+                    ? this.gruposOperativosDisponiblesEdicion
+                    : this.gruposOperativosDisponibles
+            );
+            const filtrados = this.gruposFacturadorSeleccionados(valorActual)
+                .filter((grupo) => disponibles.has(grupo));
+
+            this[campo] = filtrados.length ? filtrados.join(',') : GRUPO_FACTURADOR_TODOS;
         },
 
         toggleGrupoFacturador(grupoItem, modo = 'create') {
@@ -1496,7 +1655,11 @@ export default {
             const cargo = String(user?.cargo || '').trim();
 
             if (esCargoFacturador(cargo)) {
-                return [GRUPO_FACTURADOR_TODOS];
+                if (facturadorVeTodosLosGrupos(user?.grupo)) {
+                    return [GRUPO_FACTURADOR_TODOS];
+                }
+                const grupos = parseGruposUsuario(user?.grupo);
+                return grupos.length ? grupos : [GRUPO_FACTURADOR_TODOS];
             }
 
             const grupos = parseGruposUsuario(user?.grupo);
@@ -1519,6 +1682,7 @@ export default {
 
         etiquetaGrupoListado(grupo) {
             if (grupo === 'sin-grupo') return 'Sin Grupo';
+            if (grupo === 'F' || String(grupo).toLowerCase() === 'todos') return 'Todos';
             return `Grupo ${grupo}`;
         },
 
@@ -2122,14 +2286,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
                 this.cerrarModalEdicion();
                 await this.fetchUsers();
             } catch (error) {
-                // Manejo mejorado de errores
-                if (error.code === 'auth/email-already-in-use') {
-                    this.message = "El email ya está en uso. Por favor utiliza otro email.";
-                } else if (error.code === 'auth/invalid-email') {
-                    this.message = "El email no es válido.";
-                } else {
-                    this.message = `Error al actualizar usuario: ${error.message}`;
-                }
+                this.message = formatApiError(error, "No se pudo actualizar el usuario.");
                 this.messageType = "error";
                 console.error("Error al actualizar usuario:", error);
             } finally {
@@ -2225,6 +2382,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
                     numDocumento: this.numDocumento,
                     telefono: String(this.telefono || "").trim() || null,
                     fechaFinContrato: this.normalizarFechaInput(this.fechaFinContrato) || null,
+                    accesosProfesionales: esCargoFacturador(this.cargo) ? [] : undefined,
                 });
 
                 this.message = `Usuario ${this.userEmail} creado exitosamente.\nContraseña temporal: ${tempPassword}\nEl usuario deberá cambiarla en su primer ingreso.`;
@@ -2248,13 +2406,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
                 }
                 await this.fetchUsers();
             } catch (error) {
-                if (error?.response?.status === 409) {
-                    this.message = "El email ya está en uso. Por favor utiliza otro email.";
-                } else if (error?.response?.status === 400) {
-                    this.message = "El email no es válido.";
-                } else {
-                    this.message = `Error al crear usuario: ${error.message}`;
-                }
+                this.message = formatApiError(error, "No se pudo crear el usuario.");
                 this.messageType = "error";
                 console.error("Error al crear usuario:", error);
             } finally {
@@ -2344,6 +2496,10 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             if (this.convenio !== 'Unidesa' && soloUnidesa.includes(this.cargo)) {
                 this.cargo = '';
             }
+
+            if (esCargoFacturador(this.cargo)) {
+                this.sincronizarGruposFacturadorConConvenio('create');
+            }
         },
 
         async fetchIpsList() {
@@ -2377,6 +2533,35 @@ Esta acción eliminará el usuario de la base de datos.`)) {
 </script>
 
 <style scoped>
+.crear-usuarios-panel .crear-subtabs .nav-link {
+    color: #495057;
+}
+
+.crear-usuarios-panel .crear-subtabs .nav-link.active {
+    font-weight: 600;
+    color: #0d6efd;
+}
+
+.crear-usuarios-panel .crear-subpanel {
+    min-height: 180px;
+}
+
+.convenios-usuarios-tabs .nav-link {
+    color: #495057;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.convenios-usuarios-tabs .nav-link.active {
+    font-weight: 600;
+    color: #0d6efd;
+}
+
+.convenio-tab-content {
+    margin-top: 0.75rem;
+}
+
 /* Formulario de creación de usuario: coloración por convenio */
 .grupos-facturador-panel {
     display: grid;

@@ -24,6 +24,35 @@ function generarId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 }
 
+/** TTL de catálogos en memoria (cups/contratos/eps/actividadesExtra). */
+const CATALOG_TTL_MS = 10 * 60 * 1000;
+
+/** Evita peticiones duplicadas en paralelo al mismo catálogo. */
+const catalogInflight = {
+  cups: null,
+  contratos: null,
+  epss: null,
+  actividadesExtra: null,
+};
+
+function isCatalogFresh(loadedAt) {
+  const ts = Number(loadedAt) || 0;
+  return ts > 0 && Date.now() - ts < CATALOG_TTL_MS;
+}
+
+function resolveEncuestaPayload(payload) {
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    return {
+      idEncuesta: payload.idEncuesta ?? payload.id ?? "",
+      allowGlobalFallback: Boolean(payload.allowGlobalFallback),
+    };
+  }
+  return {
+    idEncuesta: payload,
+    allowGlobalFallback: false,
+  };
+}
+
 function resolveCurrentIpsId(userData = {}, fallbackDataips = {}) {
   const raw =
     userData?.ipsId ??
@@ -78,14 +107,11 @@ function resolveRequiredIpsId(state = {}, contextLabel = "operacion") {
 }
 
 function getNoCacheRequestConfig() {
+  // Evita caches intermedias agresivas en lecturas de bandejas, sin forzar
+  // headers no-store en cada hop (costoso detrás de Caddy en producción).
   return {
     params: {
       _ts: Date.now(),
-    },
-    headers: {
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-      Pragma: "no-cache",
-      Expires: "0",
     },
   };
 }
@@ -100,6 +126,41 @@ function buildNoCacheRequestConfig(extraParams = {}) {
     },
   };
 }
+
+/** Lecturas filtradas reutilizables (sin bust de caché en cada tick). */
+function buildReadRequestConfig(extraParams = {}) {
+  return {
+    params: {
+      ...(extraParams || {}),
+    },
+  };
+}
+
+function devLog(...args) {
+  if (import.meta.env.DEV) {
+    console.log(...args);
+  }
+}
+
+async function mapPool(items, concurrency, mapper) {
+  const list = Array.isArray(items) ? items : [];
+  const limit = Math.max(1, Number(concurrency) || 1);
+  const results = new Array(list.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < list.length) {
+      const current = nextIndex;
+      nextIndex += 1;
+      results[current] = await mapper(list[current], current);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, list.length || 1) }, () => worker()));
+  return results;
+}
+
+const factAprovInflight = new Map();
 
 function userBelongsToGroup(userGroupValue, targetGroup) {
   const target = String(targetGroup || "").trim();
@@ -420,6 +481,14 @@ export default createStore({
     actividades: [],
     actividadesExtra: [],
     contratos: [],
+
+    // Marca de tiempo de última carga de catálogos (caché en memoria)
+    catalogLoadedAt: {
+      cups: 0,
+      contratos: 0,
+      epss: 0,
+      actividadesExtra: 0,
+    },
 
     // Datos de paciente
     datosPaciente: [],
@@ -787,11 +856,11 @@ export default createStore({
      * Obtiene registros por fecha y estado para auxiliar
      */
     getAllRegistersByFechaStatus: async ({ commit }, { idUsuario }) => {
-      console.log("parametro de consulta abiertas aux", idUsuario);
+      devLog("parametro de consulta abiertas aux", idUsuario);
       try {
         const { data } = await realtime_api.get(
           "/Encuesta.json",
-          buildNoCacheRequestConfig({
+          buildReadRequestConfig({
             idEncuestador: idUsuario,
           })
         );
@@ -799,7 +868,6 @@ export default createStore({
         if (!data) {
           commit("setEncuestas", []);
           commit("setcantEncuestas", 0);
-          alert("No hay datos para mostrar.");
           return [];
         }
 
@@ -817,14 +885,8 @@ export default createStore({
           return encuesta.status_visita === false || yaHabiaCierreAuxiliar;
         });
 
-        const cantidad = encuestasFiltradas.length;
         commit("setEncuestas", encuestasFiltradas);
-        commit("setcantEncuestas", cantidad);
-
-        if (cantidad === 0) {
-          alert("No hay datos para mostrar.");
-        }
-
+        commit("setcantEncuestas", encuestasFiltradas.length);
         return encuestasFiltradas;
       } catch (error) {
         console.error("Error en getAllRegistersByFechaStatus:", error);
@@ -836,7 +898,7 @@ export default createStore({
      * Obtiene registros pendientes para psicologo
      */
     getEncuestasPendientesPsicologo: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
-      console.log("Obteniendo encuestas pendientes para psicologo:", idUsuario);
+      devLog("Obteniendo encuestas pendientes para psicologo:", idUsuario);
       try {
         const { data } = await realtime_api.get(
           "/Encuesta.json",
@@ -891,7 +953,7 @@ export default createStore({
      * Obtiene registros pendientes para trabajador social
      */
     getEncuestasPendientesTsocial: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
-      console.log("Obteniendo encuestas pendientes para trabajador social:", idUsuario);
+      devLog("Obteniendo encuestas pendientes para trabajador social:", idUsuario);
       try {
         const { data } = await realtime_api.get(
           "/Encuesta.json",
@@ -946,7 +1008,7 @@ export default createStore({
      * Obtiene registros pendientes para nutricionista
      */
     getEncuestasPendientesNutricionista: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
-      console.log("Obteniendo encuestas pendientes para nutricionista:", idUsuario);
+      devLog("Obteniendo encuestas pendientes para nutricionista:", idUsuario);
       try {
         const { data } = await realtime_api.get(
           "/Encuesta.json",
@@ -1029,7 +1091,7 @@ export default createStore({
      * Obtiene registros pendientes para higienista oral
      */
     getEncuestasPendientesHigienistaOral: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
-      console.log("Obteniendo encuestas pendientes para higienista oral:", idUsuario);
+      devLog("Obteniendo encuestas pendientes para higienista oral:", idUsuario);
       try {
         const { data } = await realtime_api.get(
           "/Encuesta.json",
@@ -1102,7 +1164,7 @@ export default createStore({
      * Obtiene encuestas con status_gest_aux = true y sus actividades asociadas
      */
     getEncuestasConActividadesAux: async ({ commit }, { idUsuario }) => {
-      console.log("Obteniendo encuestas con actividades para auxiliar:", idUsuario);
+      devLog("Obteniendo encuestas con actividades para auxiliar:", idUsuario);
       try {
         const construirActividadesDesdeAsignaciones = (asignacion = {}) => {
           const cups = asignacion?.cups;
@@ -1120,23 +1182,17 @@ export default createStore({
           return Object.keys(tipoActividad).length ? { tipoActividad } : {};
         };
 
-        // Obtener todas las encuestas
         const { data: encuestasData } = await realtime_api.get(
           "/Encuesta.json",
-          buildNoCacheRequestConfig({
+          buildReadRequestConfig({
             idEncuestador: idUsuario,
           })
         );
-        const [{ data: actividadesGlobal }, { data: asignacionesGlobal }] = await Promise.all([
-          realtime_api.get("/Actividades.json", getNoCacheRequestConfig()).catch(() => ({ data: {} })),
-          realtime_api.get("/Asignaciones.json", getNoCacheRequestConfig()).catch(() => ({ data: {} })),
-        ]);
 
         if (!encuestasData) {
           return [];
         }
 
-        // Filtrar encuestas con status_gest_aux = true para este auxiliar
         const encuestas = Object.entries(encuestasData)
           .map(([key, value]) => ({
             id: key,
@@ -1148,47 +1204,34 @@ export default createStore({
               encuesta.status_gest_aux === true
           );
 
-        // Para cada encuesta, obtener sus actividades
-        const encuestasConActividades = await Promise.all(
-          encuestas.map(async (encuesta) => {
-            try {
-              let { data: actividadesData } = await realtime_api.get(
-                `/Actividades/${encuesta.id}.json`,
-                getNoCacheRequestConfig()
-              );
+        // Lecturas puntuales por encuesta (sin dumps globales Actividades/Asignaciones).
+        return mapPool(encuestas, 8, async (encuesta) => {
+          try {
+            let { data: actividadesData } = await realtime_api
+              .get(`/Actividades/${encuesta.id}.json`)
+              .catch(() => ({ data: null }));
 
-              if (!actividadesData && actividadesGlobal && typeof actividadesGlobal === "object") {
-                actividadesData = actividadesGlobal[encuesta.id] || null;
-              }
-
-              if (!actividadesData && asignacionesGlobal && typeof asignacionesGlobal === "object") {
-                actividadesData = construirActividadesDesdeAsignaciones(asignacionesGlobal[encuesta.id] || {});
-              }
-
-              return {
-                ...encuesta,
-                actividades: actividadesData || {},
-                tipoActividad: actividadesData?.tipoActividad || actividadesData || {},
-              };
-            } catch (error) {
-              console.warn(`No se encontraron actividades para encuesta ${encuesta.id}`);
-              const actividadesFallback = (actividadesGlobal && typeof actividadesGlobal === "object"
-                ? actividadesGlobal[encuesta.id]
-                : null) || construirActividadesDesdeAsignaciones(
-                asignacionesGlobal && typeof asignacionesGlobal === "object"
-                  ? (asignacionesGlobal[encuesta.id] || {})
-                  : {}
-              );
-              return {
-                ...encuesta,
-                actividades: actividadesFallback || {},
-                tipoActividad: actividadesFallback?.tipoActividad || actividadesFallback || {},
-              };
+            if (!actividadesData) {
+              const { data: asignacionDirecta } = await realtime_api
+                .get(`/Asignaciones/${encuesta.id}.json`)
+                .catch(() => ({ data: null }));
+              actividadesData = construirActividadesDesdeAsignaciones(asignacionDirecta || {});
             }
-          })
-        );
 
-        return encuestasConActividades;
+            return {
+              ...encuesta,
+              actividades: actividadesData || {},
+              tipoActividad: actividadesData?.tipoActividad || actividadesData || {},
+            };
+          } catch (error) {
+            console.warn(`No se encontraron actividades para encuesta ${encuesta.id}`);
+            return {
+              ...encuesta,
+              actividades: {},
+              tipoActividad: {},
+            };
+          }
+        });
       } catch (error) {
         console.error("Error en getEncuestasConActividadesAux:", error);
         throw error;
@@ -1198,8 +1241,8 @@ export default createStore({
     /**
      * Obtiene encuestas para medico y sus actividades asociadas
      */
-    getEncuestasConActividadesMedico: async ({ commit }, { idUsuario }) => {
-      console.log("Obteniendo encuestas con actividades para médico:", idUsuario);
+    getEncuestasConActividadesMedico: async ({ commit }, { idUsuario, includeFuenteContadores = false } = {}) => {
+      devLog("Obteniendo encuestas con actividades para médico:", idUsuario);
       try {
         const construirActividadesDesdeAsignaciones = (asignacion = {}) => {
           const cups = asignacion?.cups;
@@ -1217,40 +1260,29 @@ export default createStore({
           return Object.keys(tipoActividad).length ? { tipoActividad } : {};
         };
 
-        // Obtener todas las encuestas
         const { data: encuestasData } = await realtime_api.get(
           "/Encuesta.json",
-          buildNoCacheRequestConfig({
+          buildReadRequestConfig({
             idMedicoAtiende: idUsuario,
           })
         );
-        const [{ data: actividadesGlobal }, { data: asignacionesGlobal }] = await Promise.all([
-          realtime_api.get("/Actividades.json").catch(() => ({ data: {} })),
-          realtime_api.get("/Asignaciones.json").catch(() => ({ data: {} })),
-        ]);
 
         if (!encuestasData) {
-          return [];
+          return includeFuenteContadores ? { pendientes: [], todas: [] } : [];
         }
 
-        // Filtrar encuestas con status_gest_medica = false para este medico
-        const encuestas = Object.entries(encuestasData)
-          .map(([key, value]) => ({
-            id: key,
-            ...value,
-          }))
-          .filter(
-            (encuesta) =>
-              encuesta.idMedicoAtiende === idUsuario &&
-              encuesta.status_gest_aux === true &&
-              encuesta.status_gest_medica === false
-          );
-
-        // Contar encuestas en proceso (aux no ha cerrado)
         const todasEncuestas = Object.entries(encuestasData).map(([key, value]) => ({
           id: key,
           ...value,
         }));
+
+        const encuestas = todasEncuestas.filter(
+          (encuesta) =>
+            encuesta.idMedicoAtiende === idUsuario &&
+            encuesta.status_gest_aux === true &&
+            encuesta.status_gest_medica === false
+        );
+
         const enProcesoCount = todasEncuestas.filter(
           (encuesta) =>
             encuesta.idMedicoAtiende === idUsuario &&
@@ -1258,25 +1290,33 @@ export default createStore({
         ).length;
         commit("setCantEncuestasEnProceso", enProcesoCount);
 
-        const encuestasConActividades = encuestas.map((encuesta) => {
-          const actividadesDirectas =
-            actividadesGlobal && typeof actividadesGlobal === "object"
-              ? actividadesGlobal[encuesta.id] || null
-              : null;
-          const actividadesFallback = actividadesDirectas || construirActividadesDesdeAsignaciones(
-            asignacionesGlobal && typeof asignacionesGlobal === "object"
-              ? (asignacionesGlobal[encuesta.id] || {})
-              : {}
-          );
+        const pendientes = await mapPool(encuestas, 8, async (encuesta) => {
+          let actividadesData = null;
+          try {
+            const response = await realtime_api.get(`/Actividades/${encuesta.id}.json`);
+            actividadesData = response?.data || null;
+          } catch (_) {
+            actividadesData = null;
+          }
+
+          if (!actividadesData) {
+            const { data: asignacionDirecta } = await realtime_api
+              .get(`/Asignaciones/${encuesta.id}.json`)
+              .catch(() => ({ data: null }));
+            actividadesData = construirActividadesDesdeAsignaciones(asignacionDirecta || {});
+          }
 
           return {
             ...encuesta,
-            actividades: actividadesFallback || {},
-            tipoActividad: actividadesFallback?.tipoActividad || actividadesFallback || {},
+            actividades: actividadesData || {},
+            tipoActividad: actividadesData?.tipoActividad || actividadesData || {},
           };
         });
 
-        return encuestasConActividades;
+        if (includeFuenteContadores) {
+          return { pendientes, todas: todasEncuestas };
+        }
+        return pendientes;
       } catch (error) {
         console.error("Error en getEncuestasConActividadesMedico:", error);
         throw error;
@@ -1287,7 +1327,7 @@ export default createStore({
      * Obtiene registros por profesional y fecha
      */
     getAllRegistersByFechaProf: async ({ commit }, { doc, fecha }) => {
-      console.log("grupo consultado", doc, fecha);
+      devLog("grupo consultado", doc, fecha);
       try {
         const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
         const encuestas = Object.entries(data).map(([key, value]) => ({
@@ -1314,7 +1354,7 @@ export default createStore({
      * Obtiene registros por ID de usuario profesional (médico)
      */
     getAllRegistersByIduserProf: async ({ commit }, { idUsuario }) => {
-      console.log("datos que entran medico", idUsuario);
+      devLog("datos que entran medico", idUsuario);
       try {
         const { data } = await realtime_api.get(
           "/Encuesta.json",
@@ -1344,7 +1384,7 @@ export default createStore({
             encuesta.status_gest_aux === true
         );
 
-        console.log(encuestasFiltradas);
+        devLog(encuestasFiltradas);
         const cantidad = encuestasFiltradas.length;
         commit("setEncuestas", encuestasFiltradas);
         commit("setcantEncuestas", cantidad);
@@ -1360,7 +1400,7 @@ export default createStore({
      * Obtiene registros por ID de usuario enfermero
      */
     getAllRegistersByIduserEnfer: async ({ commit }, { idUsuario, convenio, includeSource = false } = {}) => {
-      console.log("datos que entran enfermero", idUsuario, convenio);
+      devLog("datos que entran enfermero", idUsuario, convenio);
       try {
         const params = {
           idEnfermeroAtiende: idUsuario,
@@ -1397,7 +1437,7 @@ export default createStore({
           return true;
         });
 
-        console.log(encuestasFiltradas);
+        devLog(encuestasFiltradas);
         const cantidad = encuestasFiltradas.length;
         commit("setEncuestas", encuestasFiltradas);
         commit("setcantEncuestas", cantidad);
@@ -1421,7 +1461,7 @@ export default createStore({
      */
     GetAllRegistersbyRangeAux: async ({ commit }, rango) => {
       const { fechaInicio, fechaFin, idempleado, cargo } = rango;
-      console.log("data que entra", fechaFin, fechaInicio, idempleado, cargo);
+      devLog("data que entra", fechaFin, fechaInicio, idempleado, cargo);
       try {
         if (!fechaInicio || !fechaFin) {
           throw new Error("Debes proporcionar ambas fechas para el filtro.");
@@ -1644,7 +1684,7 @@ export default createStore({
      */
     GetAllRegistersbyRangeEnf: async ({ commit }, rango) => {
       const { fechaInicio, fechaFin, idempleado, cargo } = rango;
-      console.log("data que entra", fechaFin, fechaInicio, idempleado, cargo);
+      devLog("data que entra", fechaFin, fechaInicio, idempleado, cargo);
       try {
         if (!fechaInicio || !fechaFin) {
           throw new Error("Debes proporcionar ambas fechas para el filtro.");
@@ -1691,8 +1731,15 @@ export default createStore({
     /**
      * Obtiene encuesta por ID
      */
-    getEncuestaById: async ({ commit }, idEncuesta) => {
+    getEncuestaById: async ({ commit }, payload) => {
       try {
+        const { idEncuesta, allowGlobalFallback } = resolveEncuestaPayload(payload);
+        if (!idEncuesta) {
+          commit("setEncuesta", {});
+          commit("setActividades", null);
+          return {};
+        }
+
         const safeGet = async (url) => {
           try {
             const response = await realtime_api.get(url);
@@ -1705,52 +1752,32 @@ export default createStore({
           }
         };
 
-        const resolverEncuestaFallback = async (encuestaId) => {
-          const encuestasGlobal = await safeGet(`/Encuesta.json`);
-          if (!encuestasGlobal || typeof encuestasGlobal !== "object") {
-            return null;
-          }
-
-          const encontrada = encuestasGlobal[String(encuestaId)];
-          if (encontrada && typeof encontrada === "object") {
-            return encontrada;
-          }
-
-          return null;
-        };
-
-        const resolverActividadesFallback = async (encuestaId) => {
-          const actividadesGlobal = await safeGet(`/Actividades.json`);
-          if (!actividadesGlobal || typeof actividadesGlobal !== "object") {
-            return null;
-          }
-
-          const encontradas = actividadesGlobal[String(encuestaId)];
-          if (encontradas && typeof encontradas === "object") {
-            return encontradas;
-          }
-
-          return null;
-        };
-
-        // Consultar asignaciones, datos de encuesta y actividades (tolerando 404 por recurso inexistente)
+        // Solo lectura puntual: evita dumps globales (Encuesta.json / Actividades.json / Asignaciones.json)
+        // que bloquean la UI detrás de proxy en producción.
         let [asignacionesData, encuestaData, actividadesData] = await Promise.all([
           safeGet(`/Asignaciones/${idEncuesta}.json`),
           safeGet(`/Encuesta/${idEncuesta}.json`),
           safeGet(`/Actividades/${idEncuesta}.json`),
         ]);
 
-        if (!encuestaData) {
-          encuestaData = await resolverEncuestaFallback(idEncuesta);
+        if (allowGlobalFallback && !encuestaData) {
+          const encuestasGlobal = await safeGet(`/Encuesta.json`);
+          if (encuestasGlobal && typeof encuestasGlobal === "object") {
+            encuestaData = encuestasGlobal[String(idEncuesta)] || null;
+          }
         }
 
-        if (!actividadesData) {
-          actividadesData = await resolverActividadesFallback(idEncuesta);
+        if (allowGlobalFallback && !actividadesData) {
+          const actividadesGlobal = await safeGet(`/Actividades.json`);
+          if (actividadesGlobal && typeof actividadesGlobal === "object") {
+            actividadesData = actividadesGlobal[String(idEncuesta)] || null;
+          }
         }
 
         if (!encuestaData) {
           console.warn(`Encuesta ${idEncuesta} no encontrada`);
           commit("setEncuesta", {});
+          commit("setActividades", null);
           return {};
         }
 
@@ -1799,13 +1826,16 @@ export default createStore({
 
         let cupsPaciente = extraerCupsAsignaciones(asignacionesData || {});
 
-        // Fallback: en algunos registros legacy la lectura puntual puede venir vacía,
-        // pero el nodo global sí contiene la asignación.
-        if (!Object.keys(cupsPaciente).length) {
+        // Fallback global solo si se pide explícitamente (muy costoso en producción).
+        if (allowGlobalFallback && !Object.keys(cupsPaciente).length) {
           const asignacionesGlobal = await safeGet(`/Asignaciones.json`);
           const asignacionFallback = asignacionesGlobal?.[idEncuesta] || {};
           cupsPaciente = extraerCupsAsignaciones(asignacionFallback);
+          if (!asignacionesData && Object.keys(asignacionFallback).length) {
+            asignacionesData = asignacionFallback;
+          }
         }
+
         const tipoActividadActividades = actividadesData?.tipoActividad;
         const tipoActividadEncuesta = encuestaData?.tipoActividad;
         const tipoActividad = {
@@ -1817,20 +1847,34 @@ export default createStore({
             : {}),
         };
 
-        let resultData = {};
-
-        // Estructurar los datos
-        if (encuestaData) {
-          resultData = {
-            id: idEncuesta,
-            ...encuestaData,
-            cups: cupsPaciente,
-            actividades: actividadesData || (Object.keys(tipoActividad).length ? { tipoActividad } : {}),
-            tipoActividad,
-          };
+        // Si no hay nodo Actividades, reconstruir desde cups asignados (sin dump global).
+        if (!actividadesData && Object.keys(cupsPaciente).length) {
+          const tipoDesdeCups = {};
+          Object.values(cupsPaciente).forEach((cup) => {
+            const actividadId = String(cup?.actividadId ?? cup?.idActividad ?? "").trim();
+            if (!actividadId || tipoDesdeCups[actividadId]) return;
+            tipoDesdeCups[actividadId] = { key: actividadId };
+          });
+          if (Object.keys(tipoDesdeCups).length) {
+            actividadesData = { tipoActividad: tipoDesdeCups };
+            Object.assign(tipoActividad, tipoDesdeCups);
+          }
         }
 
+        const resultData = {
+          id: idEncuesta,
+          ...encuestaData,
+          cups: cupsPaciente,
+          actividades: actividadesData || (Object.keys(tipoActividad).length ? { tipoActividad } : {}),
+          tipoActividad,
+          _asignacionesRaw: asignacionesData || { cups: cupsPaciente },
+        };
+
         commit("setEncuesta", resultData);
+        commit(
+          "setActividades",
+          actividadesData || (Object.keys(tipoActividad).length ? { tipoActividad } : null)
+        );
         return resultData;
       } catch (error) {
         console.error("Error en getEncuestaById:", error);
@@ -1841,8 +1885,14 @@ export default createStore({
     /**
      * Obtiene actividades por ID
      */
-    getActividadesById: async ({ commit }, idEncuesta) => {
+    getActividadesById: async ({ commit }, payload) => {
       try {
+        const { idEncuesta, allowGlobalFallback } = resolveEncuestaPayload(payload);
+        if (!idEncuesta) {
+          commit("setActividades", null);
+          return null;
+        }
+
         const construirActividadesDesdeAsignaciones = (asignacion = {}) => {
           const cups = asignacion?.cups;
           const cupsLista = Array.isArray(cups)
@@ -1862,13 +1912,6 @@ export default createStore({
         let { data } = await realtime_api.get(`/Actividades/${idEncuesta}.json`);
 
         if (!data) {
-          const { data: actividadesGlobal } = await realtime_api.get(`/Actividades.json`);
-          if (actividadesGlobal && typeof actividadesGlobal === "object") {
-            data = actividadesGlobal[String(idEncuesta)] || null;
-          }
-        }
-
-        if (!data) {
           const { data: asignacionDirecta } = await realtime_api
             .get(`/Asignaciones/${idEncuesta}.json`, getNoCacheRequestConfig())
             .catch(() => ({ data: null }));
@@ -1876,7 +1919,15 @@ export default createStore({
           data = construirActividadesDesdeAsignaciones(asignacionDirecta || {});
         }
 
-        if (!data) {
+        // Dumps globales solo bajo demanda explícita.
+        if (!data && allowGlobalFallback) {
+          const { data: actividadesGlobal } = await realtime_api.get(`/Actividades.json`);
+          if (actividadesGlobal && typeof actividadesGlobal === "object") {
+            data = actividadesGlobal[String(idEncuesta)] || null;
+          }
+        }
+
+        if (!data && allowGlobalFallback) {
           const { data: asignacionesGlobal } = await realtime_api
             .get(`/Asignaciones.json`, getNoCacheRequestConfig())
             .catch(() => ({ data: {} }));
@@ -2114,7 +2165,7 @@ export default createStore({
      * Obtiene datos de paciente por tipo, número y convenio (exclusivo E Basicos)
      */
     getAllByPacientesIDEB: async ({ commit }, { tipodoc, numdoc, convenio }) => {
-      console.log("datos que entran EB - tipodoc, numdoc, convenio:", tipodoc, numdoc, convenio);
+      devLog("datos que entran EB - tipodoc, numdoc, convenio:", tipodoc, numdoc, convenio);
       try {
         // Obtener todas las encuestas
         const paramsEncuesta = {
@@ -2126,7 +2177,7 @@ export default createStore({
         const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(paramsEncuesta));
 
         if (!data || data === null) {
-          console.log("No hay encuestas registradas");
+          devLog("No hay encuestas registradas");
           return [];
         }
 
@@ -2292,7 +2343,7 @@ export default createStore({
           tomademuestras: tomademuestrasExistentes,
           visitamedica: visitasExistentes,
         });
-        console.log(response.data ? "Agenda actualizada:" : "Agenda creada:", key, tomademuestrasExistentes);
+        devLog(response.data ? "Agenda actualizada:" : "Agenda creada:", key, tomademuestrasExistentes);
 
         await realtime_api.patch(`/Encuesta/${agenda.idEncuesta}.json`, {
           Agenda_tomademuestras: {
@@ -2300,7 +2351,7 @@ export default createStore({
             idAgendaT: agenda.idAgenda,
           },
         });
-        console.log(
+        devLog(
           "Estado de toma de muestras actualizado en Encuesta:",
           agenda.idEncuesta
         );
@@ -2356,7 +2407,7 @@ export default createStore({
           direccion: data.direccion,
         },
       };
-      console.log("Estos son los datos de la agenda:", agenda.visitamedica);
+      devLog("Estos son los datos de la agenda:", agenda.visitamedica);
       const key = agenda.idAgenda;
 
       try {
@@ -2398,7 +2449,7 @@ export default createStore({
           tomademuestras: tomademuestrasExistentes,
           visitamedica: visitamedicaExistentes,
         });
-        console.log(
+        devLog(
           response.data ? "Agenda de visita médica actualizada:" : "Agenda de visita médica creada:",
           key,
           visitamedicaExistentes
@@ -2410,7 +2461,7 @@ export default createStore({
             idAgendaV: agenda.idAgenda,
           },
         });
-        console.log(
+        devLog(
           "Estado de visita médica actualizado en Encuesta:",
           agenda.idEncuesta
         );
@@ -2430,7 +2481,7 @@ export default createStore({
      * Obtiene listado de agendas por fecha
      */
     getListAgendas: async ({ commit }, fecha) => {
-      console.log("consultando agendas desde:", fecha);
+      devLog("consultando agendas desde:", fecha);
       try {
         // Obtener todas las agendas y filtrar en el cliente
         const { data } = await realtime_api.get("/agendas.json");
@@ -2457,7 +2508,7 @@ export default createStore({
      * Obtiene agendas de toma de laboratorio
      */
     getAgendasTomaLab: async ({ commit }, dataidlab) => {
-      console.log("datos que entran", dataidlab);
+      devLog("datos que entran", dataidlab);
       try {
         const { data } = await realtime_api.get("/agendas.json");
         const encuestas = Object.entries(data).map(([key, value]) => ({
@@ -2484,7 +2535,7 @@ export default createStore({
      * Obtiene agendas de toma de laboratorio por ID
      */
     getAgendasTomaLabById: async ({ commit }, { id }) => {
-      console.log("datos que entran", id);
+      devLog("datos que entran", id);
       try {
         const { data } = await realtime_api.get("/agendas.json");
         const encuestas = Object.entries(data).map(([key, value]) => ({
@@ -2506,7 +2557,7 @@ export default createStore({
      * Obtiene agendas de visita por ID
      */
     getAgendasVisitaById: async ({ commit }, { id }) => {
-      console.log("datos que entran", id);
+      devLog("datos que entran", id);
       try {
         const { data } = await realtime_api.get("/agendas.json");
         const encuestas = Object.entries(data).map(([key, value]) => ({
@@ -2528,7 +2579,7 @@ export default createStore({
      * Elimina una agenda
      */
     eliminarAgenda: async ({ commit }, { indice, encuestaID, lista }) => {
-      console.log("Eliminando agenda con índice:", indice, "y encuestaID:", encuestaID);
+      devLog("Eliminando agenda con índice:", indice, "y encuestaID:", encuestaID);
 
       if (indice === undefined || indice === null || indice === "") {
         throw new Error("Índice inválido para eliminar");
@@ -2539,7 +2590,7 @@ export default createStore({
 
       try {
         await realtime_api.delete(`/agendas/${encuestaID}/${lista}/${indice}.json`);
-        console.log("Registro eliminado correctamente");
+        devLog("Registro eliminado correctamente");
         return true;
       } catch (error) {
         console.error("Error en Action eliminarAgenda:", error);
@@ -2617,7 +2668,7 @@ export default createStore({
      * Obtiene médicos por grupo y convenio
      */
     getAllMedicosbyGrupo: async ({ commit }, { grupo, convenio }) => {
-      console.log("datos que entran en getAllMedicosbyGrupo - grupo:", grupo, "convenio:", convenio);
+      devLog("datos que entran en getAllMedicosbyGrupo - grupo:", grupo, "convenio:", convenio);
       try {
         const usuarios = await getAllUsers();
         const encuestasFiltradas = usuarios.filter(
@@ -2638,7 +2689,7 @@ export default createStore({
      * Obtiene enfermeros por grupo y convenio
      */
     getAllEnfermerosbyGrupo: async ({ commit }, { grupo, convenio }) => {
-      console.log("datos que entran en getAllEnfermerosbyGrupo - grupo:", grupo, "convenio:", convenio);
+      devLog("datos que entran en getAllEnfermerosbyGrupo - grupo:", grupo, "convenio:", convenio);
       try {
         const usuarios = await getAllUsers();
         const encuestasFiltradas = usuarios.filter(
@@ -2659,7 +2710,7 @@ export default createStore({
      * Obtiene psicólogos por grupo y convenio
      */
     getAllPsicologosbyGrupo: async ({ commit }, { grupo, convenio }) => {
-      console.log("datos que entran en getAllPsicologosbyGrupo - grupo:", grupo, "convenio:", convenio);
+      devLog("datos que entran en getAllPsicologosbyGrupo - grupo:", grupo, "convenio:", convenio);
       try {
         const usuarios = await getAllUsers();
         const psicologosFiltrados = usuarios.filter(
@@ -2680,7 +2731,7 @@ export default createStore({
      * Obtiene trabajadores sociales por grupo y convenio
      */
     getAllTsocialesbyGrupo: async ({ commit }, { grupo, convenio }) => {
-      console.log("datos que entran en getAllTsocialesbyGrupo - grupo:", grupo, "convenio:", convenio);
+      devLog("datos que entran en getAllTsocialesbyGrupo - grupo:", grupo, "convenio:", convenio);
       try {
         const usuarios = await getAllUsers();
         const tsocialesFiltrados = usuarios.filter(
@@ -2701,7 +2752,7 @@ export default createStore({
      * Obtiene nutricionistas por grupo y convenio
      */
     getAllNutricionistasbyGrupo: async ({ commit }, { grupo, convenio }) => {
-      console.log("datos que entran en getAllNutricionistasbyGrupo - grupo:", grupo, "convenio:", convenio);
+      devLog("datos que entran en getAllNutricionistasbyGrupo - grupo:", grupo, "convenio:", convenio);
       try {
         const usuarios = await getAllUsers();
         const nutricionistasFiltrados = usuarios.filter(
@@ -2722,7 +2773,7 @@ export default createStore({
      * Obtiene higienistas orales por grupo y convenio
      */
     getAllHigienistasOralbyGrupo: async ({ commit }, { grupo, convenio }) => {
-      console.log("datos que entran en getAllHigienistasOralbyGrupo - grupo:", grupo, "convenio:", convenio);
+      devLog("datos que entran en getAllHigienistasOralbyGrupo - grupo:", grupo, "convenio:", convenio);
       try {
         const usuarios = await getAllUsers();
         const higienistasFiltrados = usuarios.filter(
@@ -2743,7 +2794,7 @@ export default createStore({
      * Resetea contraseña a valor por defecto
      */
     resetPassword: async ({ commit }, id) => {
-      console.log("ID:", id);
+      devLog("ID:", id);
       try {
         const { data } = await realtime_api.patch(`/usuarios/${id}.json`, {
           password: "12345",
@@ -2857,6 +2908,7 @@ export default createStore({
 
         const Ruta = `/${bd}.json`;
         const { data } = await realtime_api.post(Ruta, DataToSaveC);
+        commit("setCatalogLoadedAt", { key: "epss", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_crearEps:", error);
@@ -2867,41 +2919,47 @@ export default createStore({
     /**
      * Obtiene todas las EPS
      */
-    getAllEps: async ({ commit }) => {
-      try {
-        const { data } = await realtime_api.get("/eps.json");
-        if (!data || typeof data !== "object") {
-          commit("setEps", []);
-          return [];
-        }
-        const eps = Object.entries(data).map(([key, value]) => ({
-          id: key,
-          ...value,
-        }));
-        commit("setEps", eps);
-        return eps;
-      } catch (error) {
-        console.error("Error en Action_getAllEps:", error);
-        throw error;
-      }
+    getAllEps: async (store, opts = {}) => {
+      return store.dispatch("getAllEpss", opts);
     },
 
     /**
      * Obtiene todas las EPS (método alternativo)
      */
-    getAllEpss: async ({ commit }) => {
+    getAllEpss: async ({ commit, state }, { force = false } = {}) => {
       try {
-        const { data } = await realtime_api.get("/eps.json");
-        if (!data || typeof data !== "object") {
-          commit("setEps", []);
-          return [];
+        if (
+          !force &&
+          Array.isArray(state.epss) &&
+          state.epss.length > 0 &&
+          isCatalogFresh(state.catalogLoadedAt?.epss)
+        ) {
+          return state.epss;
         }
-        const eps = Object.entries(data).map(([key, value]) => ({
-          id: key,
-          ...value,
-        }));
-        commit("setEps", eps);
-        return eps;
+        if (!force && catalogInflight.epss) {
+          return catalogInflight.epss;
+        }
+
+        const loadPromise = (async () => {
+          const { data } = await realtime_api.get("/eps.json");
+          if (!data || typeof data !== "object") {
+            commit("setEps", []);
+            commit("setCatalogLoadedAt", { key: "epss", at: Date.now() });
+            return [];
+          }
+          const eps = Object.entries(data).map(([key, value]) => ({
+            id: key,
+            ...value,
+          }));
+          commit("setEps", eps);
+          commit("setCatalogLoadedAt", { key: "epss", at: Date.now() });
+          return eps;
+        })().finally(() => {
+          catalogInflight.epss = null;
+        });
+
+        catalogInflight.epss = loadPromise;
+        return loadPromise;
       } catch (error) {
         console.error("Error en Action_getAllEps:", error);
         throw error;
@@ -2917,6 +2975,7 @@ export default createStore({
         const ipsId = resolveRequiredIpsId(state, "actualizar EPS");
         const DataToSave = { eps, ipsId };
         const { data } = await realtime_api.put(`/eps/${id}.json`, DataToSave);
+        commit("setCatalogLoadedAt", { key: "epss", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_actualizarEps:", error);
@@ -2931,6 +2990,7 @@ export default createStore({
       try {
         if (!id) throw new Error("ID inválido para eliminar");
         const { data } = await realtime_api.delete(`/eps/${id}.json`);
+        commit("setCatalogLoadedAt", { key: "epss", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action deleteEps:", error);
@@ -2959,6 +3019,7 @@ export default createStore({
         };
 
         const { data } = await realtime_api.post("/contratos.json", DataToSave);
+        commit("setCatalogLoadedAt", { key: "contratos", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_crearContrato:", error);
@@ -2969,19 +3030,40 @@ export default createStore({
     /**
      * Obtiene todos los contratos
      */
-    getAllContratos: async ({ commit }) => {
+    getAllContratos: async ({ commit, state }, { force = false } = {}) => {
       try {
-        const { data } = await realtime_api.get("/contratos.json");
-        if (!data) {
-          commit("setContratos", []);
-          return [];
+        if (
+          !force &&
+          Array.isArray(state.contratos) &&
+          state.contratos.length > 0 &&
+          isCatalogFresh(state.catalogLoadedAt?.contratos)
+        ) {
+          return state.contratos;
         }
-        const contratos = Object.entries(data).map(([key, value]) => ({
-          id: key,
-          ...value,
-        }));
-        commit("setContratos", contratos);
-        return contratos;
+        if (!force && catalogInflight.contratos) {
+          return catalogInflight.contratos;
+        }
+
+        const loadPromise = (async () => {
+          const { data } = await realtime_api.get("/contratos.json");
+          if (!data) {
+            commit("setContratos", []);
+            commit("setCatalogLoadedAt", { key: "contratos", at: Date.now() });
+            return [];
+          }
+          const contratos = Object.entries(data).map(([key, value]) => ({
+            id: key,
+            ...value,
+          }));
+          commit("setContratos", contratos);
+          commit("setCatalogLoadedAt", { key: "contratos", at: Date.now() });
+          return contratos;
+        })().finally(() => {
+          catalogInflight.contratos = null;
+        });
+
+        catalogInflight.contratos = loadPromise;
+        return loadPromise;
       } catch (error) {
         console.error("Error en Action_getAllContratos:", error);
         throw new Error(formatApiError(error, "No se pudieron cargar los contratos."));
@@ -2995,6 +3077,7 @@ export default createStore({
       try {
         if (!contratoId) throw new Error("ID inválido para eliminar");
         const { data } = await realtime_api.delete(`/contratos/${contratoId}.json`);
+        commit("setCatalogLoadedAt", { key: "contratos", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_eliminarContrato:", error);
@@ -3014,6 +3097,7 @@ export default createStore({
           ipsId,
         };
         const { data } = await realtime_api.put(`/contratos/${contratoId}.json`, payload);
+        commit("setCatalogLoadedAt", { key: "contratos", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_actualizarContrato:", error);
@@ -3146,6 +3230,7 @@ export default createStore({
 
         const Ruta = `/${bd}.json`;
         const { data } = await realtime_api.post(Ruta, DataToSaveC);
+        commit("setCatalogLoadedAt", { key: "cups", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_crearCups:", error);
@@ -3183,7 +3268,7 @@ export default createStore({
 
         const Ruta = `/${bd}/${id}.json`;
         const { data } = await realtime_api.put(Ruta, DataToSaveC);
-        console.log("CUPS editado exitosamente, datos guardados:", DataToSaveC);
+        commit("setCatalogLoadedAt", { key: "cups", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_editarCups:", error);
@@ -3198,6 +3283,7 @@ export default createStore({
       try {
         if (!cupsId) throw new Error("ID inválido para eliminar");
         const { data } = await realtime_api.delete(`/cups/${cupsId}.json`);
+        commit("setCatalogLoadedAt", { key: "cups", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_eliminarCups:", error);
@@ -3231,7 +3317,7 @@ export default createStore({
      * Obtiene CUPS por actividad
      */
     selectCupsByActividad: async ({ commit }, { enc, act }) => {
-      console.log("ejecutando procesos, esto entra ", enc, act);
+      devLog("ejecutando procesos, esto entra ", enc, act);
 
       try {
         let ruta = `/cupsActividades/${enc}/tipoActividad/${act}.json`;
@@ -3278,37 +3364,54 @@ export default createStore({
     /**
      * Obtiene todas las actividades extra
      */
-    getAllActividadesExtra: async ({ commit }) => {
+    getAllActividadesExtra: async ({ commit, state }, { force = false } = {}) => {
       try {
-        const { data } = await realtime_api.get("/actividadesExtra.json");
-
-        // Manejar caso cuando no hay registros (data es null)
-        if (!data || data === null) {
-          commit("setActividadesExtra", []);
-          return [];
+        if (
+          !force &&
+          Array.isArray(state.actividadesExtra) &&
+          state.actividadesExtra.length > 0 &&
+          isCatalogFresh(state.catalogLoadedAt?.actividadesExtra)
+        ) {
+          return state.actividadesExtra;
+        }
+        if (!force && catalogInflight.actividadesExtra) {
+          return catalogInflight.actividadesExtra;
         }
 
-        // Mapear actividades extra
-        const actividadesExtra = Object.entries(data)
-          .filter(([key, value]) => {
-            return value !== null &&
-              typeof value === 'object' &&
-              value.nombre;
-          })
-          .map(([key, value]) => ({
-            id: key,
-            key: String(value.key || value.clave || key || "").trim(),
-            nombre: value.nombre || "",
-            descripcion: value.descripcion || "",
-            Profesional: value.Profesional || [],
-          }));
+        const loadPromise = (async () => {
+          const { data } = await realtime_api.get("/actividadesExtra.json");
 
-        console.log("Actividades Extra cargadas correctamente:", actividadesExtra);
-        commit("setActividadesExtra", actividadesExtra);
-        return actividadesExtra;
+          if (!data || data === null) {
+            commit("setActividadesExtra", []);
+            commit("setCatalogLoadedAt", { key: "actividadesExtra", at: Date.now() });
+            return [];
+          }
+
+          const actividadesExtra = Object.entries(data)
+            .filter(([key, value]) => {
+              return value !== null &&
+                typeof value === 'object' &&
+                value.nombre;
+            })
+            .map(([key, value]) => ({
+              id: key,
+              key: String(value.key || value.clave || key || "").trim(),
+              nombre: value.nombre || "",
+              descripcion: value.descripcion || "",
+              Profesional: value.Profesional || [],
+            }));
+
+          commit("setActividadesExtra", actividadesExtra);
+          commit("setCatalogLoadedAt", { key: "actividadesExtra", at: Date.now() });
+          return actividadesExtra;
+        })().finally(() => {
+          catalogInflight.actividadesExtra = null;
+        });
+
+        catalogInflight.actividadesExtra = loadPromise;
+        return loadPromise;
       } catch (error) {
         console.error("Error en Action_getAllActividadesExtra:", error);
-        // Si la tabla no existe, retornar array vacío
         commit("setActividadesExtra", []);
         return [];
       }
@@ -3330,6 +3433,7 @@ export default createStore({
         };
 
         const { data } = await realtime_api.post("/actividadesExtra.json", dataToSave);
+        commit("setCatalogLoadedAt", { key: "actividadesExtra", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_crearActividadExtra:", error);
@@ -3354,6 +3458,7 @@ export default createStore({
         };
 
         const { data } = await realtime_api.put(`/actividadesExtra/${id}.json`, dataToSave);
+        commit("setCatalogLoadedAt", { key: "actividadesExtra", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_actualizarActividadExtra:", error);
@@ -3378,42 +3483,59 @@ export default createStore({
     /**
      * Obtiene todos los CUPS
      */
-    getAllCups: async ({ commit }) => {
+    getAllCups: async ({ commit, state }, { force = false } = {}) => {
       try {
-        const { data } = await realtime_api.get("/cups.json");
-
-        // Manejar caso cuando no hay registros (data es null)
-        if (!data || data === null) {
-          commit("setCups", []);
-          return [];
+        if (
+          !force &&
+          Array.isArray(state.cups) &&
+          state.cups.length > 0 &&
+          isCatalogFresh(state.catalogLoadedAt?.cups)
+        ) {
+          return state.cups;
+        }
+        if (!force && catalogInflight.cups) {
+          return catalogInflight.cups;
         }
 
-        // Mapear y filtrar solo registros válidos y completos
-        const cups = Object.entries(data)
-          .filter(([key, value]) => {
-            // Filtrar registros null o incompletos
-            return value !== null &&
-              typeof value === 'object' &&
-              (value.DescripcionCUP || value.codigo || value.profesional);
-          })
-          .map(([key, value]) => ({
-            id: key,
-            codigo: value.codigo || "",
-            DescripcionCUP: value.DescripcionCUP || "",
-            profesional: Array.from(new Set(
-              (Array.isArray(value.profesional)
-                ? value.profesional
-                : (value.profesional ? [value.profesional] : []))
-                .map((item) => String(item || "").trim())
-                .filter(Boolean)
-            )),
-            Grupo: value.Grupo || value.grupo || value.group || "",
-            Eps: Array.isArray(value.Eps) ? value.Eps : [],
-          }));
+        const loadPromise = (async () => {
+          const { data } = await realtime_api.get("/cups.json");
 
-        console.log("CUPS cargados correctamente:", cups);
-        commit("setCups", cups);
-        return cups;
+          if (!data || data === null) {
+            commit("setCups", []);
+            commit("setCatalogLoadedAt", { key: "cups", at: Date.now() });
+            return [];
+          }
+
+          const cups = Object.entries(data)
+            .filter(([key, value]) => {
+              return value !== null &&
+                typeof value === 'object' &&
+                (value.DescripcionCUP || value.codigo || value.profesional);
+            })
+            .map(([key, value]) => ({
+              id: key,
+              codigo: value.codigo || "",
+              DescripcionCUP: value.DescripcionCUP || "",
+              profesional: Array.from(new Set(
+                (Array.isArray(value.profesional)
+                  ? value.profesional
+                  : (value.profesional ? [value.profesional] : []))
+                  .map((item) => String(item || "").trim())
+                  .filter(Boolean)
+              )),
+              Grupo: value.Grupo || value.grupo || value.group || "",
+              Eps: Array.isArray(value.Eps) ? value.Eps : [],
+            }));
+
+          commit("setCups", cups);
+          commit("setCatalogLoadedAt", { key: "cups", at: Date.now() });
+          return cups;
+        })().finally(() => {
+          catalogInflight.cups = null;
+        });
+
+        catalogInflight.cups = loadPromise;
+        return loadPromise;
       } catch (error) {
         console.error("Error en Action_getAllCups:", error);
         throw error;
@@ -3503,7 +3625,7 @@ export default createStore({
           asigfact: idProf,
           status_facturacion: false,
         });
-        console.log("Paciente aprovisionado:", response.data);
+        devLog("Paciente aprovisionado:", response.data);
         return response.data;
       } catch (error) {
         console.error("Error al aprovisionar paciente:", error);
@@ -3520,7 +3642,7 @@ export default createStore({
           asigfact: null,
           status_facturacion: false,
         });
-        console.log("Aprovisionamiento revertido:", response.data);
+        devLog("Aprovisionamiento revertido:", response.data);
         return response.data;
       } catch (error) {
         console.error("Error al revertir aprovisionamiento:", error);
@@ -3537,7 +3659,7 @@ export default createStore({
           status_facturacion: true,
           FechaFacturacion: new Date().toISOString(),
         });
-        console.log("Facturación cerrada:", response.data);
+        devLog("Facturación cerrada:", response.data);
         return response.data;
       } catch (error) {
         console.error("Error al cerrar facturación:", error);
@@ -3812,18 +3934,34 @@ export default createStore({
      * Obtiene registros aprobados para facturación
      */
     GetRegistersbyRangeGeneralFactAprov: async ({ commit }, payload) => {
+      const iduser = typeof payload === "object" ? payload?.iduser : payload;
+      const gruposFacturador = typeof payload === "object" ? payload?.gruposFacturador : "";
+      const convenioFacturador = typeof payload === "object" ? payload?.convenio : "";
+      const cacheKey = [
+        normalizeComparableDocument(iduser),
+        String(gruposFacturador || "").trim(),
+        String(convenioFacturador || "").trim().toLowerCase(),
+      ].join("|");
+
+      if (factAprovInflight.has(cacheKey)) {
+        return factAprovInflight.get(cacheKey);
+      }
+
+      const loadPromise = (async () => {
       try {
-        const iduser = typeof payload === "object" ? payload?.iduser : payload;
-        const gruposFacturador = typeof payload === "object" ? payload?.gruposFacturador : "";
-        const convenioFacturador = typeof payload === "object" ? payload?.convenio : "";
-        const noCacheConfig = getNoCacheRequestConfig();
-        const [actividadesResponse, encuestasResponse, asignacionesResponse] = await Promise.all([
-          realtime_api.get("/Actividades.json", noCacheConfig),
-          realtime_api.get("/Encuesta.json", noCacheConfig),
-          realtime_api.get("/Asignaciones.json", noCacheConfig),
+        const encuestaParams = {
+          status_facturacion: false,
+        };
+        if (String(convenioFacturador || "").trim()) {
+          encuestaParams.convenio = String(convenioFacturador).trim();
+        }
+
+        // Solo pendientes + asignaciones (sin dump global de Actividades).
+        const [encuestasResponse, asignacionesResponse] = await Promise.all([
+          realtime_api.get("/Encuesta.json", buildReadRequestConfig(encuestaParams)),
+          realtime_api.get("/Asignaciones.json"),
         ]);
 
-        const actividades = actividadesResponse?.data;
         const encuestas = encuestasResponse?.data;
         const asignaciones = asignacionesResponse?.data;
 
@@ -3841,7 +3979,7 @@ export default createStore({
           return [];
         }
 
-        const actividadesMap = actividades && typeof actividades === "object" ? actividades : {};
+        const actividadesMap = {};
 
         const encuestasMap = Object.entries(encuestas).map(([key, value]) => ({
           id: key,
@@ -3993,6 +4131,12 @@ export default createStore({
         console.error("Error en Action_GetRegistersbyRangeGeneralFactAprov:", error);
         throw error;
       }
+      })().finally(() => {
+        factAprovInflight.delete(cacheKey);
+      });
+
+      factAprovInflight.set(cacheKey, loadPromise);
+      return loadPromise;
     },
 
     // ====================================================================
@@ -4004,7 +4148,7 @@ export default createStore({
      */
     GetRegistersbyRangeGeneral: async ({ commit }, parametros) => {
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const { data } = await realtime_api.get("/Encuesta.json", buildReadRequestConfig());
         const encuestas = Object.entries(data || {}).map(([key, value]) => ({
           id: key,
           ...value,
@@ -4027,7 +4171,7 @@ export default createStore({
      */
     GetRegistersbyRangeCerrados: async ({ commit }, parametros) => {
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const { data } = await realtime_api.get("/Encuesta.json", buildReadRequestConfig());
         const encuestas = Object.entries(data || {}).map(([key, value]) => ({
           id: key,
           ...value,
@@ -4052,7 +4196,7 @@ export default createStore({
      */
     GetAllRegistersbyRangeAndProf: async ({ commit }, parametros) => {
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", getNoCacheRequestConfig());
+        const { data } = await realtime_api.get("/Encuesta.json", buildReadRequestConfig());
         const encuestas = Object.entries(data).map(([key, value]) => ({
           id: key,
           ...value,
@@ -4113,7 +4257,7 @@ export default createStore({
           commit("setUserData", userData);
           localStorage.setItem("userData", JSON.stringify(userData));
         } else {
-          console.log("No existe usuario para este UID");
+          devLog("No existe usuario para este UID");
           commit("clearUserData");
           localStorage.removeItem("userData");
         }
@@ -4134,12 +4278,12 @@ export default createStore({
           throw new Error("ID de paciente inválido");
         }
 
-        console.log(`[deleteActividadesByPacienteId] Eliminando actividades para paciente: ${pacienteId}`);
+        devLog(`[deleteActividadesByPacienteId] Eliminando actividades para paciente: ${pacienteId}`);
 
         // Eliminar la rama completa de actividades para este paciente
         const { data } = await realtime_api.delete(`/Actividades/${pacienteId}.json`);
 
-        console.log(`[deleteActividadesByPacienteId] Actividades eliminadas correctamente para paciente: ${pacienteId}`);
+        devLog(`[deleteActividadesByPacienteId] Actividades eliminadas correctamente para paciente: ${pacienteId}`);
         return data;
       } catch (error) {
         console.error(`[deleteActividadesByPacienteId] Error: ${error.message}`);
@@ -4158,12 +4302,12 @@ export default createStore({
           throw new Error("ID de paciente inválido");
         }
 
-        console.log(`[deleteAsignacionesByPacienteId] Eliminando asignaciones para paciente: ${pacienteId}`);
+        devLog(`[deleteAsignacionesByPacienteId] Eliminando asignaciones para paciente: ${pacienteId}`);
 
         // Eliminar la rama completa de asignaciones para este paciente
         const { data } = await realtime_api.delete(`/Asignaciones/${pacienteId}.json`);
 
-        console.log(`[deleteAsignacionesByPacienteId] Asignaciones eliminadas correctamente para paciente: ${pacienteId}`);
+        devLog(`[deleteAsignacionesByPacienteId] Asignaciones eliminadas correctamente para paciente: ${pacienteId}`);
         return data;
       } catch (error) {
         console.error(`[deleteAsignacionesByPacienteId] Error: ${error.message}`);
@@ -4258,6 +4402,19 @@ export default createStore({
     },
     setContratos(state, contratos) {
       state.contratos = contratos;
+    },
+    setCatalogLoadedAt(state, { key, at }) {
+      if (!state.catalogLoadedAt || typeof state.catalogLoadedAt !== "object") {
+        state.catalogLoadedAt = {
+          cups: 0,
+          contratos: 0,
+          epss: 0,
+          actividadesExtra: 0,
+        };
+      }
+      if (key) {
+        state.catalogLoadedAt[key] = Number(at) || Date.now();
+      }
     },
 
     // Profesionales

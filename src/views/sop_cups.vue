@@ -1510,6 +1510,8 @@ export default {
 
         async abrirModalCups(item) {
             try {
+                // Catálogos necesarios para filtrar CUPS del modal (usa caché si ya están).
+                await this.ensureCatalogosCups();
                 await this.integrarCup(item);
 
                 this.restablecerEstadoModalScroll(false);
@@ -1560,26 +1562,65 @@ export default {
         async cargarAsignaciones() {
             try {
                 const asignacionesData = await this.getAsignacionesByEncuesta(this.idEncuesta);
-                const cups = asignacionesData?.cups;
-                this.asignaciones = {
-                    ...(asignacionesData || {}),
-                    cups: Array.isArray(cups)
-                        ? cups
-                        : (cups && typeof cups === 'object'
-                            ? Object.fromEntries(
-                                Object.entries(cups).map(([rowKey, cup]) => [
-                                    rowKey,
-                                    cup && typeof cup === 'object'
-                                        ? { ...cup, _rowKey: cup._rowKey ?? rowKey }
-                                        : cup,
-                                ])
-                            )
-                            : cups),
-                };
+                this.aplicarAsignacionesLocales(asignacionesData);
             } catch (error) {
                 console.error("Error al cargar asignaciones:", error);
                 this.asignaciones = {};
             }
+        },
+
+        aplicarAsignacionesLocales(asignacionesData) {
+            const cups = asignacionesData?.cups;
+            this.asignaciones = {
+                ...(asignacionesData || {}),
+                cups: Array.isArray(cups)
+                    ? cups
+                    : (cups && typeof cups === 'object'
+                        ? Object.fromEntries(
+                            Object.entries(cups).map(([rowKey, cup]) => [
+                                rowKey,
+                                cup && typeof cup === 'object'
+                                    ? { ...cup, _rowKey: cup._rowKey ?? rowKey }
+                                    : cup,
+                            ])
+                        )
+                        : cups),
+            };
+        },
+
+        aplicarAsignacionesDesdeEncuesta(encuesta) {
+            if (encuesta?._asignacionesRaw) {
+                this.aplicarAsignacionesLocales(encuesta._asignacionesRaw);
+                return;
+            }
+            if (encuesta?.cups) {
+                this.aplicarAsignacionesLocales({ cups: encuesta.cups });
+                return;
+            }
+            this.asignaciones = {};
+        },
+
+        async ensureCatalogosCups({ force = false } = {}) {
+            if (this._catalogosPromise && !force) {
+                return this._catalogosPromise;
+            }
+
+            this._catalogosPromise = Promise.all([
+                this.getAllCups({ force }),
+                this.getAllContratos({ force }),
+                this.getAllEpss({ force }),
+                this.getAllActividadesExtra({ force }),
+            ]).finally(() => {
+                this._catalogosPromise = null;
+            });
+
+            return this._catalogosPromise;
+        },
+
+        cargarCatalogosEnBackground() {
+            this.ensureCatalogosCups().catch((error) => {
+                console.warn("Catálogos CUPS en background:", error);
+            });
         },
         obtenerCupsPorActividad(actividadId) {
             if (!this.asignaciones || !this.asignaciones.cups) {
@@ -1973,13 +2014,13 @@ export default {
             if (!this.isComponentActive) return;
 
             try {
-                await this.getEncuestaById(this.idEncuesta);
+                const encuesta = await this.getEncuestaById({
+                    idEncuesta: this.idEncuesta,
+                    allowGlobalFallback: false,
+                });
                 if (!this.isComponentActive) return;
 
-                await this.getActividadesById(this.idEncuesta);
-                if (!this.isComponentActive) return;
-
-                await this.cargarAsignaciones();
+                this.aplicarAsignacionesDesdeEncuesta(encuesta);
             } catch (error) {
                 console.error("Error en recargar:", error);
             }
@@ -2141,17 +2182,23 @@ export default {
         this.cargandoDatos = true;
 
         try {
-            await Promise.all([
-                this.getEncuestaById(this.idEncuesta),
-                this.getActividadesById(this.idEncuesta),
-                this.getAllCups(),
+            // Fase crítica: encuesta puntual + catálogos ligeros (nombres de actividades).
+            // El catálogo grande de CUPS / EPS queda en background.
+            const [encuesta] = await Promise.all([
+                this.getEncuestaById({
+                    idEncuesta: this.idEncuesta,
+                    allowGlobalFallback: false,
+                }),
                 this.getAllContratos(),
-                this.getAllEpss(),
                 this.getAllActividadesExtra(),
-                this.cargarAsignaciones()
             ]);
+            if (!this.isComponentActive) return;
 
+            this.aplicarAsignacionesDesdeEncuesta(encuesta);
             this.cargandoDatos = false;
+
+            // cups.json + eps.json en background (caché 10 min); el modal los espera si aún no llegan.
+            this.cargarCatalogosEnBackground();
         } catch (error) {
             console.error("Error en mounted:", error);
             this.cargandoDatos = false;
@@ -2175,6 +2222,7 @@ export default {
     /* ----------------------------------------------------------------------------------------------- */
     created() {
         this.idEncuesta = this.$route.params.idEncuesta;
+        this._catalogosPromise = null;
     },
 };
 </script>

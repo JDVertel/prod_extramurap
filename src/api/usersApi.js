@@ -1,9 +1,3 @@
-// Carga masiva de usuarios
-export async function bulkCreateUsers(usersArray) {
-  const { data } = await http.post("/users/bulk", { users: usersArray });
-  invalidateUsersCache();
-  return data;
-}
 import http from "./http";
 
 const USERS_CACHE_TTL_MS = 60 * 1000;
@@ -93,5 +87,11 @@ export async function updateUserPasswordById(id, password, mustChangePassword) {
 
 export async function unlockUserById(id) {
   const { data } = await http.patch(`/users/${id}/unlock`);
+  return data;
+}
+
+export async function bulkCreateUsers(usersArray) {
+  const { data } = await http.post("/users/bulk", { users: usersArray });
+  invalidateUsersCache();
   return data;
 }

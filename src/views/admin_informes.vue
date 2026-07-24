@@ -519,6 +519,70 @@ import {
 } from "vuex";
 import { CONVENIOS_PROGRAMA } from "@/constants/convenios";
 
+/** Caché corta de dumps de catálogo compartidos entre tipos de informe. */
+const informesCatalogCache = {
+  at: 0,
+  ttlMs: 3 * 60 * 1000,
+  data: null,
+  inflight: null,
+};
+
+async function loadInformesCatalogSnapshot({ includeActividades = false, includeCups = false } = {}) {
+  const now = Date.now();
+  const cached = informesCatalogCache.data;
+  const cacheHit =
+    cached &&
+    now - informesCatalogCache.at < informesCatalogCache.ttlMs &&
+    (!includeActividades || cached.actividades) &&
+    (!includeCups || cached.cups);
+
+  if (cacheHit) {
+    return cached;
+  }
+
+  if (informesCatalogCache.inflight) {
+    const shared = await informesCatalogCache.inflight;
+    if (
+      shared &&
+      (!includeActividades || shared.actividades) &&
+      (!includeCups || shared.cups)
+    ) {
+      return shared;
+    }
+  }
+
+  const loadPromise = (async () => {
+    const requests = [
+      realtime_api.get("/Asignaciones.json"),
+      realtime_api.get("/actividadesExtra.json"),
+    ];
+    if (includeActividades) requests.push(realtime_api.get("/Actividades.json"));
+    if (includeCups) requests.push(realtime_api.get("/cups.json"));
+
+    const responses = await Promise.all(requests);
+    let idx = 0;
+    const asignaciones = responses[idx++]?.data || {};
+    const actividadesExtra = responses[idx++]?.data || {};
+    const actividades = includeActividades ? (responses[idx++]?.data || {}) : (cached?.actividades || null);
+    const cups = includeCups ? (responses[idx++]?.data || {}) : (cached?.cups || null);
+
+    const next = {
+      asignaciones,
+      actividadesExtra,
+      actividades,
+      cups,
+    };
+    informesCatalogCache.at = Date.now();
+    informesCatalogCache.data = next;
+    return next;
+  })().finally(() => {
+    informesCatalogCache.inflight = null;
+  });
+
+  informesCatalogCache.inflight = loadPromise;
+  return loadPromise;
+}
+
 const COLUMNAS_INFORME = [
     { key: "convenio", label: "Convenio" },
     { key: "grupo", label: "Grupo" },
@@ -802,51 +866,8 @@ export default {
         },
 
         async cargarConveniosDisponibles() {
-            try {
-                const normalizar = (valor) => String(valor || "").trim();
-                const convenios = new Set([...CONVENIOS_PROGRAMA]);
-
-                const [respEncuestas, respAsignaciones, respUsuarios] = await Promise.all([
-                    realtime_api.get("/Encuesta.json"),
-                    realtime_api.get("/Asignaciones.json"),
-                    realtime_api.get("/Usuarios.json"),
-                ]);
-
-                const encuestasObj = respEncuestas?.data || {};
-                Object.values(encuestasObj).forEach((encuesta) => {
-                    const convenio = normalizar(encuesta?.convenio);
-                    if (convenio) convenios.add(convenio);
-                });
-
-                const asignacionesObj = respAsignaciones?.data || {};
-                Object.values(asignacionesObj).forEach((asignacion) => {
-                    const convenioAsignacion = normalizar(asignacion?.convenio);
-                    if (convenioAsignacion) convenios.add(convenioAsignacion);
-
-                    const cupsObj = asignacion?.cups;
-                    if (cupsObj && typeof cupsObj === "object") {
-                        Object.values(cupsObj).forEach((cup) => {
-                            const convenioCup = normalizar(cup?.convenio);
-                            if (convenioCup) convenios.add(convenioCup);
-                        });
-                    }
-                });
-
-                const usuariosObj = respUsuarios?.data || {};
-                Object.values(usuariosObj).forEach((usuario) => {
-                    this.extraerConveniosUsuario(usuario?.convenio || usuario?.convenios).forEach((conv) => {
-                        const convenio = normalizar(conv);
-                        if (convenio) convenios.add(convenio);
-                    });
-                });
-
-                this.conveniosDisponibles = Array.from(convenios).sort((a, b) =>
-                    a.localeCompare(b, "es", { sensitivity: "base" })
-                );
-            } catch (error) {
-                console.error("Error cargando convenios disponibles:", error);
-                this.conveniosDisponibles = [...CONVENIOS_PROGRAMA];
-            }
+            // Catálogo fijo: evita 3 dumps globales solo para llenar el select.
+            this.conveniosDisponibles = [...CONVENIOS_PROGRAMA];
         },
 
         async cargarFacturadoresDisponibles() {
@@ -1259,17 +1280,15 @@ export default {
                 paramsEncuesta.convenio = String(this.convenioInforme || "").trim();
             }
 
-            const [respEncuestas, respActividades, respAsignaciones, respActividadesExtra] = await Promise.all([
+            const [respEncuestas, catalog] = await Promise.all([
                 realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
-                realtime_api.get("/Actividades.json"),
-                realtime_api.get("/Asignaciones.json"),
-                realtime_api.get("/actividadesExtra.json"),
+                loadInformesCatalogSnapshot({ includeActividades: true }),
             ]);
 
             const encuestasObj = respEncuestas?.data || {};
-            const actividadesGlobal = respActividades?.data || {};
-            const asignacionesGlobal = respAsignaciones?.data || {};
-            const actividadesExtraGlobal = respActividadesExtra?.data || {};
+            const actividadesGlobal = catalog.actividades || {};
+            const asignacionesGlobal = catalog.asignaciones || {};
+            const actividadesExtraGlobal = catalog.actividadesExtra || {};
 
             this.actividadesExtraMap = Object.entries(actividadesExtraGlobal).reduce((acc, [id, item]) => {
                 if (item && item.key !== undefined && item.key !== null) {
@@ -1606,15 +1625,14 @@ export default {
                 paramsEncuesta.convenio = String(this.convenioInforme || "").trim();
             }
 
-            const [respEncuestas, respAsignaciones, respActividadesExtra] = await Promise.all([
+            const [respEncuestas, catalog] = await Promise.all([
                 realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
-                realtime_api.get("/Asignaciones.json"),
-                realtime_api.get("/actividadesExtra.json"),
+                loadInformesCatalogSnapshot(),
             ]);
 
             const encuestasObj = respEncuestas?.data || {};
-            const asignacionesObj = respAsignaciones?.data || {};
-            const actividadesExtraGlobal = respActividadesExtra?.data || {};
+            const asignacionesObj = catalog.asignaciones || {};
+            const actividadesExtraGlobal = catalog.actividadesExtra || {};
 
             this.actividadesExtraMap = Object.entries(actividadesExtraGlobal).reduce((acc, [id, item]) => {
                 if (item && item.key !== undefined && item.key !== null) {
@@ -2053,17 +2071,15 @@ export default {
             }
 
             try {
-                const [respActividades, respAsignaciones, respActividadesExtra, respCups] = await Promise.all([
-                    realtime_api.get("/Actividades.json"),
-                    realtime_api.get("/Asignaciones.json"),
-                    realtime_api.get("/actividadesExtra.json"),
-                    realtime_api.get("/cups.json"),
-                ]);
+                const catalog = await loadInformesCatalogSnapshot({
+                    includeActividades: true,
+                    includeCups: true,
+                });
 
-                const actividadesGlobal = respActividades.data || {};
-                const asignacionesGlobal = respAsignaciones.data || {};
-                const actividadesExtraGlobal = respActividadesExtra.data || {};
-                const cupsGlobal = respCups.data || {};
+                const actividadesGlobal = catalog.actividades || {};
+                const asignacionesGlobal = catalog.asignaciones || {};
+                const actividadesExtraGlobal = catalog.actividadesExtra || {};
+                const cupsGlobal = catalog.cups || {};
 
                 this.actividadesExtraMap = Object.entries(actividadesExtraGlobal).reduce((acc, [id, item]) => {
                     if (item && item.key !== undefined && item.key !== null) {

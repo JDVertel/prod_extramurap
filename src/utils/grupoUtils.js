@@ -117,14 +117,22 @@ export function formatearGruposFacturador(valor) {
   return grupos.length ? grupos.join(", ") : "Todos";
 }
 
-export function obtenerGruposOperativosDesdeUsuarios(usuarios = []) {
+export function obtenerGruposOperativosDesdeUsuarios(usuarios = [], convenioFiltro = "") {
   const grupos = new Set();
-  const cargosExcluidos = new Set(["admin", "fact", "superusuario"]);
+  const cargosExcluidos = new Set(["admin", "fact", "facturador", "superusuario"]);
+  const convenioNorm = String(convenioFiltro || "").trim().toLowerCase();
 
   usuarios.forEach((usuario) => {
     const cargo = String(usuario?.cargo || "").trim().toLowerCase();
     if (cargosExcluidos.has(cargo)) {
       return;
+    }
+
+    if (convenioNorm) {
+      const convenioUsuario = String(usuario?.convenio || "").trim().toLowerCase();
+      if (convenioUsuario !== convenioNorm) {
+        return;
+      }
     }
 
     parseGruposUsuario(usuario?.grupo).forEach((grupo) => {

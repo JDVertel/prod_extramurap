@@ -499,17 +499,24 @@ export default {
                     throw new Error("No se encontro el documento del profesional a consultar");
                 }
 
-                const [encuestasConActividades] = await Promise.race([
-                    Promise.all([
-                        this.getEncuestasConActividadesMedico({
-                            idUsuario: documentoObjetivo,
-                        }),
-                        this.cargarFuenteContadores(),
-                    ]),
+                const resultado = await Promise.race([
+                    this.getEncuestasConActividadesMedico({
+                        idUsuario: documentoObjetivo,
+                        includeFuenteContadores: true,
+                    }),
                     new Promise((_, reject) =>
                         setTimeout(() => reject(new Error("Timeout - tardó más de 10 segundos")), 10000)
                     ),
                 ]);
+
+                const encuestasConActividades = Array.isArray(resultado)
+                    ? resultado
+                    : (resultado?.pendientes || []);
+                // Reutiliza la misma lectura de Encuesta para contadores (evita 2do dump).
+                this.encuestasContador = Array.isArray(resultado?.todas)
+                    ? resultado.todas
+                    : encuestasConActividades;
+                this.actualizarMetricasDesdeFuente();
 
                 this.$store.commit("setEncuestas", encuestasConActividades);
                 this.$store.commit("setcantEncuestas", encuestasConActividades.length);

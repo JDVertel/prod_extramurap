@@ -917,31 +917,11 @@ export default {
 
             await this.getPendientes();
         },
-        "userData.numDocumento": {
-            immediate: true,
-            async handler() {
-                if (!String(this.documentoUsuarioActual || "").trim()) {
-                    return;
-                }
-
-                if (this.activeTab === "pendientes") {
-                    await this.getPendientes();
-                }
-            },
-        },
         documentoUsuarioActual: {
             immediate: true,
-            async handler(nuevoDocumento, documentoAnterior) {
+            async handler(nuevoDocumento) {
                 if (!String(nuevoDocumento || "").trim()) {
                     return;
-                }
-
-                if (this.isFacturacionPendientesDebugEnabled()) {
-                    console.warn("[facturacion:pendientes] cambio-documento-usuario", {
-                        documentoAnterior: String(documentoAnterior || "").trim() || null,
-                        nuevoDocumento,
-                        activeTab: this.activeTab,
-                    });
                 }
 
                 if (this.activeTab === "pendientes") {
@@ -1534,7 +1514,10 @@ export default {
         this.cargando = true
         try {
             await this.getAllActividadesExtra();
-            await this.getPendientes();
+            // getPendientes ya se dispara por el watcher immediate de documentoUsuarioActual
+            if (!String(this.documentoUsuarioActual || "").trim()) {
+                await this.getPendientes();
+            }
         } catch (error) {
             console.error("[facturacion:pendientes] error-mounted", {
                 message: error?.message || String(error),

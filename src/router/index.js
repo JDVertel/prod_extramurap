@@ -303,7 +303,9 @@ router.beforeEach((to, from, next) => {
     } catch (_) {}
   }
 
-  console.log(`[Router] Navegando de ${from.name} a ${to.name} - Token: ${loggedIn ? 'SÍ' : 'NO'}`);
+  if (import.meta.env.DEV) {
+    console.log(`[Router] Navegando de ${from.name} a ${to.name} - Token: ${loggedIn ? 'SÍ' : 'NO'}`);
+  }
 
   // Si la ruta requiere autenticación, validar token
   if (to.matched.some((record) => record.meta.requiresAuth)) {
@@ -357,12 +359,16 @@ router.beforeEach((to, from, next) => {
       }
 
       // Token existe, permitir navegación
-      console.log(`[Router] Autenticado - permitiendo acceso a ${to.name}`);
+      if (import.meta.env.DEV) {
+        console.log(`[Router] Autenticado - permitiendo acceso a ${to.name}`);
+      }
       next();
     }
   } else {
     // Rutas públicas (login, logout, etc)
-    console.log(`[Router] Ruta pública ${to.name} - permitiendo acceso`);
+    if (import.meta.env.DEV) {
+      console.log(`[Router] Ruta pública ${to.name} - permitiendo acceso`);
+    }
     next();
   }
 });

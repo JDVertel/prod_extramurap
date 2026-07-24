@@ -365,12 +365,18 @@ export default {
         }
 
         await Promise.race([
-          Promise.all([
-            this.getAllRegistersByFechaStatus({
-              idUsuario: documentoObjetivo,
-            }),
-            this.cargarFuenteContadores(),
-          ]),
+          (async () => {
+            // Una sola lectura /Encuesta.json: contadores + bandeja abierta.
+            await this.cargarFuenteContadores();
+            const encuestasFiltradas = (this.encuestasContador || []).filter((encuesta) => {
+              if (String(encuesta.idEncuestador || "") !== String(documentoObjetivo)) return false;
+              if (encuesta.status_gest_aux !== false) return false;
+              const yaHabiaCierreAuxiliar = Boolean(String(encuesta.fechagestAuxiliar || "").trim());
+              return encuesta.status_visita === false || yaHabiaCierreAuxiliar;
+            });
+            this.$store.commit("setEncuestas", encuestasFiltradas);
+            this.$store.commit("setcantEncuestas", encuestasFiltradas.length);
+          })(),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Timeout - tardó más de 10 segundos')), 10000)
           )
@@ -514,9 +520,10 @@ export default {
       handler: function (to, from) {
         // Se dispara SIEMPRE que la ruta cambia, sin importar el nombre
         // Esto es crítico cuando presionas atrás del navegador
-        console.log(`[sop_aux watch] Ruta cambió de ${from.name} a ${to.name}`);
+        if (import.meta.env.DEV) {
+          console.log(`[sop_aux watch] Ruta cambió de ${from.name} a ${to.name}`);
+        }
         if (to.name === 'sop_aux') {
-          console.log('[sop_aux watch] Cargando encuestas por cambio de ruta');
           this.cargarEncuestas();
         }
       },
