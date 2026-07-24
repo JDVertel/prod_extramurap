@@ -1994,6 +1994,7 @@ export default {
                 "/sop_psicologo",
                 "/sop_tsocial",
                 "/sop_nutricionista",
+                "/sop_higienista_oral",
             ];
 
             if (rutaAnterior && rutasValidas.includes(rutaAnterior)) {
@@ -2012,6 +2013,7 @@ export default {
             if (cargo === "Psicologo") return "/sop_psicologo";
             if (cargo === "Tsocial") return "/sop_tsocial";
             if (cargo === "Nutricionista") return "/sop_nutricionista";
+            if (cargo === "Higienista oral") return "/sop_higienista_oral";
             return "/sop_aux";
         },
 
@@ -2057,7 +2059,7 @@ export default {
                 try {
 
                     // Si el usuario es Auxiliar de enfermería, Médico, Psicólogo o Trabajador Social, cerrar directamente
-                    if (cargo === "Auxiliar de enfermeria" || cargo === "Medico" || cargo === "Psicologo" || cargo === "Tsocial" || cargo === "Nutricionista") {
+                    if (cargo === "Auxiliar de enfermeria" || cargo === "Medico" || cargo === "Psicologo" || cargo === "Tsocial" || cargo === "Nutricionista" || cargo === "Higienista oral") {
                         await this.cerrarEncuesta({
                             id: this.idEncuesta,
                             cargo: cargo,

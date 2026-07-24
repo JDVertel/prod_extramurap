@@ -13,6 +13,7 @@
     </div>
     <div v-if="!cargando">
         <h1 class="display-6 center">{{ cargoMostrado }}</h1>
+        <ProfesionalGrupoInfo :es-estado-view="esEstadoView" />
         <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
             Visualizando como admin: {{ nombreProfesionalSeleccionado }}
         </p>
@@ -201,10 +202,12 @@ import { construirTooltipEpsCierres } from "@/utils/gestionCounters";
 import { formatBandejaShortDate, groupBandejaItemsByDay, sortBandejaItems } from "@/utils/bandejaPresentation";
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 import AssignedProfessionalsBadge from "@/components/AssignedProfessionalsBadge.vue";
+import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
 export default {
     components: {
         HoverInfoBadge,
         AssignedProfessionalsBadge,
+        ProfesionalGrupoInfo,
     },
     data() {
         return {

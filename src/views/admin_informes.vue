@@ -18,7 +18,7 @@
         <div class="container-fluid px-3 px-xl-4 informe-param-container">
 
 
-            <h1 class="admin-informe-title"><i class="bi bi-clipboard2-data h1"></i>Informe X Profesional</h1>
+            <h1 class="admin-informe-title"><i class="bi bi-clipboard2-data h1"></i>Informes Administrativos</h1>
             <div v-if="tieneContenidoInforme" class="mb-3">
                 <button type="button" class="btn btn-primary admin-informe-action" @click="parametrizarNuevoInforme">
                     <i class="bi bi-sliders"></i> Parametrizar nuevo informe
@@ -517,6 +517,7 @@ import {
     mapState,
     mapActions
 } from "vuex";
+import { CONVENIOS_PROGRAMA } from "@/constants/convenios";
 
 const COLUMNAS_INFORME = [
     { key: "convenio", label: "Convenio" },
@@ -621,6 +622,7 @@ const CARGO_CANONICO_POR_NORMALIZADO = {
     trabajadorsocial: "Tsocial",
     trabajadorasocial: "Tsocial",
     nutricionista: "Nutricionista",
+    higienistaoral: "Higienista oral",
 };
 
 const ROL_REPORTE_POR_CARGO = {
@@ -630,6 +632,7 @@ const ROL_REPORTE_POR_CARGO = {
     Psicologo: "Psicologo",
     Tsocial: "Trabajador social",
     Nutricionista: "Nutricionista",
+    "Higienista oral": "Higienista oral",
 };
 
 const ALIASES_ROL_POR_CARGO = {
@@ -639,6 +642,7 @@ const ALIASES_ROL_POR_CARGO = {
     Psicologo: ["Psicologo"],
     Tsocial: ["Tsocial", "Trabajador social", "Trabajadora social"],
     Nutricionista: ["Nutricionista"],
+    "Higienista oral": ["Higienista oral", "Higienista Oral"],
 };
 
 const CONFIG_REPORTE_PROFESIONALES = [
@@ -678,6 +682,12 @@ const CONFIG_REPORTE_PROFESIONALES = [
         statusKey: "status_gest_nutricionista",
         fechaKeys: ["fechagestNutricionista", "fecha_gest_nutricionista"],
     },
+    {
+        cargo: "Higienista oral",
+        docKeys: ["idHigienistaOralAtiende"],
+        statusKey: "status_gest_higienista_oral",
+        fechaKeys: ["fechagestHigienistaOral", "fecha_gest_higienista_oral"],
+    },
 ];
 
 const crearFiltrosIniciales = (columnas) => columnas.reduce((acc, col) => {
@@ -705,7 +715,7 @@ export default {
             convenioInforme: "",
             profesionalInforme: "",
             facturadorInforme: "",
-            conveniosDisponibles: ["Extramural", "E Basicos", "PIC"],
+            conveniosDisponibles: [...CONVENIOS_PROGRAMA],
             facturadoresDisponibles: [],
             facturadoresMap: {},
             facturadoresConveniosMap: {},
@@ -794,7 +804,7 @@ export default {
         async cargarConveniosDisponibles() {
             try {
                 const normalizar = (valor) => String(valor || "").trim();
-                const convenios = new Set(["Extramural", "E Basicos", "PIC"]);
+                const convenios = new Set([...CONVENIOS_PROGRAMA]);
 
                 const [respEncuestas, respAsignaciones, respUsuarios] = await Promise.all([
                     realtime_api.get("/Encuesta.json"),
@@ -835,7 +845,7 @@ export default {
                 );
             } catch (error) {
                 console.error("Error cargando convenios disponibles:", error);
-                this.conveniosDisponibles = ["Extramural", "E Basicos", "PIC"];
+                this.conveniosDisponibles = [...CONVENIOS_PROGRAMA];
             }
         },
 
@@ -865,8 +875,7 @@ export default {
 
                 usuarios.forEach((u) => {
                     const cargo = String(u?.cargo || "").trim();
-                    const grupo = String(u?.grupo || "").trim().toUpperCase();
-                    if (!esFacturador(cargo) && grupo !== "F") return;
+                    if (!esFacturador(cargo)) return;
 
                     const documento = String(u?.numDocumento || u?.num_documento || u?.documento || "").trim();
                     if (!documento) return;

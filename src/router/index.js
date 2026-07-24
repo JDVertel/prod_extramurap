@@ -94,6 +94,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/sop_higienista_oral",
+    name: "sop_higienista_oral",
+    component: () => import("../views/sop_higienista_oral.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/sop_caracterizacion/:idEncuesta",
     name: "sop_caracterizacion",
     component: () => import("../views/sop_caracterizacion.vue"),
@@ -118,6 +124,12 @@ const routes = [
     name: "admin_parametros",
     component: () =>
       import("../views/admin_parametros.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/admin_mantenimiento_bd",
+    name: "admin_mantenimiento_bd",
+    component: () => import("../views/admin_mantenimiento_bd.vue"),
     meta: { requiresAuth: true },
   },
   {
@@ -149,6 +161,12 @@ const routes = [
     path: "/nutricionista_informes",
     name: "nutricionista_informes",
     component: () => import("../views/nutricionista_informes.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/higienista_oral_informes",
+    name: "higienista_oral_informes",
+    component: () => import("../views/higienista_oral_informes.vue"),
     meta: { requiresAuth: true },
   },
   {

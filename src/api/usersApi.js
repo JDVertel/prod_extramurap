@@ -1,6 +1,7 @@
 // Carga masiva de usuarios
 export async function bulkCreateUsers(usersArray) {
   const { data } = await http.post("/users/bulk", { users: usersArray });
+  invalidateUsersCache();
   return data;
 }
 import http from "./http";
@@ -9,6 +10,12 @@ const USERS_CACHE_TTL_MS = 60 * 1000;
 let usersCacheData = null;
 let usersCacheExpiresAt = 0;
 let usersCachePending = null;
+
+function invalidateUsersCache() {
+  usersCacheData = null;
+  usersCacheExpiresAt = 0;
+  usersCachePending = null;
+}
 
 export async function emailExists(email) {
   const encoded = encodeURIComponent(String(email || "").trim().toLowerCase());
@@ -60,16 +67,19 @@ export async function getDelegatedProfessionals() {
 
 export async function createUser(payload) {
   const { data } = await http.post("/users", payload);
+  invalidateUsersCache();
   return data;
 }
 
 export async function updateUser(id, payload) {
   const { data } = await http.put(`/users/${id}`, payload);
+  invalidateUsersCache();
   return data;
 }
 
 export async function deleteUserById(id) {
   const { data } = await http.delete(`/users/${id}`);
+  invalidateUsersCache();
   return data;
 }
 

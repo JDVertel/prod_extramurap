@@ -41,19 +41,19 @@
             </h4>
             <ul class="nav nav-tabs mb-3" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#nut-pendientes" type="button" role="tab">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#hig-pendientes" type="button" role="tab">
                         Pendientes ({{ cantEncuestasPendientes }})
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#nut-devueltos" type="button" role="tab">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#hig-devueltos" type="button" role="tab">
                         Devueltos ({{ cantEncuestasDevueltas }})
                     </button>
                 </li>
             </ul>
 
             <div class="tab-content">
-                <div class="tab-pane fade show active" id="nut-pendientes" role="tabpanel">
+                <div class="tab-pane fade show active" id="hig-pendientes" role="tabpanel">
                     <div v-if="!encuestasPendientes || encuestasPendientes.length === 0"
                         class="alert alert-success shadow-sm text-center" role="alert">
                         <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
@@ -103,7 +103,7 @@
                 </div>
                 </div>
 
-                <div class="tab-pane fade" id="nut-devueltos" role="tabpanel">
+                <div class="tab-pane fade" id="hig-devueltos" role="tabpanel">
                     <div v-if="!encuestasDevueltas || encuestasDevueltas.length === 0"
                         class="alert alert-success shadow-sm text-center" role="alert">
                         <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
@@ -226,7 +226,7 @@ export default {
     methods: {
         ...mapActions([
             "removeRegEnc",
-            "getEncuestasPendientesNutricionista",
+            "getEncuestasPendientesHigienistaOral",
             "getAsignacionesByEncuesta",
         ]),
         async eliminarRegistro(idEncuesta) {
@@ -257,7 +257,7 @@ export default {
         },
 
         cupsGestion(id) {
-            sessionStorage.setItem("rutaAnterior", "/sop_nutricionista");
+            sessionStorage.setItem("rutaAnterior", "/sop_higienista_oral");
             const query = String(this.$route?.query?.estadoView || "") === "1"
                 ? {
                     estadoView: "1",
@@ -276,13 +276,13 @@ export default {
 
         mostrarBotonCups() {
             const cargo = (this.cargoMostrado || "").toString().trim().toLowerCase();
-            return cargo === "nutricionista";
+            return cargo === "higienista oral";
         },
         getStatusKeyBandeja() {
-            return "status_gest_nutricionista";
+            return "status_gest_higienista_oral";
         },
         getFechaKeyBandeja() {
-            return "fechagestNutricionista";
+            return "fechagestHigienistaOral";
         },
         esPacienteDevuelto(encuesta) {
             const statusKey = this.getStatusKeyBandeja();
@@ -332,7 +332,7 @@ export default {
 
                 this.registrosEnProcesoModal = lista
                     .filter((e) => {
-                        const esAsignada = [e.idNutricionistaAtiende, e.idNutriAtiende, e.idNutricionista, e.idNutricionAtiende]
+                        const esAsignada = [e.idHigienistaOralAtiende]
                             .map((v) => String(v || "").trim())
                             .includes(String(documentoObjetivo || "").trim());
                         if (!esAsignada) return false;
@@ -356,7 +356,7 @@ export default {
         async cargarFuenteContadores() {
             const params = {
                 _ts: Date.now(),
-                idNutricionistaAtiende: this.getDocumentoObjetivo(),
+                idHigienistaOralAtiende: this.getDocumentoObjetivo(),
             };
 
             const convenioObjetivo = String(this.getConvenioObjetivo() || "").trim();
@@ -413,9 +413,9 @@ export default {
                     throw new Error('Usuario no disponible después de esperar');
                 }
 
-                const [resultadoNutricionista] = await Promise.race([
+                const [resultadoHigienistaOral] = await Promise.race([
                     Promise.all([
-                        this.getEncuestasPendientesNutricionista({
+                        this.getEncuestasPendientesHigienistaOral({
                             idUsuario: documentoObjetivo,
                             includeSource: true,
                         }),
@@ -425,7 +425,7 @@ export default {
                     )
                 ]);
 
-                this.encuestasContador = Array.isArray(resultadoNutricionista?.source) ? resultadoNutricionista.source : [];
+                this.encuestasContador = Array.isArray(resultadoHigienistaOral?.source) ? resultadoHigienistaOral.source : [];
             } catch (error) {
                 console.error("Error cargando encuestas:", error.message);
                 this.errorCarga = error.message || 'Error al cargar encuestas';
@@ -521,9 +521,9 @@ export default {
         cantCerradosHoy() {
             return contarCierresPorPeriodo(this.encuestasContadorFiltradasPorConvenio, {
                 documentoObjetivo: this.getDocumentoObjetivo(),
-                docKeys: ["idNutricionistaAtiende", "idNutriAtiende", "idNutricionista", "idNutricionAtiende"],
-                statusKey: "status_gest_nutricionista",
-                fechaKey: "fechagestNutricionista",
+                docKeys: ["idHigienistaOralAtiende"],
+                statusKey: "status_gest_higienista_oral",
+                fechaKey: "fechagestHigienistaOral",
                 fechaInicio: this.fechaActual,
                 fechaFin: this.fechaActual,
                 esEstadoCerrado: this.esEstadoCerrado,
@@ -532,9 +532,9 @@ export default {
         tooltipCerradosHoy() {
             return construirTooltipEpsCierres(this.encuestasContadorFiltradasPorConvenio, {
                 documentoObjetivo: this.getDocumentoObjetivo(),
-                docKeys: ["idNutricionistaAtiende", "idNutriAtiende", "idNutricionista", "idNutricionAtiende"],
-                statusKey: "status_gest_nutricionista",
-                fechaKey: "fechagestNutricionista",
+                docKeys: ["idHigienistaOralAtiende"],
+                statusKey: "status_gest_higienista_oral",
+                fechaKey: "fechagestHigienistaOral",
                 fechaInicio: this.fechaActual,
                 fechaFin: this.fechaActual,
                 esEstadoCerrado: this.esEstadoCerrado,
@@ -544,9 +544,9 @@ export default {
             if (!this.fechaActual) return 0;
             return contarCierresPorPeriodo(this.encuestasContadorFiltradasPorConvenio, {
                 documentoObjetivo: this.getDocumentoObjetivo(),
-                docKeys: ["idNutricionistaAtiende", "idNutriAtiende", "idNutricionista", "idNutricionAtiende"],
-                statusKey: "status_gest_nutricionista",
-                fechaKey: "fechagestNutricionista",
+                docKeys: ["idHigienistaOralAtiende"],
+                statusKey: "status_gest_higienista_oral",
+                fechaKey: "fechagestHigienistaOral",
                 fechaInicio: moment(this.fechaActual, "YYYY-MM-DD").startOf("isoWeek").format("YYYY-MM-DD"),
                 fechaFin: moment(this.fechaActual, "YYYY-MM-DD").endOf("isoWeek").format("YYYY-MM-DD"),
                 esEstadoCerrado: this.esEstadoCerrado,
@@ -557,9 +557,9 @@ export default {
     watch: {
         '$route': {
             handler: function (to, from) {
-                console.log(`[sop_nutricionista watch] Ruta cambió de ${from.name} a ${to.name}`);
-                if (to.name === 'sop_nutricionista') {
-                    console.log('[sop_nutricionista watch] Cargando encuestas por cambio de ruta');
+                console.log(`[sop_higienista_oral watch] Ruta cambió de ${from.name} a ${to.name}`);
+                if (to.name === 'sop_higienista_oral') {
+                    console.log('[sop_higienista_oral watch] Cargando encuestas por cambio de ruta');
                     this.cargarEncuestas();
                 }
             },

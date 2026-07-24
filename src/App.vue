@@ -17,6 +17,7 @@ export default {
             if (cargo === "admin" || cargo === "administrador") return "tema-admin-dorado";
             if (convenio === "e basicos") return "tema-ebasicos";
             if (convenio === "pic") return "tema-pic";
+            if (convenio === "unidesa" || convenio === "unides") return "tema-unidesa";
             return "";
         },
         enSesionDelegada() {
@@ -62,6 +63,7 @@ export default {
                 Psicologo: "/sop_psicologo",
                 Tsocial: "/sop_tsocial",
                 Nutricionista: "/sop_nutricionista",
+                "Higienista oral": "/sop_higienista_oral",
                 Fact: "/sop_facturacion",
                 "Auxiliar de enfermeria": "/sop_aux",
                 superusuario: "/superusuario",

@@ -30,10 +30,13 @@
                     <select id="tipovisita" name="tipovisita" class="form-select" aria-label="Default select example"
                         v-model="tipovisita">
                         <option selected value="">Tipo Visita</option>
-                        <option value="1">primera visita</option>
+                        <option v-if="mostrarOpcionPrimeraVisita" value="1">primera visita</option>
                         <option value="2">control</option>
                         <option value="3">seguimiento</option>
                     </select>
+                    <small v-if="ocultarPrimeraVisitaPorRegistroPrevio" class="text-muted d-block mt-1">
+                        Este paciente ya tiene registro previo en Equipos Básicos. Seleccione <strong>control</strong> o <strong>seguimiento</strong> según corresponda.
+                    </small>
                 </div>
             </div>
 
@@ -272,12 +275,17 @@
                                 <div class="col-6">
                                     <label for="ocupacion" class="form-label">Ocupacion</label>
                                     <select class="form-select" id="ocupacion" v-model="nuevoMiembro.ocupacion">
-                                        <option value="menor de edad">Menor de edad</option>
-                                        <option value="emplead@">Emplead@</option>
-                                        <option value="estudiante">Estudiante</option>
-                                        <option value="ama de casa">Ama de casa</option>
-                                        <option value="pensionad@">Pensionad@</option>
-                                        <option value="independiente">Independiente</option>
+                                        <option value="">---Seleccione---</option>
+                                        <option value="Estudiante">Estudiante</option>
+                                        <option value="Hogar / Labores de cuidado no remunerado">Hogar / Labores de cuidado no remunerado</option>
+                                        <option value="Empleado / Trabajador dependiente (sector formal)">Empleado / Trabajador dependiente (sector formal)</option>
+                                        <option value="Trabajador independiente / Cuenta propia">Trabajador independiente / Cuenta propia</option>
+                                        <option value="Informal / Oficios varios">Informal / Oficios varios</option>
+                                        <option value="Agricultor / Campesino / Jornalero">Agricultor / Campesino / Jornalero</option>
+                                        <option value="Desempleado / Cesante (buscando empleo)">Desempleado / Cesante (buscando empleo)</option>
+                                        <option value="Jubilado / Pensionado">Jubilado / Pensionado</option>
+                                        <option value="Incapacitado permanente para trabajar">Incapacitado permanente para trabajar</option>
+                                        <option value="Oficios tradicionales / Sabedor ancestral (pesca, artesanía, medicina tradicional)">Oficios tradicionales / Sabedor ancestral</option>
                                     </select>
                                 </div>
                                 <div class="col-6">
@@ -538,11 +546,13 @@ import {
     mapActions,
     mapState
 } from "vuex";
+import realtime_api from "@/api/realtimeApi";
 export default {
     name: "SopCaracterizacion",
     data() {
         return {
             idEncuesta: "",
+            pacienteYaRegistradoEBasicos: false,
             visita: "",
             tipovisita: "",
             tipovivienda: "",
@@ -1099,9 +1109,65 @@ export default {
                     this.cargandoEps = false;
                 });
         },
+
+        async verificarRegistroPrevioEBasicos() {
+            this.pacienteYaRegistradoEBasicos = false;
+
+            if (!this.esConvenioEBasicos || !this.idEncuesta) {
+                return;
+            }
+
+            try {
+                const { data: encuestaActual } = await realtime_api.get(`/Encuesta/${this.idEncuesta}.json`);
+                if (!encuestaActual) return;
+
+                const tipodoc = String(encuestaActual.tipodoc || "").trim();
+                const numdoc = String(encuestaActual.numdoc || "").trim();
+                const convenio = String(encuestaActual.convenio || this.userData?.convenio || "").trim();
+
+                if (!tipodoc || !numdoc || convenio !== "E Basicos") {
+                    return;
+                }
+
+                // Busca otros registros del mismo paciente en Equipos Básicos.
+                // Si ya hubo una primera visita en E Basicos, esta caracterización no debe ofrecer "primera visita".
+                const previos = await this.$store.dispatch("getAllByPacientesIDEB", {
+                    tipodoc,
+                    numdoc,
+                    convenio: "E Basicos",
+                });
+
+                const otrosRegistros = (Array.isArray(previos) ? previos : []).filter((item) => {
+                    const id = String(item?.id || "").trim();
+                    return id && id !== String(this.idEncuesta).trim();
+                });
+
+                this.pacienteYaRegistradoEBasicos = otrosRegistros.length > 0;
+
+                if (this.pacienteYaRegistradoEBasicos && String(this.tipovisita) === "1") {
+                    this.tipovisita = "";
+                }
+            } catch (error) {
+                console.error("Error verificando registro previo E Basicos:", error);
+                this.pacienteYaRegistradoEBasicos = false;
+            }
+        },
     },
     computed: {
         ...mapState(["usuario", "epss", "userData"]),
+
+        esConvenioEBasicos() {
+            return String(this.userData?.convenio || "").trim() === "E Basicos";
+        },
+
+        ocultarPrimeraVisitaPorRegistroPrevio() {
+            return this.esConvenioEBasicos && this.pacienteYaRegistradoEBasicos;
+        },
+
+        mostrarOpcionPrimeraVisita() {
+            // En E Basicos: solo ocultar "primera visita" si ya hubo registro previo en ese convenio.
+            return !this.ocultarPrimeraVisitaPorRegistroPrevio;
+        },
 
         Calimc() {
             // Validar que peso y talla estén definidos y talla > 0 para evitar división por cero
@@ -1125,6 +1191,19 @@ export default {
         },
     },
     watch: {
+        tipovisita(nuevoValor) {
+            if (this.ocultarPrimeraVisitaPorRegistroPrevio && String(nuevoValor) === "1") {
+                this.tipovisita = "";
+            }
+        },
+        ocultarPrimeraVisitaPorRegistroPrevio: {
+            immediate: true,
+            handler(ocultar) {
+                if (ocultar && String(this.tipovisita) === "1") {
+                    this.tipovisita = "";
+                }
+            },
+        },
         seleccionadosServPublic(nuevoValor) {
             const normalizado = this.normalizarSeleccionExclusiva(nuevoValor);
             if (JSON.stringify(normalizado) !== JSON.stringify(nuevoValor)) {
@@ -1180,6 +1259,7 @@ export default {
         } catch (e) {
             // Maneja el error si es necesario
         }
+        await this.verificarRegistroPrevioEBasicos();
         // Limpia posibles restos de modales
         document.body.classList.remove("modal-open");
         document.body.style.overflow = "";

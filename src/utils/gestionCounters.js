@@ -7,6 +7,7 @@ const FECHA_FIELD_ALIASES = {
   fechagestPsicologo: ["fechagestPsicologo", "fecha_gest_psicologo"],
   fechagestTsocial: ["fechagestTsocial", "fecha_gest_tsocial"],
   fechagestNutricionista: ["fechagestNutricionista", "fecha_gest_nutricionista"],
+  fechagestHigienistaOral: ["fechagestHigienistaOral", "fecha_gest_higienista_oral"],
 };
 
 function getFieldValue(encuesta = {}, fieldName = "") {

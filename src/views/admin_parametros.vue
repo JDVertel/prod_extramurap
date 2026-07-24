@@ -55,67 +55,98 @@
       <!-- ========== TAB: COMUNAS Y BARRIOS ========== -->
       <div class="tab-pane fade show active" id="nav-home" role="tabpanel" aria-labelledby="nav-home-tab" tabindex="0">
         <br />
-        <div class="container">
-          <h6>Opciones disponibles para las encuestas Comunas/Barrios</h6>
-          <br />
+        <div class="container-fluid">
+          <h5 class="mb-3">Comunas y barrios</h5>
 
-          <div class="row">
-            <div class="col-4">
-              <input type="number" id="comuna" name="comuna" class="form-control form-control-sm" placeholder="Comuna"
-                v-model="comuna" />
-            </div>
-            <div class="col-4">
-              <input type="text" id="barrio" name="barrio" class="form-control form-control-sm" placeholder="Barrio"
-                v-model="barrio" />
-            </div>
-            <div class="col-4">
-              <button type="button" class="btn btn-sm btn-warning" @click="saveComunaBarrio">
-                {{ comunaBarrioEditId ? 'Actualizar' : '+ Guardar' }}
-              </button>
-              <button v-if="comunaBarrioEditId" type="button" class="btn btn-sm btn-secondary ms-2"
-                @click="clearFormComunaBarrio">
-                Cancelar
-              </button>
-            </div>
-          </div>
-          <div class="mt-2">
-            <input type="file" ref="csvComunas" accept=".csv" style="display:none" @change="importarCsvComunas">
-            <button type="button" class="btn btn-sm btn-outline-secondary" :disabled="csvImport.inProgress" @click="$refs.csvComunas.click()">
-              <i class="bi bi-upload"></i> Importar CSV
-            </button>
-            <small class="text-muted ms-2">Columnas requeridas: <code>comuna, barrio</code></small>
-          </div>
-        </div>
-        <br />
-        <div class="container">
-          <div style="max-height: 600px; overflow-y: auto">
-            <table class="table table-bordered table-sm mb-4">
-              <thead>
-                <tr>
-                  <th scope="col">Editar</th>
-                  <th scope="col">Comuna</th>
-                  <th scope="col">Barrio</th>
-                  <th scope="col">Eliminar</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(comuna, index) in comunasBarrios" :key="comuna.id || index">
-                  <td><button class="btn btn-sm btn-warning" @click="editBarrio(comuna.id)" aria-label="Editar barrio"
-                      type="button">
-                      <i class="bi bi-pencil"></i>
-                    </button></td>
-                  <td>{{ comuna.comuna }}</td>
-                  <td>{{ comuna.barrio }}</td>
-                  <td>
-                    <button class="btn btn-sm btn-danger" @click="deleteBarrio(comuna.id)" aria-label="Eliminar barrio"
-                      type="button">
-                      <i class="bi bi-trash"></i>
+          <div class="row g-3">
+            <div class="col-12 col-lg-7">
+              <div class="card parametros-panel h-100">
+                <div class="card-header">
+                  <strong>
+                    <i class="bi bi-pencil-square me-1"></i>
+                    {{ comunaBarrioEditId ? 'Editar comuna/barrio' : 'Crear comuna/barrio' }}
+                  </strong>
+                </div>
+                <div class="card-body">
+                  <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-6">
+                      <label class="form-label">Comuna</label>
+                      <input type="number" id="comuna" name="comuna" class="form-control form-control-sm" placeholder="Comuna"
+                        v-model="comuna" />
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label class="form-label">Barrio</label>
+                      <input type="text" id="barrio" name="barrio" class="form-control form-control-sm" placeholder="Barrio"
+                        v-model="barrio" />
+                    </div>
+                  </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-warning" @click="saveComunaBarrio">
+                      {{ comunaBarrioEditId ? 'Actualizar' : '+ Guardar' }}
                     </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <small class="text-muted">Total: <strong>{{ comunasBarrios.length }}</strong> registros</small>
+                    <button v-if="comunaBarrioEditId" type="button" class="btn btn-sm btn-secondary"
+                      @click="clearFormComunaBarrio">
+                      Cancelar edición
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+              <div class="card parametros-panel h-100 border-secondary-subtle">
+                <div class="card-header bg-light">
+                  <strong><i class="bi bi-upload me-1"></i> Importación masiva CSV</strong>
+                </div>
+                <div class="card-body">
+                  <p class="text-muted small mb-3">Columnas requeridas: <code>comuna, barrio</code></p>
+                  <input type="file" ref="csvComunas" accept=".csv" style="display:none" @change="importarCsvComunas">
+                  <button type="button" class="btn btn-sm btn-outline-secondary w-100" :disabled="csvImport.inProgress" @click="$refs.csvComunas.click()">
+                    <i class="bi bi-upload"></i> Importar CSV
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card parametros-panel mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <strong><i class="bi bi-table me-1"></i> Listado</strong>
+              <span class="badge bg-secondary">{{ comunasBarrios?.length || 0 }}</span>
+            </div>
+            <div class="card-body p-0">
+              <div style="max-height: 600px; overflow-y: auto">
+                <table class="table table-bordered table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th scope="col">Editar</th>
+                      <th scope="col">Comuna</th>
+                      <th scope="col">Barrio</th>
+                      <th scope="col">Eliminar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(comuna, index) in comunasBarrios" :key="comuna.id || index">
+                      <td><button class="btn btn-sm btn-warning" @click="editBarrio(comuna.id)" aria-label="Editar barrio"
+                          type="button">
+                          <i class="bi bi-pencil"></i>
+                        </button></td>
+                      <td>{{ comuna.comuna }}</td>
+                      <td>{{ comuna.barrio }}</td>
+                      <td>
+                        <button class="btn btn-sm btn-danger" @click="deleteBarrio(comuna.id)" aria-label="Eliminar barrio"
+                          type="button">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="p-2 border-top">
+                <small class="text-muted">Total: <strong>{{ comunasBarrios.length }}</strong> registros</small>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -123,94 +154,190 @@
       <!-- ========== TAB: EPS ========== -->
       <div class="tab-pane fade" id="nav-profile" role="tabpanel" aria-labelledby="nav-profile-tab" tabindex="0">
         <br />
-        <div class="container">
-          <div class="accordion" id="accordionExample">
-            <div class="accordion-item">
-              <h2 class="accordion-header" id="headingOne">
-                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne"
-                  aria-expanded="true" aria-controls="collapseOne">
-                  Eps disponibles en Demanda Inducida
-                </button>
-              </h2>
-              <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne"
-                data-bs-parent="#accordionExample">
-                <div class="accordion-body">
-                  <div class="row">
-                    <div class="col-6">
-                      <div class="mb-3">
-                        <input type="text" id="epsname-di" name="epsname-di" class="form-control form-control-sm"
-                          placeholder="Nombre de la Eps" v-model="epsname" />
-                      </div>
-                    </div>
-                    <div class="col-6">
-                      <button type="button" class="btn btn-sm btn-warning" @click="saveEps">
-                        {{ epsEditId ? 'Actualizar' : 'Guardar' }}
-                      </button>
-                      <button v-if="epsEditId" type="button" class="btn btn-sm btn-secondary ms-2"
-                        @click="clearFormEps">
-                        Cancelar
-                      </button>
-                      <input type="file" ref="csvEps" accept=".csv" style="display:none" @change="importarCsvEps">
-                      <button type="button" class="btn btn-sm btn-outline-secondary ms-2" :disabled="csvImport.inProgress" @click="$refs.csvEps.click()">
-                        <i class="bi bi-upload"></i> Importar CSV
-                      </button>
-                      <small class="text-muted ms-2">Columna requerida: <code>eps</code></small>
-                    </div>
+        <div class="container-fluid">
+          <h5 class="mb-3">EPS disponibles en Demanda Inducida</h5>
+
+          <div class="row g-3">
+            <div class="col-12 col-lg-7">
+              <div class="card parametros-panel h-100">
+                <div class="card-header">
+                  <strong>
+                    <i class="bi bi-pencil-square me-1"></i>
+                    {{ epsEditId ? 'Editar EPS' : 'Crear EPS' }}
+                  </strong>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label class="form-label">Nombre de la EPS</label>
+                    <input type="text" id="epsname-di" name="epsname-di" class="form-control form-control-sm"
+                      placeholder="Nombre de la Eps" v-model="epsname" />
                   </div>
-                  <hr />
-                  <div style="max-height: 300px; overflow-y: auto">
-                    <table class="table table-bordered">
-                      <thead>
-                        <tr>
-                          <th>Editar</th>
-                          <th>Nombre de EPS</th>
-                          <th>Opciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="(ot, index) in epss" :key="ot.id || index">
-                          <td><button class="btn btn-sm btn-warning" @click="editEps(ot.id)" aria-label="Editar EPS"
-                              type="button">
-                              <i class="bi bi-pencil"></i>
-                            </button></td>
-                          <td>{{ ot.eps }}</td>
-                          <td>
-                            <button class="btn btn-sm btn-danger" @click="EpsDelete(ot.id)" aria-label="Eliminar EPS"
-                              type="button">
-                              <i class="bi bi-trash"></i>
-                            </button>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    <small class="text-muted">Total: <strong>{{ epss.length }}</strong> EPS registradas</small>
+                  <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-warning" @click="saveEps">
+                      {{ epsEditId ? 'Actualizar' : 'Guardar' }}
+                    </button>
+                    <button v-if="epsEditId" type="button" class="btn btn-sm btn-secondary"
+                      @click="clearFormEps">
+                      Cancelar edición
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
 
+            <div class="col-12 col-lg-5">
+              <div class="card parametros-panel h-100 border-secondary-subtle">
+                <div class="card-header bg-light">
+                  <strong><i class="bi bi-upload me-1"></i> Importación masiva CSV</strong>
+                </div>
+                <div class="card-body">
+                  <p class="text-muted small mb-3">Columna requerida: <code>eps</code></p>
+                  <input type="file" ref="csvEps" accept=".csv" style="display:none" @change="importarCsvEps">
+                  <button type="button" class="btn btn-sm btn-outline-secondary w-100" :disabled="csvImport.inProgress" @click="$refs.csvEps.click()">
+                    <i class="bi bi-upload"></i> Importar CSV
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <br />
+          <div class="card parametros-panel mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <strong><i class="bi bi-table me-1"></i> Listado de EPS</strong>
+              <span class="badge bg-secondary">{{ epss?.length || 0 }}</span>
+            </div>
+            <div class="card-body p-0">
+              <div style="max-height: 420px; overflow-y: auto">
+                <table class="table table-bordered table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th>Editar</th>
+                      <th>Nombre de EPS</th>
+                      <th>Opciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(ot, index) in epss" :key="ot.id || index">
+                      <td><button class="btn btn-sm btn-warning" @click="editEps(ot.id)" aria-label="Editar EPS"
+                          type="button">
+                          <i class="bi bi-pencil"></i>
+                        </button></td>
+                      <td>{{ ot.eps }}</td>
+                      <td>
+                        <button class="btn btn-sm btn-danger" @click="EpsDelete(ot.id)" aria-label="Eliminar EPS"
+                          type="button">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="p-2 border-top">
+                <small class="text-muted">Total: <strong>{{ epss.length }}</strong> EPS registradas</small>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- ========== TAB: CUPS ========== -->
       <div class="tab-pane fade" id="nav-contact" role="tabpanel" aria-labelledby="nav-contact-tab" tabindex="0">
         <br />
-        <h6>CUPS del sistema</h6>
-        <br />
         <div class="container-fluid">
-          <!-- boton modal -->
-          <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#staticBackdrop">
-            + Nuevo CUPS
-          </button>
-          <input type="file" ref="csvCups" accept=".csv" style="display:none" @change="importarCsvCups">
-          <button type="button" class="btn btn-sm btn-outline-secondary ms-2" :disabled="csvImport.inProgress" @click="$refs.csvCups.click()">
-            <i class="bi bi-upload"></i> Importar CSV
-          </button>
-          <small class="text-muted ms-2">Columnas: <code>descripcionCups, codigo, grupo, profesional</code> &nbsp;(profesional múltiple: <code>Medico|Enfermero</code>)</small>
-        </div>
+          <h5 class="mb-3">CUPS del sistema</h5>
+
+          <div class="row g-3">
+            <div class="col-12 col-lg-7">
+              <div class="card parametros-panel h-100">
+                <div class="card-header">
+                  <strong><i class="bi bi-plus-circle me-1"></i> Crear / editar CUPS</strong>
+                </div>
+                <div class="card-body">
+                  <p class="text-muted small mb-3">Use este módulo para registrar un CUPS nuevo o buscar uno existente para editarlo.</p>
+
+                  <div class="mb-3">
+                    <label class="form-label">Buscar CUPS existente</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text"><i class="bi bi-search"></i></span>
+                      <input
+                        type="text"
+                        class="form-control"
+                        v-model.trim="busquedaCupsAdmin"
+                        placeholder="Código, nombre, grupo o profesional..."
+                      />
+                      <button
+                        v-if="busquedaCupsAdmin"
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        @click="busquedaCupsAdmin = ''"
+                        title="Limpiar búsqueda"
+                      >
+                        <i class="bi bi-x-lg"></i>
+                      </button>
+                    </div>
+                    <small class="text-muted">
+                      {{ busquedaCupsAdmin ? `${cupsFiltradosAdmin.length} coincidencia(s)` : `${cups?.length || 0} CUPS en el listado` }}
+                    </small>
+                  </div>
+
+                  <div v-if="busquedaCupsAdmin" class="cups-busqueda-resultados border rounded mb-3">
+                    <div v-if="cupsFiltradosAdmin.length === 0" class="p-2 text-muted small">
+                      No se encontraron CUPS con ese criterio.
+                    </div>
+                    <button
+                      v-for="cup in cupsFiltradosAdmin.slice(0, 30)"
+                      :key="`busq-cup-${cup.id}`"
+                      type="button"
+                      class="cups-busqueda-item"
+                      data-bs-toggle="modal"
+                      data-bs-target="#staticBackdrop"
+                      @click="editCups(cup.id)"
+                    >
+                      <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                          <strong class="d-block">{{ cup.codigo }}</strong>
+                          <span class="small">{{ cup.DescripcionCUP }}</span>
+                          <div class="text-muted small mt-1">
+                            {{ formatProfesionales(cup.profesional) }}
+                            <span v-if="cup.Grupo"> · Grupo {{ cup.Grupo }}</span>
+                          </div>
+                        </div>
+                        <span class="badge bg-warning text-dark align-self-center">Editar</span>
+                      </div>
+                    </button>
+                    <div v-if="cupsFiltradosAdmin.length > 30" class="p-2 border-top text-muted small">
+                      Mostrando 30 de {{ cupsFiltradosAdmin.length }}. Refine la búsqueda para ver más precisos.
+                    </div>
+                  </div>
+
+                  <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#staticBackdrop" @click="clearFormCups">
+                    + Nuevo CUPS
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+              <div class="card parametros-panel h-100 border-secondary-subtle">
+                <div class="card-header bg-light">
+                  <strong><i class="bi bi-upload me-1"></i> Importación masiva CSV</strong>
+                </div>
+                <div class="card-body">
+                  <p class="text-muted small mb-2">
+                    Columnas: <code>descripcionCups, codigo, grupo, profesional</code>
+                  </p>
+                  <p class="text-muted small mb-3">
+                    Profesional múltiple: <code>Medico|Enfermero|Higienista oral</code>
+                  </p>
+                  <input type="file" ref="csvCups" accept=".csv" style="display:none" @change="importarCsvCups">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" :disabled="csvImport.inProgress" @click="$refs.csvCups.click()">
+                    <i class="bi bi-upload"></i> Importar CSV
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
         <!-- modal  crear editar CUPS-->
         <div class="modal fade" id="staticBackdrop" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
@@ -243,12 +370,22 @@
                   <div class="col-6">
                     <div class="mb-3">
                       <label class="form-label">Profesionales</label>
-                      <select id="cupsProfesional" v-model="cupProfesional" class="form-select" multiple
-                        style="height: 120px;" required>
-                        <option v-for="prof in profesionalesActividadOpciones" :key="`cup-${prof}`" :value="prof">
-                          {{ prof }}
-                        </option>
-                      </select>
+                      <div class="profesionales-checklist border rounded p-2">
+                        <div
+                          v-for="prof in profesionalesActividadOpciones"
+                          :key="`cup-check-${prof}`"
+                          class="form-check"
+                        >
+                          <input
+                            class="form-check-input"
+                            type="checkbox"
+                            :id="`cup-prof-${prof}`"
+                            :value="prof"
+                            v-model="cupProfesional"
+                          />
+                          <label class="form-check-label" :for="`cup-prof-${prof}`">{{ prof }}</label>
+                        </div>
+                      </div>
                       <small class="text-muted">Seleccione uno o varios profesionales</small>
                     </div>
                   </div>
@@ -272,44 +409,54 @@
             </div>
           </div>
         </div>
-        <br />
         <!-- Fin modal crear editar CUPS -->
-        <div v-if="cups && cups.length > 0" style="overflow-x: auto; width: 100%">
-          <table class="table table-bordered table-sm">
-            <thead>
-              <tr>
-                <th>Editar</th>
-                <th>CupHomologado</th>
-                <th>CUP Nombre</th>
-                <th>Profesional</th>
-                <th>Grupo</th>
-                <th>Eliminar</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="cup in cups" :key="cup.id" :class="getColorClassByProfesional(cup.profesional)">
-                <td>
-                  <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal"
-                    data-bs-target="#staticBackdrop" @click="editCups(cup.id)">
-                    <i class="bi bi-pencil"></i>
-                  </button>
-                </td>
-                <td>{{ cup.codigo }}</td>
-                <td>{{ cup.DescripcionCUP }}</td>
-                <td>
-                  <strong>{{ formatProfesionales(cup.profesional) }}</strong>
-                </td>
-                <td>{{ cup.Grupo }}</td>
-                <td>
-                  <button type="button" class="btn btn-sm btn-danger" @click="deleteCups(cup.id)">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </td>
 
-              </tr>
-            </tbody>
-          </table>
-          <small class="text-muted ms-1">Total: <strong>{{ cups.length }}</strong> CUPS registrados</small>
+        <div class="card parametros-panel mt-3">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <strong><i class="bi bi-table me-1"></i> Listado de CUPS</strong>
+            <span class="badge bg-secondary">{{ cupsFiltradosAdmin?.length || 0 }}{{ busquedaCupsAdmin ? ` / ${cups?.length || 0}` : '' }}</span>
+          </div>
+          <div class="card-body p-0">
+            <div v-if="cupsFiltradosAdmin && cupsFiltradosAdmin.length > 0" style="overflow-x: auto; width: 100%">
+              <table class="table table-bordered table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th>Editar</th>
+                    <th>CupHomologado</th>
+                    <th>CUP Nombre</th>
+                    <th>Profesional</th>
+                    <th>Grupo</th>
+                    <th>Eliminar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="cup in cupsFiltradosAdmin" :key="cup.id" :class="getColorClassByProfesional(cup.profesional)">
+                    <td>
+                      <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal"
+                        data-bs-target="#staticBackdrop" @click="editCups(cup.id)">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                    </td>
+                    <td>{{ cup.codigo }}</td>
+                    <td>{{ cup.DescripcionCUP }}</td>
+                    <td>
+                      <strong>{{ formatProfesionales(cup.profesional) }}</strong>
+                    </td>
+                    <td>{{ cup.Grupo }}</td>
+                    <td>
+                      <button type="button" class="btn btn-sm btn-danger" @click="deleteCups(cup.id)">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-else class="p-3 text-muted small">
+              {{ busquedaCupsAdmin ? 'No hay CUPS que coincidan con la búsqueda.' : 'No hay CUPS registrados.' }}
+            </div>
+          </div>
+        </div>
         </div>
       </div>
 
@@ -317,80 +464,132 @@
       <div class="tab-pane fade" id="nav-actividades" role="tabpanel" aria-labelledby="nav-actividades-tab"
         tabindex="0">
         <br />
-        <div class="container">
-          <h6>Actividades extra del sistema</h6>
-          <br />
+        <div class="container-fluid">
+          <h5 class="mb-3">Actividades extra del sistema</h5>
 
-          <div class="row g-2 mb-3">
-            <div class="col-12 col-md-3">
-              <label class="form-label">Clave</label>
-              <input type="text" class="form-control form-control-sm" placeholder="Ej: TAMIZAJE"
-                v-model="actividadClave" />
+          <div class="row g-3">
+            <div class="col-12 col-xl-8">
+              <div class="card parametros-panel h-100">
+                <div class="card-header">
+                  <strong>
+                    <i class="bi bi-pencil-square me-1"></i>
+                    {{ actividadExtraEditId ? 'Editar actividad' : 'Crear nueva actividad' }}
+                  </strong>
+                </div>
+                <div class="card-body">
+                  <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-4">
+                      <label class="form-label">Clave</label>
+                      <input type="text" class="form-control form-control-sm" placeholder="Ej: TAMIZAJE"
+                        v-model="actividadClave" />
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <label class="form-label">Nombre</label>
+                      <input type="text" class="form-control form-control-sm" placeholder="Nombre actividad"
+                        v-model="actividadNombre" />
+                    </div>
+                    <div class="col-12 col-md-4">
+                      <label class="form-label">Profesionales</label>
+                      <div class="profesionales-checklist border rounded p-2">
+                        <div
+                          v-for="prof in profesionalesActividadOpciones"
+                          :key="`act-check-${prof}`"
+                          class="form-check"
+                        >
+                          <input
+                            class="form-check-input"
+                            type="checkbox"
+                            :id="`act-prof-${prof}`"
+                            :value="prof"
+                            v-model="actividadProfesionales"
+                          />
+                          <label class="form-check-label" :for="`act-prof-${prof}`">{{ prof }}</label>
+                        </div>
+                      </div>
+                      <small class="text-muted">Puede seleccionar varios</small>
+                    </div>
+                  </div>
+
+                  <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-warning" @click="saveActividadExtra">
+                      {{ actividadExtraEditId ? 'Actualizar actividad' : '+ Guardar actividad' }}
+                    </button>
+                    <button v-if="actividadExtraEditId" type="button" class="btn btn-sm btn-secondary"
+                      @click="clearFormActividadExtra">
+                      Cancelar edición
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="col-12 col-md-3">
-              <label class="form-label">Nombre</label>
-              <input type="text" class="form-control form-control-sm" placeholder="Nombre actividad"
-                v-model="actividadNombre" />
-            </div>
-            <div class="col-12 col-md-3">
-              <label class="form-label">Profesionales</label>
-              <select class="form-select form-select-sm" v-model="actividadProfesionales" multiple
-                style="height: 120px;">
-                <option v-for="prof in profesionalesActividadOpciones" :key="prof" :value="prof">
-                  {{ prof }}
-                </option>
-              </select>
-              <small class="text-muted">Puede seleccionar varios sin repetir (Ctrl + click)</small>
+
+            <div class="col-12 col-xl-4">
+              <div class="card parametros-panel h-100 border-secondary-subtle">
+                <div class="card-header bg-light">
+                  <strong><i class="bi bi-upload me-1"></i> Importación masiva CSV</strong>
+                </div>
+                <div class="card-body">
+                  <p class="text-muted small mb-2">
+                    Este módulo es independiente de la creación manual.
+                  </p>
+                  <p class="text-muted small mb-2">
+                    Columnas: <code>clave, nombre, profesionales</code>
+                  </p>
+                  <p class="text-muted small mb-3">
+                    Profesionales múltiples con <code>|</code>
+                    (Ej: <code>Auxiliar de enfermeria|Higienista oral</code>).
+                  </p>
+                  <input type="file" ref="csvActividades" accept=".csv" style="display:none" @change="importarCsvActividades">
+                  <button type="button" class="btn btn-sm btn-outline-secondary w-100" :disabled="csvImport.inProgress" @click="$refs.csvActividades.click()">
+                    <i class="bi bi-upload"></i> Importar CSV de actividades
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="mb-3">
-            <button type="button" class="btn btn-sm btn-warning" @click="saveActividadExtra">
-              {{ actividadExtraEditId ? 'Actualizar' : '+ Guardar' }}
-            </button>
-            <button v-if="actividadExtraEditId" type="button" class="btn btn-sm btn-secondary ms-2"
-              @click="clearFormActividadExtra">
-              Cancelar
-            </button>
-            <input type="file" ref="csvActividades" accept=".csv" style="display:none" @change="importarCsvActividades">
-            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" :disabled="csvImport.inProgress" @click="$refs.csvActividades.click()">
-              <i class="bi bi-upload"></i> Importar CSV
-            </button>
-            <small class="text-muted ms-2">Columnas: <code>clave, nombre, profesionales</code> &nbsp;| Profesionales múltiples con <code>|</code> (Ej: <code>Auxiliar de enfermeria|Enfermero</code>) | Valores permitidos: Auxiliar de enfermeria, Enfermero, Medico, Psicologo, Tsocial, Nutricionista.</small>
-          </div>
-
-          <div style="max-height: 420px; overflow-y: auto">
-            <table class="table table-bordered table-sm">
-              <thead>
-                <tr>
-                  <th>Editar</th>
-                  <th>Clave</th>
-                  <th>Nombre</th>
-                  <th>Profesionales</th>
-                  <th>Eliminar</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(actividad, index) in actividadesExtra" :key="actividad.id || index">
-                  <td>
-                    <button class="btn btn-sm btn-warning" @click="editActividadExtra(actividad.id)"
-                      aria-label="Editar actividad" type="button">
-                      <i class="bi bi-pencil"></i>
-                    </button>
-                  </td>
-                  <td>{{ actividad.key }}</td>
-                  <td>{{ actividad.nombre }}</td>
-                  <td>{{ (actividad.Profesional || []).join(', ') }}</td>
-                  <td>
-                    <button class="btn btn-sm btn-danger" @click="deleteActividadExtraById(actividad.id)"
-                      aria-label="Eliminar actividad" type="button">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <small class="text-muted">Total: <strong>{{ actividadesExtra.length }}</strong> actividades registradas</small>
+          <div class="card parametros-panel mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <strong><i class="bi bi-table me-1"></i> Listado de actividades</strong>
+              <span class="badge bg-secondary">{{ actividadesExtra?.length || 0 }}</span>
+            </div>
+            <div class="card-body p-0">
+              <div style="max-height: 420px; overflow-y: auto">
+                <table class="table table-bordered table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th>Editar</th>
+                      <th>Clave</th>
+                      <th>Nombre</th>
+                      <th>Profesionales</th>
+                      <th>Eliminar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(actividad, index) in actividadesExtra" :key="actividad.id || index">
+                      <td>
+                        <button class="btn btn-sm btn-warning" @click="editActividadExtra(actividad.id)"
+                          aria-label="Editar actividad" type="button">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                      </td>
+                      <td>{{ actividad.key }}</td>
+                      <td>{{ actividad.nombre }}</td>
+                      <td>{{ (actividad.Profesional || []).join(', ') }}</td>
+                      <td>
+                        <button class="btn btn-sm btn-danger" @click="deleteActividadExtraById(actividad.id)"
+                          aria-label="Eliminar actividad" type="button">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="p-2 border-top">
+                <small class="text-muted">Total: <strong>{{ actividadesExtra.length }}</strong> actividades registradas</small>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -455,15 +654,36 @@
                       </div>
                       <div class="col-12 col-md-12">
                         <label class="form-label fw-bold">CUPS Habilitados</label>
-                        <input
-                          type="text"
-                          class="form-control form-control-sm mb-2"
-                          v-model.trim="SbusquedaCup"
-                          :disabled="!Sactividad"
-                          placeholder="Buscar CUPS por codigo, nombre o grupo"
-                        />
+                        <div class="row g-2 mb-2">
+                          <div class="col-12 col-md-5">
+                            <select
+                              class="form-select form-select-sm"
+                              v-model="SprofesionalFiltro"
+                              :disabled="!Sactividad"
+                              aria-label="Filtrar por profesional"
+                            >
+                              <option value="">Todos los profesionales</option>
+                              <option
+                                v-for="prof in profesionalesActividadOpciones"
+                                :key="`filtro-prof-${prof}`"
+                                :value="prof"
+                              >
+                                {{ prof }}
+                              </option>
+                            </select>
+                          </div>
+                          <div class="col-12 col-md-7">
+                            <input
+                              type="text"
+                              class="form-control form-control-sm"
+                              v-model.trim="SbusquedaCup"
+                              :disabled="!Sactividad"
+                              placeholder="Buscar CUPS por codigo, nombre, grupo o profesional"
+                            />
+                          </div>
+                        </div>
                         <select class="form-select form-select-sm" aria-label="Seleccione varios CUPS" v-model="Scups"
-                          :key="`cups-${Seps}-${Sactividad}-${modoEdicionContratoExistente ? 'edit' : 'new'}`"
+                          :key="`cups-${Seps}-${Sactividad}-${SprofesionalFiltro}-${modoEdicionContratoExistente ? 'edit' : 'new'}`"
                           multiple style="height: 280px;" :disabled="!Sactividad">
                           <optgroup v-for="grupo in cupsDisponiblesAgrupados" :key="`cups-grupo-${grupo.clave}`"
                             :label="`${grupo.profesional} — ${grupo.grupo} (${grupo.items.length})`">
@@ -473,8 +693,16 @@
                           </optgroup>
                         </select>
                         <small v-if="!Sactividad" class="text-muted d-block mt-1">Seleccione primero una actividad.</small>
-                        <small v-else-if="cupsDisponiblesFiltrados.length === 0" class="text-danger d-block mt-1">No hay CUPS disponibles para asignar.</small>
-                        <small v-else class="text-muted d-block mt-1">CTRL+Click para múltiples</small>
+                        <small v-else-if="cupsDisponiblesFiltrados.length === 0" class="text-danger d-block mt-1">
+                          No hay CUPS disponibles
+                          <span v-if="SprofesionalFiltro"> para {{ SprofesionalFiltro }}</span>
+                          con el filtro actual.
+                        </small>
+                        <small v-else class="text-muted d-block mt-1">
+                          {{ cupsDisponiblesFiltrados.length }} CUPS
+                          <span v-if="SprofesionalFiltro"> · filtro: {{ SprofesionalFiltro }}</span>
+                          · CTRL+Click para múltiples
+                        </small>
                       </div>
                     </div>
                     <button class="btn btn-sm btn-warning mt-3 w-100" @click="addCupsContrato"
@@ -590,15 +818,15 @@
             <div class="accordion" id="contratosAccordion">
               <div v-for="(grupo, index) in contratosAgrupadosPorEps" :key="grupo.epsId" class="accordion-item">
                 <h2 class="accordion-header" :id="'heading' + index">
-                  <button class="accordion-button" :class="{ collapsed: index !== 0 }" type="button"
+                  <button class="accordion-button collapsed" type="button"
                     data-bs-toggle="collapse" :data-bs-target="'#collapse' + index"
-                    :aria-expanded="index === 0 ? 'true' : 'false'" :aria-controls="'collapse' + index">
+                    aria-expanded="false" :aria-controls="'collapse' + index">
                     <strong>EPS:</strong> {{ obtenerNombreEps(grupo.epsId, grupo.epsNombre) }}
                     <span class="badge bg-primary ms-2">{{ grupo.cups.length }} CUPS</span>
                     <span class="badge bg-secondary ms-1">{{ grupo.contratoIds.length }} registro(s)</span>
                   </button>
                 </h2>
-                <div :id="'collapse' + index" class="accordion-collapse collapse" :class="{ show: index === 0 }"
+                <div :id="'collapse' + index" class="accordion-collapse collapse"
                   :aria-labelledby="'heading' + index" data-bs-parent="#contratosAccordion">
                   <div class="accordion-body p-3">
                     <div class="text-end mb-2">
@@ -610,38 +838,86 @@
                         <i class="bi bi-trash"></i> Eliminar Todos
                       </button>
                     </div>
-                    <!-- Agrupar por Profesional -->
-                    <div v-for="(profesionalGrupo, profesional) in agruparPorProfesional(grupo.cups)" :key="profesional"
-                      class="mb-3">
-                      <div class="bg-light text-dark p-2 rounded small fw-bold border">
-                        <i class="bi bi-person-badge"></i> {{ profesional }}
-                        <span class="badge bg-primary ms-2">{{ profesionalGrupo.length }} CUPS</span>
+
+                    <template v-if="listarCupsPorProfesional(grupo.cups).length">
+                      <ul class="nav nav-tabs nav-tabs-contratos flex-wrap" :id="`contrato-tabs-${index}`" role="tablist">
+                        <li
+                          v-for="(profTab, pIndex) in listarCupsPorProfesional(grupo.cups)"
+                          :key="`tab-nav-${index}-${profTab.slug}`"
+                          class="nav-item"
+                          role="presentation"
+                        >
+                          <button
+                            class="nav-link"
+                            :class="{ active: pIndex === 0 }"
+                            :id="`contrato-tab-${index}-${profTab.slug}`"
+                            data-bs-toggle="tab"
+                            :data-bs-target="`#contrato-pane-${index}-${profTab.slug}`"
+                            type="button"
+                            role="tab"
+                            :aria-controls="`contrato-pane-${index}-${profTab.slug}`"
+                            :aria-selected="pIndex === 0 ? 'true' : 'false'"
+                          >
+                            <i class="bi bi-person-badge me-1"></i>{{ profTab.profesional }}
+                            <span class="badge bg-primary ms-1">{{ profTab.items.length }}</span>
+                          </button>
+                        </li>
+                      </ul>
+
+                      <div class="tab-content border border-top-0 rounded-bottom p-2 bg-white">
+                        <div
+                          v-for="(profTab, pIndex) in listarCupsPorProfesional(grupo.cups)"
+                          :key="`tab-pane-${index}-${profTab.slug}`"
+                          class="tab-pane fade"
+                          :class="{ show: pIndex === 0, active: pIndex === 0 }"
+                          :id="`contrato-pane-${index}-${profTab.slug}`"
+                          role="tabpanel"
+                          :aria-labelledby="`contrato-tab-${index}-${profTab.slug}`"
+                          tabindex="0"
+                        >
+                          <div
+                            v-for="actGrupo in profTab.actividades"
+                            :key="`act-${index}-${profTab.slug}-${actGrupo.key}`"
+                            class="mb-3"
+                          >
+                            <div class="contrato-actividad-header">
+                              <div>
+                                <i class="bi bi-clipboard2-pulse me-1"></i>
+                                <strong>Actividad:</strong> {{ actGrupo.nombre }}
+                              </div>
+                              <span class="badge bg-secondary">{{ actGrupo.items.length }} CUPS</span>
+                            </div>
+                            <div class="table-responsive">
+                              <table class="table table-sm table-bordered mb-0 small">
+                                <thead class="table-light">
+                                  <tr>
+                                    <th>Código</th>
+                                    <th>CUPS incluido</th>
+                                    <th>Grupo</th>
+                                    <th style="width: 80px;">Eliminar</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr v-for="(cup, idx) in actGrupo.items" :key="`${index}-${profTab.slug}-${actGrupo.key}-${idx}`">
+                                    <td>{{ obtenerCodigoCups(cup.cupsId, cup.cupsCodigo) || '-' }}</td>
+                                    <td>{{ obtenerNombreCups(cup.cupsId, cup.cupsNombre) }}</td>
+                                    <td>{{ obtenerGrupoCups(cup.cupsId, cup.cupsGrupo) || '-' }}</td>
+                                    <td class="text-center">
+                                      <button class="btn btn-sm btn-danger"
+                                        @click="eliminarCupsDeContrato(cup.contratoId, cup.cupsId)" title="Eliminar este CUPS">
+                                        <i class="bi bi-trash"></i>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <table class="table table-sm table-bordered mb-0 small">
-                        <thead>
-                          <tr>
-                            <th>Actividad Extramural</th>
-                            <th>CUPS</th>
-                            <th>Grupo</th>
-                            <th style="width: 80px;">Eliminar</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="(cup, idx) in profesionalGrupo" :key="idx">
-                            <td>{{ obtenerNombreActividadPorId(cup.actividadId, cup.actividadNombre) || sinEspecificar
-                            }}
-                            </td>
-                            <td>{{ obtenerNombreCups(cup.cupsId, cup.cupsNombre) }}</td>
-                            <td>{{ obtenerGrupoCups(cup.cupsId, cup.cupsGrupo) || '-' }}</td>
-                            <td class="text-center">
-                              <button class="btn btn-sm btn-danger"
-                                @click="eliminarCupsDeContrato(cup.contratoId, cup.cupsId)" title="Eliminar este CUPS">
-                                <i class="bi bi-trash"></i>
-                              </button>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                    </template>
+                    <div v-else class="alert alert-info mb-0 small">
+                      No hay CUPS asociados a este contrato.
                     </div>
                   </div>
                 </div>
@@ -656,6 +932,7 @@
 
 <script>
 import { mapState, mapActions } from "vuex";
+import { formatApiError } from "@/utils/apiError.js";
 export default {
   data() {
     return {
@@ -681,6 +958,7 @@ export default {
         "Psicologo",
         "Tsocial",
         "Nutricionista",
+        "Higienista oral",
       ],
 
       // ===== CUPS =====
@@ -690,6 +968,7 @@ export default {
       cupsEditId: null,
       cupsGrupo: "",
       cupsEps: [],
+      busquedaCupsAdmin: "",
 
       // ===== CONTRATOS =====
       Seps: "",
@@ -697,6 +976,7 @@ export default {
       Scups: [], // Array para selección múltiple de CUPS
       Sactividad: "", // Nueva variable para actividad seleccionada
       SbusquedaCup: "",
+      SprofesionalFiltro: "",
       contratosTemp: [], // Array temporal para CUPS antes de guardar
       modoEdicionContratoExistente: false,
       contratoEdicionId: null,
@@ -716,6 +996,24 @@ export default {
   },
   computed: {
     ...mapState(["comunasBarrios", "epss", "cups", "contratos", "actividadesExtra", "userData"]),
+    cupsFiltradosAdmin() {
+      const lista = Array.isArray(this.cups) ? this.cups : [];
+      const termino = String(this.busquedaCupsAdmin || "").toLowerCase().trim();
+      if (!termino) return lista;
+
+      return lista.filter((cup) => {
+        const codigo = String(cup?.codigo || "").toLowerCase();
+        const nombre = String(cup?.DescripcionCUP || "").toLowerCase();
+        const grupo = String(cup?.Grupo || "").toLowerCase();
+        const profesional = String(this.formatProfesionales(cup?.profesional) || "").toLowerCase();
+        return (
+          codigo.includes(termino) ||
+          nombre.includes(termino) ||
+          grupo.includes(termino) ||
+          profesional.includes(termino)
+        );
+      });
+    },
     // Filtrar contratos por EPS seleccionada
     contratosFiltrados() {
       if (!this.Seps) {
@@ -732,14 +1030,17 @@ export default {
 
       const grouped = {};
       this.contratosFiltrados.forEach((contrato) => {
-        const profesional = this.formatProfesionales(contrato.cupsProfesional, this.sinEspecificar);
-        if (!grouped[profesional]) {
-          grouped[profesional] = {
-            profesional,
-            cups: [],
-          };
-        }
-        grouped[profesional].cups.push(contrato);
+        const profesionales = this.obtenerListaProfesionalesCups(contrato);
+        const lista = profesionales.length ? profesionales : [this.sinEspecificar];
+        lista.forEach((profesional) => {
+          if (!grouped[profesional]) {
+            grouped[profesional] = {
+              profesional,
+              cups: [],
+            };
+          }
+          grouped[profesional].cups.push(contrato);
+        });
       });
 
       return Object.values(grouped).sort((a, b) => a.profesional.localeCompare(b.profesional));
@@ -838,8 +1139,16 @@ export default {
         return [];
       }
 
-      // En contratos no se restringe por grupo ni por profesional: se muestran todos los CUPS.
-      const cups = this.cupsDisponibles || [];
+      let cups = this.cupsDisponibles || [];
+      const profesionalFiltro = String(this.SprofesionalFiltro || "").trim();
+
+      if (profesionalFiltro) {
+        cups = cups.filter((cup) => {
+          const profesionales = this.normalizarProfesionales(cup?.profesional);
+          return profesionales.includes(profesionalFiltro);
+        });
+      }
+
       const termino = String(this.SbusquedaCup || "").toLowerCase().trim();
       if (!termino) {
         return cups;
@@ -849,21 +1158,40 @@ export default {
         const codigo = String(cup?.codigo || "").toLowerCase();
         const nombre = String(cup?.DescripcionCUP || "").toLowerCase();
         const grupo = String(cup?.Grupo || "").toLowerCase();
-        return codigo.includes(termino) || nombre.includes(termino) || grupo.includes(termino);
+        const profesional = String(this.formatProfesionales(cup?.profesional) || "").toLowerCase();
+        return (
+          codigo.includes(termino) ||
+          nombre.includes(termino) ||
+          grupo.includes(termino) ||
+          profesional.includes(termino)
+        );
       });
     },
 
     cupsDisponiblesAgrupados() {
       const grouped = {};
+      const profesionalFiltro = String(this.SprofesionalFiltro || "").trim();
 
       (this.cupsDisponiblesFiltrados || []).forEach((cup) => {
-        const profesional = this.formatProfesionales(cup?.profesional, this.sinEspecificar) || this.sinEspecificar;
-        const grupoNombre = String(cup?.Grupo || this.sinEspecificar).trim() || this.sinEspecificar;
-        const clave = `${profesional}|${grupoNombre}`;
-        if (!grouped[clave]) {
-          grouped[clave] = { profesional, grupo: grupoNombre, items: [] };
+        let profesionales = this.normalizarProfesionales(cup?.profesional);
+        if (profesionalFiltro) {
+          profesionales = profesionales.filter((prof) => prof === profesionalFiltro);
         }
-        grouped[clave].items.push(cup);
+        const listaProf = profesionales.length ? profesionales : (profesionalFiltro ? [] : [this.sinEspecificar]);
+        if (!listaProf.length) return;
+
+        const grupoNombre = String(cup?.Grupo || this.sinEspecificar).trim() || this.sinEspecificar;
+
+        listaProf.forEach((profesional) => {
+          const clave = `${profesional}|${grupoNombre}`;
+          if (!grouped[clave]) {
+            grouped[clave] = { profesional, grupo: grupoNombre, items: [] };
+          }
+          // Evitar duplicar el mismo CUPS dentro del mismo optgroup
+          if (!grouped[clave].items.some((item) => String(item.id) === String(cup.id))) {
+            grouped[clave].items.push(cup);
+          }
+        });
       });
 
       return Object.keys(grouped)
@@ -880,8 +1208,13 @@ export default {
   },
   watch: {
     Sactividad() {
-      const cupsPermitidos = new Set((this.cupsDisponiblesFiltrados || []).map((cup) => cup.id));
-      this.Scups = (this.Scups || []).filter((id) => cupsPermitidos.has(id));
+      this.sincronizarSeleccionCupsDisponibles();
+    },
+    SprofesionalFiltro() {
+      this.sincronizarSeleccionCupsDisponibles();
+    },
+    SbusquedaCup() {
+      this.sincronizarSeleccionCupsDisponibles();
     },
   },
   methods: {
@@ -907,6 +1240,11 @@ export default {
       "actualizarActividadExtra",
       "deleteActividadExtra",
     ]),
+
+    sincronizarSeleccionCupsDisponibles() {
+      const cupsPermitidos = new Set((this.cupsDisponiblesFiltrados || []).map((cup) => cup.id));
+      this.Scups = (this.Scups || []).filter((id) => cupsPermitidos.has(id));
+    },
 
     // ===== FUNCIÓN PARA COLORES DE EPS =====
     getColorClassByEps(index) {
@@ -1125,14 +1463,52 @@ export default {
     },
 
     normalizarProfesionales(profesionales) {
-      return Array.from(new Set(
-        (Array.isArray(profesionales) ? profesionales : [profesionales])
-          .map((item) => String(item || "").trim())
-          .filter((item) => this.profesionalesActividadOpciones.includes(item))
-      ));
+      const partes = [];
+      const agregar = (valor) => {
+        if (valor == null || valor === "") return;
+        if (Array.isArray(valor)) {
+          valor.forEach(agregar);
+          return;
+        }
+        const texto = String(valor).trim();
+        if (!texto) return;
+        if (texto.startsWith("[") && texto.endsWith("]")) {
+          try {
+            const parsed = JSON.parse(texto);
+            if (Array.isArray(parsed)) {
+              parsed.forEach(agregar);
+              return;
+            }
+          } catch (_) {
+            /* continuar como texto */
+          }
+        }
+        texto.split(/[|,;/]/).forEach((parte) => {
+          const limpio = String(parte || "").trim();
+          if (limpio) partes.push(limpio);
+        });
+      };
+      agregar(profesionales);
+
+      return Array.from(
+        new Set(
+          partes
+            .map((item) => this.canonizarNombreProfesional(item))
+            .filter(Boolean)
+        )
+      );
     },
 
-    normalizarProfesionalesCsvActividades(valor) {
+    canonizarNombreProfesional(nombre) {
+      const texto = String(nombre || "").trim();
+      if (!texto) return null;
+      if (this.profesionalesActividadOpciones.includes(texto)) return texto;
+
+      const porCase = this.profesionalesActividadOpciones.find(
+        (opcion) => opcion.toLowerCase() === texto.toLowerCase()
+      );
+      if (porCase) return porCase;
+
       const normalizarTexto = (txt) => String(txt || "")
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
@@ -1142,28 +1518,29 @@ export default {
         .trim();
 
       const mapaCanonico = [
-        { key: "Auxiliar de enfermeria", match: ["auxiliar", "enfermeria"] },
+        { key: "Auxiliar de enfermeria", match: ["auxiliar"] },
         { key: "Enfermero", match: ["enfermero"] },
         { key: "Medico", match: ["medico"] },
         { key: "Psicologo", match: ["psicologo"] },
-        { key: "Tsocial", match: ["tsocial", "trabajo social", "social"] },
+        { key: "Tsocial", match: ["tsocial", "trabajo social"] },
         { key: "Nutricionista", match: ["nutricion"] },
+        { key: "Higienista oral", match: ["higienista"] },
       ];
 
-      const partes = String(valor || "")
-        .split("|")
-        .map((p) => p.trim())
-        .filter(Boolean);
+      const normalizado = normalizarTexto(texto);
+      const encontrado = mapaCanonico.find((def) =>
+        def.match.every((token) => normalizado.includes(token))
+      );
+      return encontrado ? encontrado.key : null;
+    },
 
-      const canonicos = partes.map((item) => {
-        const normalizado = normalizarTexto(item);
-        const encontrado = mapaCanonico.find((def) =>
-          def.match.every((token) => normalizado.includes(token))
-        );
-        return encontrado ? encontrado.key : item;
-      });
-
-      return this.normalizarProfesionales(canonicos);
+    normalizarProfesionalesCsvActividades(valor) {
+      return this.normalizarProfesionales(
+        String(valor || "")
+          .split("|")
+          .map((p) => p.trim())
+          .filter(Boolean)
+      );
     },
 
     formatProfesionales(profesionales, fallback = "") {
@@ -1324,6 +1701,7 @@ export default {
       this.Scups = [];
       this.Sactividad = "";
       this.SbusquedaCup = "";
+      this.SprofesionalFiltro = "";
       this.contratosTemp = [];
       this.modoEdicionContratoExistente = false;
       this.contratoEdicionId = null;
@@ -1471,24 +1849,45 @@ export default {
             throw new Error("No se encontró el contrato objetivo para agregar CUPS.");
           }
 
-          const contratoActual = this.contratos.find((item) => item.id === this.contratoEdicionId);
+          const contratosEps = (this.contratos || []).filter(
+            (item) => String(item.epsId) === String(this.Seps)
+          );
+          const contratoActual =
+            contratosEps.find((item) => String(item.id) === String(this.contratoEdicionId)) ||
+            contratosEps[0];
+
           if (!contratoActual) {
             throw new Error("El contrato seleccionado no existe o fue eliminado.");
           }
 
-          const cupsActuales = Array.isArray(contratoActual.cups) ? [...contratoActual.cups] : [];
-          const existentes = new Set(
-            cupsActuales.map(
-              (item) => `${String(item.cupsId)}::${String(item.actividadId || "")}`
-            )
-          );
+          // Unifica CUPS de todos los contratos de la misma EPS para no perder actividades ya habilitadas.
+          const cupsActuales = [];
+          const existentes = new Set();
+          contratosEps.forEach((contrato) => {
+            (Array.isArray(contrato.cups) ? contrato.cups : []).forEach((item) => {
+              const key = `${String(item.cupsId)}::${String(item.actividadId || "")}`;
+              if (existentes.has(key)) return;
+              existentes.add(key);
+              cupsActuales.push({ ...item });
+            });
+          });
+
           const nuevos = this.contratosTemp.filter((item) => String(item.epsId) === String(this.Seps));
 
           let agregados = 0;
           let duplicados = 0;
+          const rechazados = [];
 
           nuevos.forEach((item) => {
-            const key = `${String(item.cupsId)}::${String(item.actividadId || "")}`;
+            const cupsId = String(item.cupsId || "").trim();
+            const cupsNombre = String(item.cupsNombre || "").trim();
+            const actividadId = String(item.actividadId || "").trim();
+            if (!cupsId || !cupsNombre) {
+              rechazados.push(item.cupsNombre || item.cupsId || "CUPS sin nombre");
+              return;
+            }
+
+            const key = `${cupsId}::${actividadId}`;
             if (existentes.has(key)) {
               duplicados++;
               return;
@@ -1496,26 +1895,44 @@ export default {
 
             cupsActuales.push({
               epsId: item.epsId,
-              epsNombre: item.epsNombre,
-              cupsId: item.cupsId,
-              cupsNombre: item.cupsNombre,
-              actividadId: item.actividadId,
-              actividadNombre: item.actividadNombre,
-              cupsProfesional: item.cupsProfesional,
-              cupsGrupo: item.cupsGrupo,
+              epsNombre: item.epsNombre || this.obtenerNombreEps(item.epsId),
+              cupsId,
+              cupsNombre,
+              actividadId: item.actividadId || null,
+              actividadNombre: item.actividadNombre || null,
+              cupsProfesional: this.normalizarProfesionales(item.cupsProfesional),
+              cupsGrupo: item.cupsGrupo || "",
             });
             existentes.add(key);
             agregados++;
           });
 
           if (agregados === 0) {
-            alert("No se agregaron CUPS nuevos al contrato. Todos ya existían.");
+            let mensaje = "No se agregaron CUPS nuevos al contrato.";
+            if (duplicados > 0) {
+              mensaje += ` ${duplicados} ya existían para la misma actividad.`;
+            }
+            if (rechazados.length > 0) {
+              mensaje += ` ${rechazados.length} tenían datos incompletos.`;
+            }
+            alert(mensaje);
             return;
+          }
+
+          const epsNombre =
+            contratoActual.epsNombre ||
+            this.obtenerNombreEps(contratoActual.epsId, this.Seps) ||
+            "";
+
+          if (!epsNombre) {
+            throw new Error(
+              "No se puede guardar el contrato porque falta el nombre de la EPS. Seleccione de nuevo la EPS e intente otra vez."
+            );
           }
 
           const contratoData = {
             epsId: contratoActual.epsId,
-            epsNombre: contratoActual.epsNombre,
+            epsNombre,
             cups: cupsActuales,
             fechaCreacion: contratoActual.fechaCreacion,
           };
@@ -1526,6 +1943,9 @@ export default {
           let mensaje = `Se agregaron ${agregados} CUPS al contrato existente.`;
           if (duplicados > 0) {
             mensaje += ` (${duplicados} ya existían.)`;
+          }
+          if (rechazados.length > 0) {
+            mensaje += ` (${rechazados.length} omitidos por datos incompletos.)`;
           }
           alert(mensaje);
 
@@ -1541,19 +1961,19 @@ export default {
           if (!contratosPorEps[contrato.epsId]) {
             contratosPorEps[contrato.epsId] = {
               epsId: contrato.epsId,
-              epsNombre: contrato.epsNombre,
+              epsNombre: contrato.epsNombre || this.obtenerNombreEps(contrato.epsId),
               cups: []
             };
           }
           // Agregar el CUPS a la lista de esta EPS con toda la información requerida
           contratosPorEps[contrato.epsId].cups.push({
             epsId: contrato.epsId,                  // eps.id (para compatibilidad)
-            epsNombre: contrato.epsNombre,          // eps.eps (valor de pantalla)
+            epsNombre: contrato.epsNombre || this.obtenerNombreEps(contrato.epsId),
             cupsId: contrato.cupsId,                // cup.id (para compatibilidad)
             cupsNombre: contrato.cupsNombre,        // cup.DescripcionCUP (valor de pantalla)
             actividadId: contrato.actividadId,      // actividad.id (para compatibilidad)
             actividadNombre: contrato.actividadNombre, // actividad.nombre (valor de pantalla)
-            cupsProfesional: contrato.cupsProfesional,  // cup.profesional (valor requerido)
+            cupsProfesional: this.normalizarProfesionales(contrato.cupsProfesional),
             cupsGrupo: contrato.cupsGrupo           // cup.Grupo (valor adicional)
           });
         });
@@ -1564,6 +1984,16 @@ export default {
         const epsArray = Object.keys(contratosPorEps);
         for (const epsId of epsArray) {
           const contratoData = contratosPorEps[epsId];
+          if (!contratoData.epsNombre) {
+            throw new Error(
+              `No se puede guardar el contrato de la EPS (${epsId}): falta el nombre. Seleccione nuevamente la EPS.`
+            );
+          }
+          if (!contratoData.cups.length) {
+            throw new Error(
+              `No se puede guardar el contrato de ${contratoData.epsNombre}: no hay CUPS para guardar.`
+            );
+          }
           console.log(`Guardando contrato para EPS ${epsId}:`, contratoData);
 
           await this.crearContrato(contratoData);
@@ -1581,7 +2011,10 @@ export default {
         this.closeModal("crearcontratos");
       } catch (error) {
         console.error("Error al guardar contrato:", error);
-        alert("Error al guardar el contrato: " + (error?.message || error));
+        alert(
+          "No se pudo guardar el contrato\n\n" +
+          formatApiError(error, "Revise EPS, actividad y CUPS e intente nuevamente.")
+        );
       }
     },
 
@@ -1620,24 +2053,72 @@ export default {
         await this.getAllContratos();
       } catch (error) {
         console.error("Error al eliminar CUPS:", error);
-        alert("Error al eliminar el CUPS: " + (error?.message || error));
+        alert(
+          "No se pudo eliminar el CUPS del contrato\n\n" +
+          formatApiError(error, "Intente nuevamente o recargue la página.")
+        );
       }
     },
 
-    // Agrupar CUPS por profesional
+    // Agrupar CUPS por profesional (un CUPS con varios profesionales aparece en cada pestaña)
     agruparPorProfesional(cups) {
       if (!cups || !Array.isArray(cups)) return {};
 
       const grouped = {};
-      cups.forEach(cup => {
-        const profesional = this.obtenerProfesionalCups(cup.cupsId, cup.cupsProfesional) || 'Sin especificar';
-        if (!grouped[profesional]) {
-          grouped[profesional] = [];
-        }
-        grouped[profesional].push(cup);
+      cups.forEach((cup) => {
+        const profesionales = this.obtenerListaProfesionalesCups(cup);
+        const lista = profesionales.length ? profesionales : [this.sinEspecificar];
+        lista.forEach((profesional) => {
+          if (!grouped[profesional]) {
+            grouped[profesional] = [];
+          }
+          grouped[profesional].push(cup);
+        });
       });
 
       return grouped;
+    },
+    listarCupsPorActividad(cups) {
+      const grouped = {};
+      (cups || []).forEach((cup) => {
+        const nombre =
+          this.obtenerNombreActividadPorId(cup.actividadId, cup.actividadNombre) || this.sinEspecificar;
+        const key = String(cup.actividadId || nombre);
+        if (!grouped[key]) {
+          grouped[key] = {
+            key,
+            nombre,
+            items: [],
+          };
+        }
+        grouped[key].items.push(cup);
+      });
+
+      return Object.values(grouped).sort((a, b) => a.nombre.localeCompare(b.nombre));
+    },
+    listarCupsPorProfesional(cups) {
+      return Object.entries(this.agruparPorProfesional(cups))
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([profesional, items]) => ({
+          profesional,
+          items,
+          actividades: this.listarCupsPorActividad(items),
+          slug: String(profesional || "sin-especificar")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "") || "sin-especificar",
+        }));
+    },
+    obtenerListaProfesionalesCups(cup) {
+      const cupCatalogo = this.obtenerCupPorId(cup?.cupsId || cup?.id);
+      const raw =
+        cupCatalogo?.profesional ??
+        cup?.cupsProfesional ??
+        cup?.profesional ??
+        [];
+      return this.normalizarProfesionales(raw);
     },
     obtenerNombreEps(epsId, fallback = "") {
       const eps = this.epss?.find((item) => String(item.id) === String(epsId));
@@ -1656,9 +2137,16 @@ export default {
       const cup = this.obtenerCupPorId(cupsId);
       return cup?.DescripcionCUP || fallback || "";
     },
+    obtenerCodigoCups(cupsId, fallback = "") {
+      const cup = this.obtenerCupPorId(cupsId);
+      return cup?.codigo || fallback || "";
+    },
     obtenerProfesionalCups(cupsId, fallback = "") {
       const cup = this.obtenerCupPorId(cupsId);
-      return this.formatProfesionales(cup?.profesional, this.formatProfesionales(fallback, fallback || ""));
+      return this.formatProfesionales(
+        cup?.profesional,
+        this.formatProfesionales(fallback, fallback || "")
+      );
     },
     obtenerGrupoCups(cupsId, fallback = "") {
       const cup = this.obtenerCupPorId(cupsId);
@@ -1699,7 +2187,10 @@ export default {
         await this.getAllContratos();
       } catch (error) {
         console.error("Error al eliminar contratos:", error);
-        alert("Error al eliminar los contratos: " + (error?.message || error));
+        alert(
+          "No se pudieron eliminar los contratos\n\n" +
+          formatApiError(error, "Intente nuevamente o recargue la página.")
+        );
       }
     },
 
@@ -2020,6 +2511,8 @@ export default {
         return "bg-enfermero";
       } else if (valor.includes("auxiliar")) {
         return "bg-auxiliar";
+      } else if (valor.includes("higienista")) {
+        return "bg-higienista";
       }
       return "bg-otro";
     },
@@ -2037,6 +2530,74 @@ export default {
 </script>
 
 <style scoped>
+.profesionales-checklist {
+  max-height: 220px;
+  overflow-y: auto;
+  background: #fff;
+}
+
+.profesionales-checklist .form-check {
+  margin-bottom: 0.25rem;
+}
+
+.parametros-panel {
+  border: 1px solid #dee2e6;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.parametros-panel .card-header {
+  background: #f8f9fa;
+  font-size: 0.95rem;
+}
+
+.nav-tabs-contratos .nav-link {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
+  color: #495057;
+}
+
+.nav-tabs-contratos .nav-link.active {
+  font-weight: 600;
+  color: #0d6efd;
+}
+
+.contrato-actividad-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-bottom: 0;
+  border-radius: 0.25rem 0.25rem 0 0;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.85rem;
+}
+
+.cups-busqueda-resultados {
+  max-height: 240px;
+  overflow-y: auto;
+  background: #fff;
+}
+
+.cups-busqueda-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid #eee;
+  background: transparent;
+  padding: 0.55rem 0.75rem;
+}
+
+.cups-busqueda-item:hover {
+  background: #f8f9fa;
+}
+
+.cups-busqueda-item:last-child {
+  border-bottom: 0;
+}
+
 /* Colores de agrupación por profesional */
 .bg-medico {
   background-color: #e3f2fd !important;
@@ -2051,6 +2612,10 @@ export default {
 .bg-auxiliar {
   background-color: #fff3e0 !important;
   /* Naranja claro */
+}
+
+.bg-higienista {
+  background-color: #e0f7fa !important;
 }
 
 .bg-otro {

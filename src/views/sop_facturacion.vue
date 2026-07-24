@@ -1,6 +1,7 @@
 <template>
     <div class="container-fluid">
         <h1> Facturación</h1>
+        <ProfesionalGrupoInfo />
         <div v-if="cargando" class="spinner-overlay">
             <div class="progress-card shadow">
                 <div class="h5 mb-3">Cargando información</div>
@@ -648,8 +649,14 @@ import {
     mapState
 } from "vuex";
 import { nextTick } from "vue";
+import { CONVENIOS_PROGRAMA } from "@/constants/convenios";
+import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
+import { encuestaVisibleParaFacturador, normalizarGruposFacturador } from "@/utils/grupoUtils.js";
 
 export default {
+    components: {
+        ProfesionalGrupoInfo,
+    },
     data() {
         return {
             fechaFin: "",
@@ -784,9 +791,12 @@ export default {
             return !!this.convenioUsuario;
         },
         convenioOpciones() {
-            const opciones = new Set(["Extramural", "E Basicos"]);
+            const opciones = new Set([...CONVENIOS_PROGRAMA]);
             if (this.convenioUsuario) opciones.add(this.convenioUsuario);
             return Array.from(opciones);
+        },
+        gruposFacturadorUsuario() {
+            return normalizarGruposFacturador(this.userData?.grupo);
         },
         opcionesFiltroRegistro() {
             const filas = Array.isArray(this.EncuestasFact) ? this.EncuestasFact : [];
@@ -813,6 +823,11 @@ export default {
             const filas = Array.isArray(this.EncuestasFact) ? [...this.EncuestasFact] : [];
 
             const filtradas = filas.filter(paciente => {
+                const cumpleAccesoFacturador = encuestaVisibleParaFacturador(
+                    paciente,
+                    this.gruposFacturadorUsuario,
+                    this.convenioUsuario
+                );
                 const cumpleGrupo = !this.filtrosRegistro.grupo || String(paciente.grupo || "").trim() === this.filtrosRegistro.grupo;
                 const cumpleSexo = !this.filtrosRegistro.sexo || String(paciente.sexo || "").trim() === this.filtrosRegistro.sexo;
                 const cumpleFechaNac = !this.filtrosRegistro.fechaNac || this.formatearFechaYYYYMMDD(paciente.fechaNac) === this.filtrosRegistro.fechaNac;
@@ -824,7 +839,7 @@ export default {
                 const cumpleFechaCierre = !this.filtrosRegistro.fechagestEnfermera || this.formatearFechaYYYYMMDD(paciente.fechagestEnfermera) === this.filtrosRegistro.fechagestEnfermera;
                 const cumpleRemision = !this.filtrosRegistro.remision || String(paciente.requiereRemision || "").trim() === this.filtrosRegistro.remision;
 
-                return cumpleGrupo && cumpleSexo && cumpleFechaNac && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre && cumpleRemision;
+                return cumpleAccesoFacturador && cumpleGrupo && cumpleSexo && cumpleFechaNac && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre && cumpleRemision;
             });
 
             if (!this.ordenRegistro.campo) return filtradas;
@@ -864,6 +879,11 @@ export default {
             const filas = Array.isArray(this.EncuestasFactAprov) ? [...this.EncuestasFactAprov] : [];
 
             const filtradas = filas.filter(paciente => {
+                const cumpleAccesoFacturador = encuestaVisibleParaFacturador(
+                    paciente,
+                    this.gruposFacturadorUsuario,
+                    this.convenioUsuario
+                );
                 const cumpleGrupo = !this.filtrosPendientes.grupo || String(paciente.grupo || "").trim() === this.filtrosPendientes.grupo;
                 const cumpleSexo = !this.filtrosPendientes.sexo || String(paciente.sexo || "").trim() === this.filtrosPendientes.sexo;
                 const cumpleFechaNac = !this.filtrosPendientes.fechaNac || this.formatearFechaYYYYMMDD(paciente.fechaNac) === this.filtrosPendientes.fechaNac;
@@ -875,7 +895,7 @@ export default {
                 const cumpleFecha = !this.filtrosPendientes.fecha || this.formatearFechaYYYYMMDD(paciente.fecha) === this.filtrosPendientes.fecha;
                 const cumpleFechaCierre = !this.filtrosPendientes.fechagestEnfermera || this.formatearFechaYYYYMMDD(paciente.fechagestEnfermera) === this.filtrosPendientes.fechagestEnfermera;
 
-                return cumpleGrupo && cumpleSexo && cumpleFechaNac && cumpleEps && cumpleConvenio && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre;
+                return cumpleAccesoFacturador && cumpleGrupo && cumpleSexo && cumpleFechaNac && cumpleEps && cumpleConvenio && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre;
             });
 
             if (!this.ordenPendientes.campo) return filtradas;
@@ -1005,7 +1025,11 @@ export default {
                         },
                     });
                 }
-                const resultados = await this.GetRegistersbyRangeGeneralFactAprov(documento);
+                const resultados = await this.GetRegistersbyRangeGeneralFactAprov({
+                    iduser: documento,
+                    gruposFacturador: this.gruposFacturadorUsuario,
+                    convenio: this.convenioUsuario,
+                });
 
                 if (this.isFacturacionPendientesDebugEnabled()) {
                     console.warn("[facturacion:pendientes] vista-getPendientes", {
@@ -1044,7 +1068,8 @@ export default {
                 let parametros = {
                     finicial: fechaInicio,
                     ffinal: fechaFin,
-                    convenio: convenio,
+                    convenio: convenio || this.convenioUsuario,
+                    gruposFacturador: this.gruposFacturadorUsuario,
                 };
                 await this.GetRegistersbyRangeGeneralFact(parametros);
             } catch (error) {
@@ -1060,6 +1085,8 @@ export default {
                 let parametros = {
                     tipodoc: tipodoc,
                     numdoc: numdoc,
+                    gruposFacturador: this.gruposFacturadorUsuario,
+                    convenio: this.convenioUsuario,
                 };
                 await this.GetRegistersbyRangeGeneralFactByID(parametros);
             } catch (error) {
@@ -1085,7 +1112,11 @@ export default {
             try {
                 await this.revertirAprovisionFacturacion(id);
 
-                await this.GetRegistersbyRangeGeneralFactAprov(this.obtenerDocumentoUsuarioActual());
+                await this.GetRegistersbyRangeGeneralFactAprov({
+                    iduser: this.obtenerDocumentoUsuarioActual(),
+                    gruposFacturador: this.gruposFacturadorUsuario,
+                    convenio: this.convenioUsuario,
+                });
 
                 if (this.fechaInicio && this.fechaFin) {
                     await this.getdataEncuestas(this.fechaInicio, this.fechaFin, this.convenioFiltro);
@@ -1364,9 +1395,11 @@ export default {
                 alert("Factura cerrada");
                 // Recargar la lista y esperar a que termine
                 if (this.GetRegistersbyRangeGeneralFactAprov) {
-                    await this.GetRegistersbyRangeGeneralFactAprov(
-                        this.obtenerDocumentoUsuarioActual()
-                    );
+                    await this.GetRegistersbyRangeGeneralFactAprov({
+                        iduser: this.obtenerDocumentoUsuarioActual(),
+                        gruposFacturador: this.gruposFacturadorUsuario,
+                        convenio: this.convenioUsuario,
+                    });
                 }
                 // Forzar reflow / re-evaluación del DOM y restaurar desplazamiento si aplica
                 await this.$nextTick();
@@ -1435,6 +1468,7 @@ export default {
                 { rol: "Psicologo", documento: paciente.idPsicologoAtiende },
                 { rol: "T. Social", documento: paciente.idTsocialAtiende },
                 { rol: "Nutricionista", documento: paciente.idNutricionistaAtiende || paciente.idNutriAtiende },
+                { rol: "Higienista oral", documento: paciente.idHigienistaOralAtiende },
             ];
 
             const profesional = candidatos.find((item) => String(item.documento || "").trim());

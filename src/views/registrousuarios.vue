@@ -84,6 +84,61 @@
                         </div>
                     </div>
 
+                    <!-- Acciones masivas -->
+                    <div v-if="usuariosSeleccionadosIds.length > 0" class="bulk-actions-bar mb-3 p-3 border rounded">
+                        <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="badge bg-primary">
+                                    {{ usuariosSeleccionadosIds.length }} seleccionado{{ usuariosSeleccionadosIds.length === 1 ? '' : 's' }}
+                                </span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @click="limpiarSeleccionUsuarios">
+                                    Limpiar selección
+                                </button>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-warning"
+                                    :disabled="loadingBulk"
+                                    @click="aplicarAccionMasivaActivo(false)"
+                                    title="Deshabilitar usuarios seleccionados"
+                                >
+                                    <i class="bi bi-person-x-fill"></i> Deshabilitar
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-success"
+                                    :disabled="loadingBulk"
+                                    @click="aplicarAccionMasivaActivo(true)"
+                                    title="Habilitar usuarios seleccionados"
+                                >
+                                    <i class="bi bi-person-check-fill"></i> Habilitar
+                                </button>
+                                <div class="input-group input-group-sm bulk-grupo-input">
+                                    <input
+                                        v-model="bulkGrupoValor"
+                                        type="text"
+                                        class="form-control"
+                                        placeholder="Nuevo grupo (ej: 1 o 1,2)"
+                                        :disabled="loadingBulk"
+                                        @keyup.enter="aplicarAccionMasivaGrupo"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-primary"
+                                        :disabled="loadingBulk || !String(bulkGrupoValor || '').trim()"
+                                        @click="aplicarAccionMasivaGrupo"
+                                    >
+                                        <i class="bi bi-people-fill"></i> Cambiar grupo
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-2" v-if="loadingBulk">
+                            Procesando {{ bulkProgresoActual }} de {{ bulkProgresoTotal }}...
+                        </small>
+                    </div>
+
                     <div class="usuarios-container">
                         <!-- Spinner de carga -->
                         <div v-if="loadingUsers" class="text-center py-5">
@@ -118,39 +173,74 @@
 
                                 <!-- Acordeón con grupos colapsables -->
                                 <div class="accordion" :id="'accordion-' + sanitizeId(convenio)">
-                                    <div v-for="(usuariosGrupo, grupo) in gruposPorConvenio" :key="grupo"
+                                    <div v-for="grupo in ordenarGruposConvenio(gruposPorConvenio)"
+                                        :key="`${convenio}-${grupo}`"
                                         class="accordion-item">
                                         <h2 class="accordion-header">
-                                            <button class="accordion-button collapsed" type="button"
+                                            <button
+                                                class="accordion-button collapsed"
+                                                type="button"
                                                 data-bs-toggle="collapse"
-                                                :data-bs-target="'#collapse-' + sanitizeId(convenio) + '-' + grupo"
-                                                :aria-controls="'collapse-' + sanitizeId(convenio) + '-' + grupo">
+                                                :data-bs-parent="'#accordion-' + sanitizeId(convenio)"
+                                                :data-bs-target="'#collapse-' + sanitizeId(convenio) + '-' + sanitizeId(grupo)"
+                                                :aria-controls="'collapse-' + sanitizeId(convenio) + '-' + sanitizeId(grupo)"
+                                                aria-expanded="false"
+                                            >
                                                 <i class="bi bi-people-fill me-2"></i>
                                                 <span class="grupo-title-text">
-                                                    {{ grupo === 'sin-grupo' ? 'Sin Grupo' : `Grupo ${grupo}` }}
+                                                    {{ etiquetaGrupoListado(grupo) }}
                                                 </span>
-                                                <span class="ms-auto grupo-count">{{ usuariosGrupo.length }}</span>
+                                                <span class="ms-auto grupo-count">{{ gruposPorConvenio[grupo].length }}</span>
                                             </button>
                                         </h2>
-                                        <div :id="'collapse-' + sanitizeId(convenio) + '-' + grupo"
-                                            class="accordion-collapse collapse">
+                                        <div
+                                            :id="'collapse-' + sanitizeId(convenio) + '-' + sanitizeId(grupo)"
+                                            class="accordion-collapse collapse"
+                                            :data-bs-parent="'#accordion-' + sanitizeId(convenio)"
+                                        >
                                             <div class="accordion-body p-0">
                                                 <div class="tabla-usuarios">
                                                     <table class="table table-sm table-hover mb-0">
                                                         <thead>
                                                             <tr>
+                                                                <th class="text-center col-check">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        class="form-check-input"
+                                                                        :checked="grupoEstaSeleccionadoCompleto(gruposPorConvenio[grupo])"
+                                                                        :indeterminate="grupoEstaParcialmenteSeleccionado(gruposPorConvenio[grupo])"
+                                                                        @change="toggleSeleccionGrupo(gruposPorConvenio[grupo], $event.target.checked)"
+                                                                        :title="'Seleccionar grupo ' + grupo"
+                                                                    />
+                                                                </th>
                                                                 <th>Nombre</th>
                                                                 <th>Cargo</th>
                                                                 <th>Email</th>
                                                                 <th>Documento</th>
+                                                                <th>Fin contrato</th>
+                                                                <th>Grupos</th>
                                                                 <th title="Tiene profesionales delegados">Delegados</th>
                                                                 <th>Acciones</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            <tr v-for="(user, index) in usuariosGrupo" :key="index"
-                                                                :class="'cargo-' + getCargoClass(user.cargo)">
-                                                                <td>{{ user.nombre }}</td>
+                                                            <tr v-for="user in gruposPorConvenio[grupo]" :key="user.uid || user.id || user.numDocumento"
+                                                                :class="[
+                                                                    'cargo-' + getCargoClass(user.cargo),
+                                                                    { 'usuario-inactivo': esUsuarioInactivo(user), 'usuario-seleccionado': estaUsuarioSeleccionado(user) }
+                                                                ]">
+                                                                <td class="text-center col-check">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        class="form-check-input"
+                                                                        :checked="estaUsuarioSeleccionado(user)"
+                                                                        @change="toggleSeleccionUsuario(user, $event.target.checked)"
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    {{ user.nombre }}
+                                                                    <span v-if="esUsuarioInactivo(user)" class="badge bg-secondary ms-1">Inactivo</span>
+                                                                </td>
                                                                 <td>
                                                                     <span class="badge"
                                                                         :class="getCargoColorClass(user.cargo)">
@@ -161,9 +251,23 @@
                                                                 <td class="small text-muted">{{ user.numDocumento ||
                                                                     'N/A' }}
                                                                 </td>
+                                                                <td class="small">{{ formatearFechaFinContrato(user.fechaFinContrato) }}</td>
+                                                                <td class="small">
+                                                                    <span
+                                                                        v-if="esFacturadorCargo(user.cargo)"
+                                                                        class="badge bg-info-subtle text-dark border"
+                                                                        :title="'Grupos asignados: ' + mostrarGruposUsuario(user)"
+                                                                    >
+                                                                        {{ mostrarGruposUsuario(user) }}
+                                                                    </span>
+                                                                    <span v-else-if="mostrarGruposUsuario(user) !== '—'">
+                                                                        {{ mostrarGruposUsuario(user) }}
+                                                                    </span>
+                                                                    <span v-else class="text-muted">—</span>
+                                                                </td>
                                                                 <td class="text-center">
                                                                     <span
-                                                                        v-if="Array.isArray(user.accesosProfesionales) && user.accesosProfesionales.length > 0"
+                                                                        v-if="!esFacturadorCargo(user.cargo) && Array.isArray(user.accesosProfesionales) && user.accesosProfesionales.length > 0"
                                                                         class="badge bg-success"
                                                                         :title="user.accesosProfesionales.length + ' profesional(es) delegado(s)'"
                                                                     >
@@ -171,7 +275,7 @@
                                                                     </span>
                                                                     <span v-else class="text-muted small">—</span>
                                                                 </td>
-                                                                <td>
+                                                                <td class="acciones-cell text-nowrap">
                                                                     <button class="btn btn-sm btn-primary me-1"
                                                                         @click="abrirModalEdicion(user)"
                                                                         title="Editar usuario">
@@ -212,14 +316,15 @@
                             <button type="button" class="btn-close" @click="cerrarModalEdicion"></button>
                         </div>
                         <div class="modal-body-custom">
+                            <div v-if="editError" class="alert alert-danger py-2">{{ editError }}</div>
                             <form @submit.prevent="guardarCambiosUsuario">
                                 <div class="row">
                                     <div class="col col-12 col-md-6 mb-3">
                                         <label for="editConvenio">IPS / Programa</label>
                                         <select id="editConvenio" v-model="editConvenio" class="form-select">
-                                            <option value="Extramural">Extramural</option>
-                                            <option value="E Basicos">E Basicos</option>
-                                            <option value="PIC">PIC</option>
+                                            <option v-for="conv in conveniosPrograma" :key="`edit-conv-${conv}`" :value="conv">
+                                                {{ conv }}
+                                            </option>
                                             <option value="sin-convenio">Usuarios Administrativos</option>
                                         </select>
                                     </div>
@@ -234,6 +339,7 @@
                                             <option v-if="editConvenio === 'PIC'" value="Psicologo">Psicologo</option>
                                             <option v-if="editConvenio === 'PIC'" value="Tsocial">Trabajador social</option>
                                             <option v-if="editConvenio === 'PIC'" value="Nutricionista">Nutricionista</option>
+                                            <option v-if="editConvenio === 'Unidesa'" value="Higienista oral">Higienista oral</option>
                                             <option value="Fact">Facturador</option>
                                             <option value="admin">--Administrador--</option>
                                         </select>
@@ -253,21 +359,104 @@
                                         <input type="text" id="editNumDocumento" v-model="editNumDocumento"
                                             class="form-control" disabled readonly />
                                     </div>
+                                    <div class="col col-12 col-md-6 mb-3">
+                                        <label for="editTelefono">Número de teléfono</label>
+                                        <input type="tel" id="editTelefono" v-model="editTelefono"
+                                            class="form-control" placeholder="Ej: 3001234567" />
+                                    </div>
+                                    <div class="col col-12 col-md-6 mb-3">
+                                        <label for="editFechaFinContrato">Fecha de finalización de contrato</label>
+                                        <input
+                                            type="date"
+                                            id="editFechaFinContrato"
+                                            v-model="editFechaFinContrato"
+                                            class="form-control"
+                                            :disabled="editSinFechaFinContrato"
+                                            @input="onEditFechaFinContratoInput"
+                                        />
+                                        <div class="form-check mt-2">
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                id="editSinFechaFinContrato"
+                                                v-model="editSinFechaFinContrato"
+                                                @change="onToggleSinFechaFinContrato"
+                                            />
+                                            <label class="form-check-label" for="editSinFechaFinContrato">
+                                                Sin fecha de finalización (dejar vacío)
+                                            </label>
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            Si marca esta opción, el usuario podrá ingresar sin validar vigencia de contrato.
+                                        </small>
+                                    </div>
                                     <div class="col col-12 col-md-6 mb-3" v-if="
                                         editCargo === 'Auxiliar de enfermeria' ||
                                         editCargo === 'Enfermero' ||
                                         editCargo === 'Medico' ||
                                         editCargo === 'Psicologo' ||
                                         editCargo === 'Tsocial' ||
-                                        editCargo === 'Nutricionista'
+                                        editCargo === 'Nutricionista' ||
+                                        editCargo === 'Higienista oral'
                                     ">
                                         <label for="editGrupo"># Grupo(s)</label>
                                         <input type="text" id="editGrupo" v-model="editGrupo" class="form-control"
                                             placeholder="Ej: 1,2,F" />
                                     </div>
-                                    <hr v-if="isAdmin">
-                                    <div v-if="isAdmin" class="col col-12 mb-3">
-                                        <label class="form-label mb-2"><h4>Profesionales Delegados</h4></label>
+                                    <div class="col col-12 mb-3" v-if="editCargo === 'Fact'">
+                                        <label class="form-label">Grupos asignados</label>
+                                        <div class="grupos-facturador-panel border rounded p-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="editGrupoFactTodos"
+                                                    :checked="facturadorSeleccionoTodos(editGrupo)"
+                                                    @change="toggleGrupoFacturador('todos', 'edit')" />
+                                                <label class="form-check-label" for="editGrupoFactTodos">Todos</label>
+                                            </div>
+                                            <p v-if="gruposFacturadorDisponibles('edit').length === 0" class="small text-muted mb-2">
+                                                No hay grupos operativos cargados. Desmarque "Todos" y guarde cuando existan profesionales con grupo asignado.
+                                            </p>
+                                            <div v-for="grupoItem in gruposFacturadorDisponibles('edit')" :key="`edit-fact-grupo-${grupoItem}`"
+                                                class="form-check">
+                                                <input class="form-check-input" type="checkbox"
+                                                    :id="`edit-fact-grupo-${grupoItem}`"
+                                                    :checked="gruposFacturadorSeleccionados(editGrupo).includes(grupoItem)"
+                                                    :disabled="facturadorSeleccionoTodos(editGrupo)"
+                                                    @change="toggleGrupoFacturador(grupoItem, 'edit')" />
+                                                <label class="form-check-label" :for="`edit-fact-grupo-${grupoItem}`">
+                                                    Grupo {{ grupoItem }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="isAdmin && editCargo !== 'Fact'" class="col col-12 mb-3">
+                                        <div class="accordion accordion-delegados" id="accordion-delegados-edit">
+                                            <div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button
+                                                        class="accordion-button collapsed"
+                                                        type="button"
+                                                        data-bs-toggle="collapse"
+                                                        data-bs-target="#collapse-delegados-edit"
+                                                        data-bs-parent="#accordion-delegados-edit"
+                                                        aria-expanded="false"
+                                                        aria-controls="collapse-delegados-edit"
+                                                    >
+                                                        <i class="bi bi-people-fill me-2"></i>
+                                                        Profesionales Delegados
+                                                        <span
+                                                            v-if="editAccesosProfesionales.length"
+                                                            class="badge bg-primary ms-2"
+                                                        >
+                                                            {{ editAccesosProfesionales.length }}
+                                                        </span>
+                                                    </button>
+                                                </h2>
+                                                <div
+                                                    id="collapse-delegados-edit"
+                                                    class="accordion-collapse collapse"
+                                                    data-bs-parent="#accordion-delegados-edit"
+                                                >
+                                                    <div class="accordion-body pt-2">
                                         <div class="row g-2 mb-2">
                                             <div class="col-12 col-md-4">
                                                 <label class="form-label mb-1">Filtrar por convenio</label>
@@ -367,6 +556,10 @@
                                         <small class="text-muted d-block mt-1">
                                             Este usuario solo podrá ver el estado de los profesionales marcados.
                                         </small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="alert alert-info mt-3">
@@ -401,50 +594,121 @@
                             </div>
                         </div>
                         <h2 class="h5 mb-3"><i class="bi bi-upload"></i> Carga masiva de usuarios por CSV</h2>
-                        <p>
-                            Sube un archivo CSV con la siguiente estructura de columnas.
-                            <strong v-if="isSuperUser">El campo <span class="text-primary">idips</span> es obligatorio para indicar la IPS de cada fila.</strong>
-                            <strong v-else>La columna <span class="text-primary">idips</span> es opcional y se ignorará; se usará la IPS de tu sesión.</strong>
-                            La columna <span class="text-primary">Rol</span> es opcional y no afecta la creación actual.
+                        <p class="mb-2">
+                            Sube un archivo CSV con estas columnas (encabezados exactos).
+                            <strong v-if="isSuperUser">Para superusuario, <span class="text-primary">idips</span> es obligatorio en cada fila.</strong>
+                            <strong v-else>La columna <span class="text-primary">idips</span> es opcional; se usará la IPS de tu sesión.</strong>
                         </p>
-                        <p class="small text-muted mb-3">
-                            En la columna <span class="text-primary">Cargo</span>, para el convenio <span class="text-primary">PIC</span> puedes cargar
-                            <strong>Medico</strong>, <strong>Enfermero</strong>, <strong>Psicologo</strong>, <strong>Tsocial</strong> y <strong>Nutricionista</strong>.
-                        </p>
+                        <ul class="small text-muted mb-3">
+                            <li><strong>Cargo:</strong> Auxiliar de enfermeria, Enfermero, Medico, Fact, Psicologo, Tsocial, Nutricionista, Higienista oral.</li>
+                            <li><strong>Convenio:</strong> Extramural, E Basicos, PIC, Unidesa.</li>
+                            <li><strong>Grupo:</strong> número(s) operativos (<code>1</code> o <code>1,2</code>). Para facturadores use <code>F</code> (todos) o grupos específicos.</li>
+                            <li><strong>Telefono</strong> y <strong>FechaFinContrato</strong> son opcionales (<code>YYYY-MM-DD</code> o <code>DD/MM/YYYY</code>).</li>
+                            <li>Si el <strong>documento</strong> o el <strong>email</strong> ya existen, el usuario se <strong>salta</strong> (no se crea) y aparece en el informe final.</li>
+                        </ul>
                         <div class="table-responsive mb-2">
                             <table class="table table-bordered table-sm align-middle mb-0">
                                 <thead class="table-secondary">
                                     <tr>
-                                        <th>Nombre</th>
-                                        <th>Email</th>
-                                        <th>Rol</th>
-                                        <th>Cargo</th>
-                                        <th>Grupo</th>
-                                        <th>Convenio</th>
-                                        <th>Documento</th>
-                                        <th>idips</th>
+                                        <th>Nombre <span class="text-danger">*</span></th>
+                                        <th>Email <span class="text-danger">*</span></th>
+                                        <th>Cargo <span class="text-danger">*</span></th>
+                                        <th>Grupo <span class="text-danger">*</span></th>
+                                        <th>Convenio <span class="text-danger">*</span></th>
+                                        <th>Documento <span class="text-danger">*</span></th>
+                                        <th>Telefono</th>
+                                        <th>FechaFinContrato</th>
+                                        <th v-if="isSuperUser">idips <span class="text-danger">*</span></th>
+                                        <th v-else>idips <span class="text-muted">(opcional)</span></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
                                         <td>Juan Pérez</td>
                                         <td>juan@email.com</td>
-                                        <td>admin</td>
-                                        <td>Psicologo</td>
+                                        <td>Medico</td>
                                         <td>1</td>
                                         <td>PIC</td>
                                         <td>12345678</td>
-                                        <td>ips_001</td>
+                                        <td>3001234567</td>
+                                        <td>2026-12-31</td>
+                                        <td>{{ isSuperUser ? 'ips_001' : '—' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Ana Gómez</td>
+                                        <td>ana@email.com</td>
+                                        <td>Fact</td>
+                                        <td>F</td>
+                                        <td>Unidesa</td>
+                                        <td>87654321</td>
+                                        <td>3109876543</td>
+                                        <td>31/12/2026</td>
+                                        <td>{{ isSuperUser ? 'ips_001' : '—' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Luis Rojas</td>
+                                        <td>luis@email.com</td>
+                                        <td>Higienista oral</td>
+                                        <td>2</td>
+                                        <td>Unidesa</td>
+                                        <td>11223344</td>
+                                        <td>3201112233</td>
+                                        <td>2027-06-30</td>
+                                        <td>{{ isSuperUser ? 'ips_002' : '—' }}</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
+                        <p class="small text-muted mb-3">
+                            Separador recomendado: coma (<code>,</code>). Codificación UTF-8 o Windows-1252.
+                            La contraseña inicial del usuario será su número de documento.
+                        </p>
                         <input type="file" accept=".csv" @change="handleCsvUpload" class="form-control mb-2" />
                         <button class="btn btn-success mt-2" :disabled="!(csvUsers && csvUsers.length) || loadingCsv || (!isSuperUser && !$store?.state?.userData?.ipsId)" @click="enviarCsvUsuarios">
-                            <i class="bi bi-person-plus-fill"></i> Crear usuarios masivamente
+                            <i class="bi bi-person-plus-fill"></i>
+                            {{ loadingCsv ? 'Procesando...' : 'Crear usuarios masivamente' }}
                         </button>
                         <div v-if="csvError" class="alert alert-danger mt-2">{{ csvError }}</div>
                         <div v-if="csvSuccess" class="alert alert-success mt-2">{{ csvSuccess }}</div>
+
+                        <div v-if="csvInformeNoCreados && csvInformeNoCreados.length" class="mt-3">
+                            <div class="alert alert-warning mb-2">
+                                <strong>Informe de usuarios no creados:</strong>
+                                {{ csvInformeNoCreados.length }} registro(s) no se crearon (saltados o con error).
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered align-middle">
+                                    <thead class="table-warning">
+                                        <tr>
+                                            <th>Fila</th>
+                                            <th>Nombre</th>
+                                            <th>Email</th>
+                                            <th>Documento</th>
+                                            <th>Estado</th>
+                                            <th>Descripción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(item, idx) in csvInformeNoCreados" :key="`csv-nocreado-${idx}`">
+                                            <td>{{ item.fila || '—' }}</td>
+                                            <td>{{ item.nombre || '—' }}</td>
+                                            <td>{{ item.email || '—' }}</td>
+                                            <td>{{ item.documento || '—' }}</td>
+                                            <td>
+                                                <span
+                                                    class="badge"
+                                                    :class="item.status === 'saltado' ? 'bg-warning text-dark' : 'bg-danger'"
+                                                >
+                                                    {{ item.status === 'saltado' ? 'Saltado' : 'Error' }}
+                                                </span>
+                                            </td>
+                                            <td class="small">{{ item.motivo || item.error || 'Sin detalle' }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
                         <div v-if="csvPreview && csvPreview.length">
                             <h6 class="mt-3">Vista previa de los primeros registros:</h6>
                             <table class="table table-sm table-striped">
@@ -452,28 +716,28 @@
                                     <tr>
                                         <th>Nombre</th>
                                         <th>Email</th>
-                                        <th>Rol</th>
                                         <th>Cargo</th>
                                         <th>Grupo</th>
                                         <th>Convenio</th>
                                         <th>Documento</th>
+                                        <th v-if="isSuperUser">idips</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr v-for="(row, idx) in csvPreview" :key="idx">
                                         <td>{{ row.Nombre }}</td>
                                         <td>{{ row.Email }}</td>
-                                        <td>{{ row.Rol }}</td>
                                         <td>{{ row.Cargo }}</td>
                                         <td>{{ row.Grupo }}</td>
                                         <td>{{ row.Convenio }}</td>
                                         <td>{{ row.Documento }}</td>
+                                        <td v-if="isSuperUser">{{ row.idips || '—' }}</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
-                    <form @submit.prevent="createUserByAdmin" :class="['form-convenio-wrapper', convenio === 'Extramural' ? 'convenio-extramural' : convenio === 'E Basicos' ? 'convenio-ebasicos' : convenio === 'PIC' ? 'convenio-pic' : '']">
+                    <form @submit.prevent="createUserByAdmin" :class="['form-convenio-wrapper', convenioFormClass]">
                     <h1 class="display-6 mb-3">Crear Usuario</h1>
 
                         <!-- Selector de IPS (solo visible para el superusuario) -->
@@ -490,23 +754,14 @@
                             />
                             <select v-model="selectedIpsId" class="form-select" :class="{ 'is-invalid': isAdmin && !selectedIpsId && formularioIntentado }">
                                 <option value="" disabled>— Seleccione una IPS —</option>
-                                // Agregar bulkCreateUsers si lo creas en usersApi.js
                                 <option v-for="ips in ipsListFiltrada" :key="ips.id" :value="ips.id">
                                     {{ ips.nombre || ips.name || ips.id }}
                                 </option>
                             </select>
-
-                            // Importar papaparse para parsear CSV
-                            import Papa from "papaparse";
                             <div class="invalid-feedback" v-if="isAdmin && !selectedIpsId && formularioIntentado">
                                 Debes seleccionar una IPS para el nuevo usuario.
                             </div>
                             <small class="text-muted mt-1 d-block" v-if="!selectedIpsId">
-                                        csvUsers: [],
-                                        csvPreview: [],
-                                        csvError: "",
-                                        csvSuccess: "",
-                                        loadingCsv: false,
                                 Campo obligatorio — el usuario quedará asociado a la IPS seleccionada.
                             </small>
                             <small class="text-success mt-1 d-block" v-else>
@@ -520,9 +775,9 @@
                                 <label for="convenio">IPS / Programa</label>
                                 <select id="convenio" v-model="convenio" class="form-select" required @change="onConvenioChange">
                                     <option value="">Seleccione una opción</option>
-                                    <option value="Extramural">Extramural</option>
-                                    <option value="E Basicos">E Basicos</option>
-                                     <option value="PIC">PIC</option>
+                                    <option v-for="conv in conveniosPrograma" :key="`create-conv-${conv}`" :value="conv">
+                                        {{ conv }}
+                                    </option>
                                 </select>
                             </div>
                             <div class="col col-12 col-md-4 mb-3">
@@ -537,6 +792,7 @@
                                     <option v-if="convenio === 'PIC'" value="Psicologo">Psicologo</option>
                                     <option v-if="convenio === 'PIC'" value="Tsocial">Trabajador social</option>
                                     <option v-if="convenio === 'PIC'" value="Nutricionista">Nutricionista</option>
+                                    <option v-if="convenio === 'Unidesa'" value="Higienista oral">Higienista oral</option>
                                 </select>
                             </div>
                             <div class="col col-12 col-md-4 mb-3">
@@ -595,6 +851,15 @@
                                 <label for="nombre">Nombre Completo:</label>
                                 <input type="text" id="nombre" v-model="nombre" required />
                             </div>
+                            <div class="col col-12 col-md-4 mb-3">
+                                <label for="telefono">Número de teléfono:</label>
+                                <input type="tel" id="telefono" v-model="telefono" class="form-control"
+                                    placeholder="Ej: 3001234567" />
+                            </div>
+                            <div class="col col-12 col-md-4 mb-3">
+                                <label for="fechaFinContrato">Fecha de finalización de contrato:</label>
+                                <input type="date" id="fechaFinContrato" v-model="fechaFinContrato" class="form-control" />
+                            </div>
 
                             <div class="col col-12 col-md-4 mb-3" v-if="
                                 cargo === 'Auxiliar de enfermeria' ||
@@ -602,10 +867,35 @@
                                 cargo === 'Medico' ||
                                 cargo === 'Psicologo' ||
                                 cargo === 'Tsocial' ||
-                                cargo === 'Nutricionista'
+                                cargo === 'Nutricionista' ||
+                                cargo === 'Higienista oral'
                             ">
                                 <label for="grupo"># Grupo(s)</label>
                                 <input type="text" id="grupo" v-model="grupo" placeholder="Ej: 1,2,F" required />
+                            </div>
+                            <div class="col col-12 mb-3" v-if="cargo === 'Fact'">
+                                <label class="form-label">Grupos asignados</label>
+                                <div class="grupos-facturador-panel border rounded p-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="grupoFactTodos"
+                                            :checked="facturadorSeleccionoTodos(grupo)"
+                                            @change="toggleGrupoFacturador('todos', 'create')" />
+                                        <label class="form-check-label" for="grupoFactTodos">Todos</label>
+                                    </div>
+                                    <p v-if="gruposFacturadorDisponibles('create').length === 0" class="small text-muted mb-2">
+                                        No hay grupos operativos cargados todavía. Puede dejar "Todos" o asignar grupos cuando existan profesionales.
+                                    </p>
+                                    <div v-for="grupoItem in gruposFacturadorDisponibles('create')" :key="`fact-grupo-${grupoItem}`"
+                                        class="form-check">
+                                        <input class="form-check-input" type="checkbox" :id="`fact-grupo-${grupoItem}`"
+                                            :checked="gruposFacturadorSeleccionados(grupo).includes(grupoItem)"
+                                            :disabled="facturadorSeleccionoTodos(grupo)"
+                                            @change="toggleGrupoFacturador(grupoItem, 'create')" />
+                                        <label class="form-check-label" :for="`fact-grupo-${grupoItem}`">
+                                            Grupo {{ grupoItem }}
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -634,6 +924,16 @@
 import Papa from "papaparse";
 import { getCargoBadgeClass as getSharedCargoBadgeClass } from "@/utils/cargoBadges";
 import {
+    GRUPO_FACTURADOR_TODOS,
+    normalizarGruposFacturador,
+    obtenerGruposOperativosDesdeUsuarios,
+    parseGruposUsuario,
+    formatearGruposFacturador,
+    facturadorSeleccionoTodosExplicito,
+    validarGruposFacturador,
+    esFacturadorCargo as esCargoFacturador,
+} from "@/utils/grupoUtils";
+import {
     createUser,
     deleteUserById,
     documentExists,
@@ -646,6 +946,7 @@ import {
 import {
     mapActions
 } from "vuex";
+import { CONVENIOS_PROGRAMA, CONVENIO_FORM_CLASS } from "@/constants/convenios";
 
 export default {
     data() {
@@ -654,16 +955,23 @@ export default {
             userEmail: "",
             nombre: "",
             numDocumento: "",
+            telefono: "",
+            fechaFinContrato: "",
             grupo: "",
             cargo: "",
             convenio: "",
+            conveniosPrograma: CONVENIOS_PROGRAMA,
 
             /* Modal de edición */
             mostrarModalEdicion: false,
+            editError: "",
             usuarioEditando: null,
             editEmail: "",
             editNombre: "",
             editNumDocumento: "",
+            editTelefono: "",
+            editFechaFinContrato: "",
+            editSinFechaFinContrato: false,
             editGrupo: "",
             editCargo: "",
             editConvenio: "",
@@ -708,10 +1016,25 @@ export default {
             csvPreview: [],
             csvError: "",
             csvSuccess: "",
+            csvInformeNoCreados: [],
             loadingCsv: false,
+
+            /* Selección múltiple / acciones masivas */
+            usuariosSeleccionadosIds: [],
+            bulkGrupoValor: "",
+            loadingBulk: false,
+            bulkProgresoActual: 0,
+            bulkProgresoTotal: 0,
         };
     },
     computed: {
+        usuariosSeleccionados() {
+            const ids = new Set(this.usuariosSeleccionadosIds);
+            return (this.users || []).filter((user) => ids.has(this.obtenerIdUsuario(user)));
+        },
+        convenioFormClass() {
+            return CONVENIO_FORM_CLASS[this.convenio] || "";
+        },
         convenios() {
             if (!this.users || this.users.length === 0) return [];
             const convSet = new Set(this.users.map(u => u.convenio || 'sin-convenio'));
@@ -849,10 +1172,11 @@ export default {
             const grupo = this.normalizarGrupos(this.grupo);
 
             const requiereGrupo = this.cargoRequiereGrupo(cargo);
+            const grupoFacturadorValido = !esCargoFacturador(cargo) || validarGruposFacturador(this.grupo).valid;
 
             // Verificar campos obligatorios básicos sin espacios en blanco
             const camposBasicos = convenio && cargo && documento && email && nombre;
-            const grupoValido = !requiereGrupo || !!grupo;
+            const grupoValido = (!requiereGrupo && !esCargoFacturador(cargo)) || (esCargoFacturador(cargo) ? grupoFacturadorValido : !!grupo);
 
             // El superusuario debe haber seleccionado una IPS
             const ipsValida = !this.isSuperUser || !!this.selectedIpsId;
@@ -913,8 +1237,11 @@ export default {
                 .filter(Boolean));
             return Array.from(convenios).sort((a, b) => a.localeCompare(b));
         },
+        gruposOperativosDisponibles() {
+            return obtenerGruposOperativosDesdeUsuarios(this.users || []);
+        },
         profesionalesDisponiblesParaAcceso() {
-            const cargos = new Set(['Auxiliar de enfermeria', 'Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista']);
+            const cargos = new Set(['Auxiliar de enfermeria', 'Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista', 'Higienista oral']);
             const idEditando = this.usuarioEditando?.uid;
 
             const mapaPorDocumento = new Map();
@@ -961,7 +1288,7 @@ export default {
 
             if (docsAsignados.size === 0) return [];
 
-            const cargos = new Set(['Auxiliar de enfermeria', 'Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista']);
+            const cargos = new Set(['Auxiliar de enfermeria', 'Medico', 'Enfermero', 'Psicologo', 'Tsocial', 'Nutricionista', 'Higienista oral']);
             const idEditando = this.usuarioEditando?.uid;
 
             return (this.users || [])
@@ -978,19 +1305,26 @@ export default {
     },
     watch: {
         cargo(newVal) {
-            // Asignar grupo automáticamente según el cargo
             if (newVal === 'admin') {
                 this.grupo = '0';
             } else if (newVal === 'Fact') {
-                this.grupo = 'F';
+                if (!this.grupo || String(this.grupo).trim().toUpperCase() === 'F') {
+                    this.grupo = GRUPO_FACTURADOR_TODOS;
+                } else {
+                    this.grupo = normalizarGruposFacturador(this.grupo);
+                }
             }
         },
         editCargo(newVal) {
-            // Asignar grupo automáticamente en edición
             if (newVal === 'admin') {
                 this.editGrupo = '0';
             } else if (newVal === 'Fact') {
-                this.editGrupo = 'F';
+                if (!String(this.editGrupo || '').trim()) {
+                    this.editGrupo = GRUPO_FACTURADOR_TODOS;
+                } else if (this.facturadorSeleccionoTodos(this.editGrupo)) {
+                    this.editGrupo = GRUPO_FACTURADOR_TODOS;
+                }
+                this.editAccesosProfesionales = [];
             }
         },
         numDocumento() {
@@ -1029,6 +1363,7 @@ export default {
         async handleCsvUpload(e) {
             this.csvError = "";
             this.csvSuccess = "";
+            this.csvInformeNoCreados = [];
             this.csvUsers = [];
             this.csvPreview = [];
             const file = e.target.files[0];
@@ -1073,19 +1408,31 @@ export default {
             this.loadingCsv = true;
             this.csvError = "";
             this.csvSuccess = "";
+            this.csvInformeNoCreados = [];
             try {
                 const res = await this.$api.bulkCreateUsers(this.csvUsers);
-                let detallesErrores = '';
-                if (res.detalles && Array.isArray(res.detalles) && res.detalles.length > 0) {
-                    const errores = res.detalles.filter(d => d.status === 'error');
-                    if (errores.length > 0) {
-                        detallesErrores = '\nErrores:\n' + errores.map(e => `- ${e.email || ''}: ${e.error || ''}`).join('\n');
-                    }
-                }
-                this.csvSuccess = `Usuarios creados: ${res.creados || 0}. Errores: ${res.errores || 0}${detallesErrores}`;
+                const noCreados = Array.isArray(res?.noCreados)
+                    ? res.noCreados
+                    : (Array.isArray(res?.detalles)
+                        ? res.detalles.filter((d) => d.status === 'saltado' || d.status === 'error')
+                        : []);
+
+                this.csvInformeNoCreados = noCreados.map((item) => ({
+                    fila: item.fila || '',
+                    nombre: item.nombre || '',
+                    email: item.email || '',
+                    documento: item.documento || '',
+                    status: item.status || 'error',
+                    motivo: item.motivo || item.error || 'Sin detalle',
+                }));
+
+                const creados = Number(res?.creados || 0);
+                const saltados = Number(res?.saltados || this.csvInformeNoCreados.filter((i) => i.status === 'saltado').length || 0);
+                const errores = Number(res?.errores || this.csvInformeNoCreados.filter((i) => i.status === 'error').length || 0);
+
+                this.csvSuccess = `Proceso finalizado. Creados: ${creados}. Saltados: ${saltados}. Errores: ${errores}.`;
                 this.csvUsers = [];
                 this.csvPreview = [];
-                // Opcional: recargar usuarios
                 await this.fetchUsers?.();
             } catch (err) {
                 this.csvError = err?.response?.data?.message || err.message || "Error al crear usuarios";
@@ -1104,17 +1451,320 @@ export default {
             ).join(',');
         },
 
-        obtenerGruposUsuario(user) {
-            const grupos = String(user?.grupo || '')
-                .split(',')
-                .map((item) => item.trim())
-                .filter(Boolean);
+        facturadorSeleccionoTodos(grupoValor) {
+            return facturadorSeleccionoTodosExplicito(grupoValor);
+        },
 
+        gruposFacturadorSeleccionados(grupoValor) {
+            return parseGruposUsuario(grupoValor).filter((grupo) => {
+                const lower = grupo.toLowerCase();
+                return lower !== GRUPO_FACTURADOR_TODOS.toLowerCase() && lower !== 'f' && lower !== 'todos';
+            });
+        },
+
+        gruposFacturadorDisponibles(modo = 'create') {
+            const base = this.gruposOperativosDisponibles;
+            const valor = modo === 'edit' ? this.editGrupo : this.grupo;
+            const asignados = this.gruposFacturadorSeleccionados(valor);
+
+            return Array.from(new Set([...base, ...asignados])).sort((a, b) =>
+                a.localeCompare(b, 'es', { numeric: true, sensitivity: 'base' })
+            );
+        },
+
+        toggleGrupoFacturador(grupoItem, modo = 'create') {
+            const campo = modo === 'edit' ? 'editGrupo' : 'grupo';
+
+            if (grupoItem === 'todos') {
+                this[campo] = this.facturadorSeleccionoTodos(this[campo])
+                    ? ''
+                    : GRUPO_FACTURADOR_TODOS;
+                return;
+            }
+
+            let seleccionados = this.gruposFacturadorSeleccionados(this[campo]);
+            if (seleccionados.includes(grupoItem)) {
+                seleccionados = seleccionados.filter((grupo) => grupo !== grupoItem);
+            } else {
+                seleccionados.push(grupoItem);
+            }
+
+            this[campo] = seleccionados.length ? seleccionados.join(',') : '';
+        },
+
+        obtenerGruposUsuario(user) {
+            const cargo = String(user?.cargo || '').trim();
+
+            if (esCargoFacturador(cargo)) {
+                return [GRUPO_FACTURADOR_TODOS];
+            }
+
+            const grupos = parseGruposUsuario(user?.grupo);
             return grupos.length ? grupos : ['sin-grupo'];
+        },
+
+        ordenarGruposConvenio(gruposPorConvenio) {
+            if (!gruposPorConvenio || typeof gruposPorConvenio !== 'object') {
+                return [];
+            }
+
+            return Object.keys(gruposPorConvenio).sort((a, b) => {
+                if (a === 'F') return -1;
+                if (b === 'F') return 1;
+                if (a === 'sin-grupo') return 1;
+                if (b === 'sin-grupo') return -1;
+                return a.localeCompare(b, 'es', { numeric: true, sensitivity: 'base' });
+            });
+        },
+
+        etiquetaGrupoListado(grupo) {
+            if (grupo === 'sin-grupo') return 'Sin Grupo';
+            return `Grupo ${grupo}`;
+        },
+
+        mostrarGruposUsuario(user) {
+            if (esCargoFacturador(user?.cargo)) {
+                return formatearGruposFacturador(user?.grupo);
+            }
+
+            const grupos = parseGruposUsuario(user?.grupo);
+            return grupos.length ? grupos.join(', ') : '—';
+        },
+
+        normalizarFechaInput(valor) {
+            if (valor === null || valor === undefined || valor === "") return "";
+
+            if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+                const yyyy = valor.getFullYear();
+                const mm = String(valor.getMonth() + 1).padStart(2, "0");
+                const dd = String(valor.getDate()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd}`;
+            }
+
+            const text = String(valor).trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
+                return text.slice(0, 10);
+            }
+
+            // ISO con hora: 2026-12-31T05:00:00.000Z
+            const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})[T\s]/);
+            if (isoMatch) {
+                return isoMatch[1];
+            }
+
+            const match = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+            if (match) {
+                return `${match[3]}-${String(match[2]).padStart(2, "0")}-${String(match[1]).padStart(2, "0")}`;
+            }
+
+            const parsed = new Date(text);
+            if (!Number.isNaN(parsed.getTime())) {
+                const yyyy = parsed.getFullYear();
+                const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+                const dd = String(parsed.getDate()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd}`;
+            }
+
+            return "";
+        },
+
+        resolverFechaFinContratoUsuario(user = {}) {
+            return this.normalizarFechaInput(
+                user.fechaFinContrato ?? user.fecha_fin_contrato ?? null
+            );
+        },
+
+        resolverFechaFinContratoEdicion() {
+            if (this.editSinFechaFinContrato) {
+                return null;
+            }
+            return this.normalizarFechaInput(this.editFechaFinContrato) || null;
+        },
+
+        formatearFechaFinContrato(valor) {
+            const fecha = this.normalizarFechaInput(valor);
+            if (!fecha) return "—";
+            const [yyyy, mm, dd] = fecha.split("-");
+            if (!yyyy || !mm || !dd) return fecha;
+            return `${dd}/${mm}/${yyyy}`;
         },
 
         esCargoOculto(cargo) {
             return String(cargo || '').trim().toLowerCase() === 'superusuario';
+        },
+
+        esFacturadorCargo(cargo) {
+            return esCargoFacturador(cargo);
+        },
+
+        obtenerIdUsuario(user) {
+            return String(user?.uid || user?.id || '').trim();
+        },
+
+        esUsuarioInactivo(user) {
+            return user?.activo === false || user?.activo === 0 || user?.activo === '0';
+        },
+
+        estaUsuarioSeleccionado(user) {
+            const id = this.obtenerIdUsuario(user);
+            return !!id && this.usuariosSeleccionadosIds.includes(id);
+        },
+
+        grupoEstaSeleccionadoCompleto(usuariosGrupo = []) {
+            const lista = Array.isArray(usuariosGrupo) ? usuariosGrupo : [];
+            if (!lista.length) return false;
+            return lista.every((user) => this.estaUsuarioSeleccionado(user));
+        },
+
+        grupoEstaParcialmenteSeleccionado(usuariosGrupo = []) {
+            const lista = Array.isArray(usuariosGrupo) ? usuariosGrupo : [];
+            if (!lista.length) return false;
+            const seleccionados = lista.filter((user) => this.estaUsuarioSeleccionado(user)).length;
+            return seleccionados > 0 && seleccionados < lista.length;
+        },
+
+        toggleSeleccionUsuario(user, checked) {
+            const id = this.obtenerIdUsuario(user);
+            if (!id) return;
+
+            if (checked) {
+                if (!this.usuariosSeleccionadosIds.includes(id)) {
+                    this.usuariosSeleccionadosIds = [...this.usuariosSeleccionadosIds, id];
+                }
+                return;
+            }
+
+            this.usuariosSeleccionadosIds = this.usuariosSeleccionadosIds.filter((item) => item !== id);
+        },
+
+        toggleSeleccionGrupo(usuariosGrupo = [], checked) {
+            const lista = Array.isArray(usuariosGrupo) ? usuariosGrupo : [];
+            const idsGrupo = lista.map((user) => this.obtenerIdUsuario(user)).filter(Boolean);
+            if (!idsGrupo.length) return;
+
+            if (checked) {
+                this.usuariosSeleccionadosIds = Array.from(new Set([
+                    ...this.usuariosSeleccionadosIds,
+                    ...idsGrupo,
+                ]));
+                return;
+            }
+
+            const quitar = new Set(idsGrupo);
+            this.usuariosSeleccionadosIds = this.usuariosSeleccionadosIds.filter((id) => !quitar.has(id));
+        },
+
+        limpiarSeleccionUsuarios() {
+            this.usuariosSeleccionadosIds = [];
+            this.bulkGrupoValor = "";
+        },
+
+        async aplicarAccionMasivaActivo(activo) {
+            const seleccionados = this.usuariosSeleccionados;
+            if (!seleccionados.length) return;
+
+            const accion = activo ? 'habilitar' : 'deshabilitar';
+            if (!confirm(`¿Desea ${accion} ${seleccionados.length} usuario(s) seleccionado(s)?`)) {
+                return;
+            }
+
+            this.loadingBulk = true;
+            this.bulkProgresoActual = 0;
+            this.bulkProgresoTotal = seleccionados.length;
+            let ok = 0;
+            let fail = 0;
+
+            try {
+                for (const user of seleccionados) {
+                    this.bulkProgresoActual += 1;
+                    try {
+                        await updateUser(this.obtenerIdUsuario(user), { activo: !!activo });
+                        ok += 1;
+                    } catch (error) {
+                        fail += 1;
+                        console.error(`Error al ${accion} usuario ${user?.email || user?.nombre}:`, error);
+                    }
+                }
+
+                await this.fetchUsers();
+                this.message = fail
+                    ? `Proceso completado: ${ok} ok, ${fail} con error.`
+                    : `${ok} usuario(s) ${activo ? 'habilitado(s)' : 'deshabilitado(s)'} correctamente.`;
+                this.messageType = fail ? 'error' : 'success';
+                this.limpiarSeleccionUsuarios();
+            } finally {
+                this.loadingBulk = false;
+                this.bulkProgresoActual = 0;
+                this.bulkProgresoTotal = 0;
+            }
+        },
+
+        async aplicarAccionMasivaGrupo() {
+            const seleccionados = this.usuariosSeleccionados;
+            if (!seleccionados.length) return;
+
+            const grupoIngresado = String(this.bulkGrupoValor || '').trim();
+            if (!grupoIngresado) {
+                this.message = 'Ingrese el nuevo grupo para aplicar a los seleccionados.';
+                this.messageType = 'error';
+                return;
+            }
+
+            if (!confirm(`¿Desea cambiar el grupo de ${seleccionados.length} usuario(s) a "${grupoIngresado}"?`)) {
+                return;
+            }
+
+            this.loadingBulk = true;
+            this.bulkProgresoActual = 0;
+            this.bulkProgresoTotal = seleccionados.length;
+            let ok = 0;
+            let fail = 0;
+
+            try {
+                for (const user of seleccionados) {
+                    this.bulkProgresoActual += 1;
+                    try {
+                        const cargo = String(user?.cargo || '').trim();
+                        let grupoFinal = grupoIngresado;
+
+                        if (esCargoFacturador(cargo)) {
+                            const validacion = validarGruposFacturador(grupoIngresado);
+                            if (!validacion.valid) {
+                                fail += 1;
+                                continue;
+                            }
+                            grupoFinal = validacion.normalized;
+                        } else if (this.cargoRequiereGrupo(cargo)) {
+                            grupoFinal = this.normalizarGrupos(grupoIngresado);
+                            if (!grupoFinal) {
+                                fail += 1;
+                                continue;
+                            }
+                        } else if (cargo === 'admin') {
+                            grupoFinal = '0';
+                        } else {
+                            grupoFinal = this.normalizarGrupos(grupoIngresado);
+                        }
+
+                        await updateUser(this.obtenerIdUsuario(user), { grupo: grupoFinal });
+                        ok += 1;
+                    } catch (error) {
+                        fail += 1;
+                        console.error(`Error al cambiar grupo de ${user?.email || user?.nombre}:`, error);
+                    }
+                }
+
+                await this.fetchUsers();
+                this.message = fail
+                    ? `Cambio de grupo: ${ok} ok, ${fail} con error.`
+                    : `Grupo actualizado en ${ok} usuario(s).`;
+                this.messageType = fail ? 'error' : 'success';
+                this.limpiarSeleccionUsuarios();
+            } finally {
+                this.loadingBulk = false;
+                this.bulkProgresoActual = 0;
+                this.bulkProgresoTotal = 0;
+            }
         },
 
         cargoRequiereGrupo(cargo) {
@@ -1124,8 +1774,28 @@ export default {
                 'Medico',
                 'Psicologo',
                 'Tsocial',
-                'Nutricionista'
+                'Nutricionista',
+                'Higienista oral'
             ].includes(String(cargo || '').trim());
+        },
+
+        validarGrupoFacturadorParaGuardar(valor, usarEditError = false) {
+            const resultado = validarGruposFacturador(valor);
+            if (!resultado.valid) {
+                if (usarEditError) {
+                    this.editError = resultado.error;
+                } else {
+                    this.message = resultado.error;
+                    this.messageType = "error";
+                }
+                return false;
+            }
+
+            if (usarEditError) {
+                this.editError = "";
+            }
+
+            return resultado.normalized;
         },
 
         async verificarDocumento() {
@@ -1186,6 +1856,9 @@ export default {
             if (grupo === 'sin-grupo') {
                 return 6;
             }
+            if (grupo === 'F') {
+                return 5;
+            }
             const grupoNum = parseInt(grupo) || 0;
             return grupoNum % 7;
         },
@@ -1196,9 +1869,13 @@ export default {
                 'Enfermero': 'enf',
                 'Medico': 'med',
                 'Fact': 'fact',
+                'Facturador': 'fact',
+                'fact': 'fact',
+                'facturador': 'fact',
                 'admin': 'admin',
                 'Psicologo': 'psi',
                 'Nutricionista': 'nut',
+                'Higienista oral': 'hig',
                 'Tsocial': 'ts'
             };
             return cargoMap[cargo] || 'default';
@@ -1217,6 +1894,9 @@ export default {
 
             if (grupo === 'sin-grupo') {
                 return 'bg-secondary';
+            }
+            if (grupo === 'F') {
+                return 'bg-warning text-dark';
             }
 
             // Usar el número del grupo para determinar el color
@@ -1237,6 +1917,7 @@ export default {
                 'admin': 'ADMIN',
                 'Psicologo': 'PSICO',
                 'Nutricionista': 'NUTRI',
+                'Higienista oral': 'HIGOR',
                 'Tsocial': 'TSOCIAL'
             };
 
@@ -1281,25 +1962,47 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             this.editEmail = user.email;
             this.editNombre = user.nombre;
             this.editNumDocumento = user.numDocumento;
-            this.editGrupo = user.grupo || '';
+            this.editTelefono = user.telefono || "";
+            const fechaFin = this.resolverFechaFinContratoUsuario(user);
+            this.editFechaFinContrato = fechaFin;
+            this.editSinFechaFinContrato = !fechaFin;
+            this.editGrupo = esCargoFacturador(user?.cargo)
+                ? String(user.grupo || GRUPO_FACTURADOR_TODOS).trim()
+                : (user.grupo || '');
             this.editCargo = user.cargo;
             this.editConvenio = user.convenio || '';
-            this.editAccesosProfesionales = Array.isArray(user.accesosProfesionales)
-                ? [...user.accesosProfesionales]
-                : [];
+            this.editAccesosProfesionales = esCargoFacturador(user?.cargo)
+                ? []
+                : (Array.isArray(user.accesosProfesionales) ? [...user.accesosProfesionales] : []);
             this.filtroAccesoConvenio = "";
             this.filtroAccesoCargo = "";
             this.filtroAccesoTexto = "";
+            this.editError = "";
             this.mostrarModalEdicion = true;
+        },
+
+        onToggleSinFechaFinContrato() {
+            if (this.editSinFechaFinContrato) {
+                this.editFechaFinContrato = "";
+            }
+        },
+
+        onEditFechaFinContratoInput() {
+            if (String(this.editFechaFinContrato || "").trim()) {
+                this.editSinFechaFinContrato = false;
+            }
         },
 
         cerrarModalEdicion() {
             this.mostrarModalEdicion = false;
             this.usuarioEditando = null;
             this.editAccesosProfesionales = [];
+            this.editSinFechaFinContrato = false;
+            this.editFechaFinContrato = "";
             this.filtroAccesoConvenio = "";
             this.filtroAccesoCargo = "";
             this.filtroAccesoTexto = "";
+            this.editError = "";
         },
 
         toggleAccesoProfesional(doc) {
@@ -1333,44 +2036,78 @@ Esta acción eliminará el usuario de la base de datos.`)) {
         },
 
         async guardarCambiosUsuario() {
+            this.editError = "";
+
             if (!this.editNombre || !this.editNumDocumento || !this.editCargo) {
-                this.message = "Por favor, completa todos los campos obligatorios.";
-                this.messageType = "error";
+                this.editError = "Por favor, completa todos los campos obligatorios.";
                 return;
             }
 
-            this.editGrupo = this.normalizarGrupos(this.editGrupo);
+            const grupoFacturador = esCargoFacturador(this.editCargo)
+                ? this.validarGrupoFacturadorParaGuardar(this.editGrupo, true)
+                : null;
+            const grupoNormalizado = esCargoFacturador(this.editCargo)
+                ? grupoFacturador
+                : this.normalizarGrupos(this.editGrupo);
+
+            if (esCargoFacturador(this.editCargo) && grupoFacturador === false) {
+                return;
+            }
+
+            this.editGrupo = grupoNormalizado;
+
             if (this.cargoRequiereGrupo(this.editCargo) && !this.editGrupo) {
-                this.message = "El campo # Grupo(s) es obligatorio para el cargo seleccionado.";
-                this.messageType = "error";
+                this.editError = "El campo # Grupo(s) es obligatorio para el cargo seleccionado.";
                 return;
             }
 
-            const accesosNormalizados = Array.from(
-                new Set(
-                    (this.editAccesosProfesionales || [])
-                        .map((doc) => String(doc || '').trim())
-                        .filter(Boolean)
-                )
-            );
+            const accesosNormalizados = esCargoFacturador(this.editCargo)
+                ? []
+                : Array.from(
+                    new Set(
+                        (this.editAccesosProfesionales || [])
+                            .map((doc) => String(doc || '').trim())
+                            .filter(Boolean)
+                    )
+                );
 
             this.loading = true;
             this.message = "";
             this.messageType = "";
 
             try {
-                await updateUser(this.usuarioEditando.uid, {
+                const userId = this.obtenerIdUsuario(this.usuarioEditando);
+                const fechaFinContrato = this.resolverFechaFinContratoEdicion();
+
+                await updateUser(userId, {
                     nombre: this.editNombre,
                     grupo: this.editGrupo,
                     cargo: this.editCargo,
                     ipsId: this.ips || null,
                     convenio: this.editConvenio,
+                    telefono: String(this.editTelefono || "").trim() || null,
+                    fechaFinContrato,
                     accesosProfesionales: accesosNormalizados,
                 });
 
+                // Reflejar de inmediato en el listado local
+                const idx = (this.users || []).findIndex((u) => this.obtenerIdUsuario(u) === userId);
+                if (idx >= 0) {
+                    this.users[idx] = {
+                        ...this.users[idx],
+                        nombre: this.editNombre,
+                        grupo: this.editGrupo,
+                        cargo: this.editCargo,
+                        convenio: this.editConvenio,
+                        telefono: String(this.editTelefono || "").trim() || null,
+                        fechaFinContrato,
+                        accesosProfesionales: accesosNormalizados,
+                    };
+                }
+
                 // Si el usuario editado es el usuario logueado, reflejar de inmediato los accesos en la sesión.
                 const uidLogueado = String(this.$store?.state?.uid || '').trim();
-                const uidEditado = String(this.usuarioEditando?.uid || '').trim();
+                const uidEditado = userId;
                 if (uidLogueado && uidEditado && uidLogueado === uidEditado) {
                     const userDataActual = this.$store?.state?.userData || {};
                     this.$store.commit('setUserData', {
@@ -1415,7 +2152,12 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             this.numDocumento = String(this.numDocumento || '').trim();
             this.cargo = String(this.cargo || '').trim();
             this.convenio = String(this.convenio || '').trim();
-            this.grupo = this.normalizarGrupos(this.grupo);
+            this.grupo = esCargoFacturador(this.cargo)
+                ? this.validarGrupoFacturadorParaGuardar(this.grupo)
+                : this.normalizarGrupos(this.grupo);
+            if (esCargoFacturador(this.cargo) && this.grupo === false) {
+                return;
+            }
 
             if (!this.convenio || !this.userEmail || !this.nombre || !this.numDocumento || !this.cargo) {
                 this.message = "Por favor, completa todos los campos obligatorios.";
@@ -1481,6 +2223,8 @@ Esta acción eliminará el usuario de la base de datos.`)) {
                     convenio: this.convenio,
                     grupo: this.grupo,
                     numDocumento: this.numDocumento,
+                    telefono: String(this.telefono || "").trim() || null,
+                    fechaFinContrato: this.normalizarFechaInput(this.fechaFinContrato) || null,
                 });
 
                 this.message = `Usuario ${this.userEmail} creado exitosamente.\nContraseña temporal: ${tempPassword}\nEl usuario deberá cambiarla en su primer ingreso.`;
@@ -1491,6 +2235,8 @@ Esta acción eliminará el usuario de la base de datos.`)) {
                 this.nombre = "";
                 this.grupo = "";
                 this.numDocumento = "";
+                this.telefono = "";
+                this.fechaFinContrato = "";
                 this.cargo = "";
                 this.convenio = "";
                 this.documentoValido = null;
@@ -1567,7 +2313,7 @@ Esta acción eliminará el usuario de la base de datos.`)) {
         async fetchUsers() {
             this.loadingUsers = true;
             try {
-                const users = await getAllUsers();
+                const users = await getAllUsers({ forceRefresh: true });
                 this.users = users
                     .filter((u) => !this.esCargoOculto(u?.cargo))
                     .map((u) => ({
@@ -1585,12 +2331,17 @@ Esta acción eliminará el usuario de la base de datos.`)) {
         onConvenioChange() {
             const soloEBasicos = ['Psicologo', 'Tsocial'];
             const soloPIC = ['Nutricionista'];
+            const soloUnidesa = ['Higienista oral'];
 
             if (this.convenio !== 'E Basicos' && soloEBasicos.includes(this.cargo)) {
                 this.cargo = '';
             }
 
             if (this.convenio !== 'PIC' && soloPIC.includes(this.cargo)) {
+                this.cargo = '';
+            }
+
+            if (this.convenio !== 'Unidesa' && soloUnidesa.includes(this.cargo)) {
                 this.cargo = '';
             }
         },
@@ -1627,6 +2378,13 @@ Esta acción eliminará el usuario de la base de datos.`)) {
 
 <style scoped>
 /* Formulario de creación de usuario: coloración por convenio */
+.grupos-facturador-panel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.35rem 1rem;
+    background: #f8fafc;
+}
+
 .form-convenio-wrapper {
     padding: 20px;
     border-radius: 14px;
@@ -1663,6 +2421,16 @@ Esta acción eliminará el usuario de la base de datos.`)) {
 .form-convenio-wrapper.convenio-pic h1,
 .form-convenio-wrapper.convenio-pic label {
     color: #9a3412;
+}
+
+.form-convenio-wrapper.convenio-unidesa {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border-color: #3b82f6;
+}
+
+.form-convenio-wrapper.convenio-unidesa h1,
+.form-convenio-wrapper.convenio-unidesa label {
+    color: #1e40af;
 }
 
 /* Sección de Convenio */
@@ -1749,6 +2517,29 @@ Esta acción eliminará el usuario de la base de datos.`)) {
     100% {
         background-position: -200% 0;
     }
+}
+
+.accordion-delegados .accordion-item {
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.accordion-delegados .accordion-button {
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+}
+
+.accordion-delegados .accordion-button:not(.collapsed) {
+    background: #eef4ff;
+    color: #0d6efd;
+    box-shadow: none;
+}
+
+.accordion-delegados .accordion-body {
+    background: #fff;
 }
 
 /* Sección de Grupo */
@@ -1882,45 +2673,97 @@ Esta acción eliminará el usuario de la base de datos.`)) {
 .tabla-usuarios {
     background: white;
     border-radius: 0 0 8px 8px;
-    overflow: hidden;
+    overflow-x: auto;
 }
 
 .tabla-usuarios .table {
     margin: 0;
     font-size: 0.9rem;
     table-layout: fixed;
+    width: 100%;
 }
 
-/* Anchos de columnas */
+.tabla-usuarios .table th,
+.tabla-usuarios .table td {
+    padding: 0.4rem 0.5rem;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Distribución equilibrada del ancho */
 .tabla-usuarios th:nth-child(1),
 .tabla-usuarios td:nth-child(1) {
-    width: 28%;
+    width: 3.5%;
+    text-align: center;
+    overflow: visible;
 }
 
 .tabla-usuarios th:nth-child(2),
 .tabla-usuarios td:nth-child(2) {
-    width: 10%;
+    width: 18%;
 }
 
 .tabla-usuarios th:nth-child(3),
 .tabla-usuarios td:nth-child(3) {
-    width: 26%;
+    width: 11%;
 }
 
 .tabla-usuarios th:nth-child(4),
 .tabla-usuarios td:nth-child(4) {
-    width: 13%;
+    width: 20%;
 }
 
 .tabla-usuarios th:nth-child(5),
 .tabla-usuarios td:nth-child(5) {
-    width: 9%;
-    text-align: center;
+    width: 11%;
 }
 
 .tabla-usuarios th:nth-child(6),
 .tabla-usuarios td:nth-child(6) {
-    width: 14%;
+    width: 11%;
+}
+
+.tabla-usuarios th:nth-child(7),
+.tabla-usuarios td:nth-child(7) {
+    width: 9%;
+    text-align: center;
+}
+
+.tabla-usuarios th:nth-child(8),
+.tabla-usuarios td:nth-child(8) {
+    width: 7%;
+    text-align: center;
+}
+
+.tabla-usuarios th:nth-child(9),
+.tabla-usuarios td:nth-child(9) {
+    width: 9.5%;
+}
+
+.tabla-usuarios td.acciones-cell {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+}
+
+.tabla-usuarios tr.usuario-inactivo {
+    opacity: 0.65;
+    background: #f8f9fa;
+}
+
+.tabla-usuarios tr.usuario-seleccionado {
+    background: #e7f1ff !important;
+}
+
+.bulk-actions-bar {
+    background: #f8fbff;
+    border-color: #bcd0f7 !important;
+    box-shadow: 0 1px 4px rgba(13, 110, 253, 0.08);
+}
+
+.bulk-grupo-input {
+    width: min(320px, 100%);
 }
 
 .tabla-usuarios thead {
@@ -2340,40 +3183,58 @@ Esta acción eliminará el usuario de la base de datos.`)) {
 
     .tabla-usuarios .table {
         font-size: 0.8rem;
-        min-width: 550px;
+        min-width: 760px;
         width: 100%;
-        table-layout: auto;
+        table-layout: fixed;
     }
 
     .tabla-usuarios th:nth-child(1),
     .tabla-usuarios td:nth-child(1) {
-        width: auto;
-        min-width: 120px;
+        width: 3.5%;
     }
 
     .tabla-usuarios th:nth-child(2),
     .tabla-usuarios td:nth-child(2) {
-        width: auto;
-        min-width: 70px;
+        width: 17%;
     }
 
     .tabla-usuarios th:nth-child(3),
     .tabla-usuarios td:nth-child(3) {
-        width: auto;
-        min-width: 150px;
+        width: 11%;
     }
 
     .tabla-usuarios th:nth-child(4),
     .tabla-usuarios td:nth-child(4) {
-        width: auto;
-        min-width: 70px;
+        width: 20%;
     }
 
     .tabla-usuarios th:nth-child(5),
     .tabla-usuarios td:nth-child(5) {
-        width: auto;
-        min-width: 85px;
-        white-space: nowrap;
+        width: 11%;
+    }
+
+    .tabla-usuarios th:nth-child(6),
+    .tabla-usuarios td:nth-child(6) {
+        width: 11%;
+    }
+
+    .tabla-usuarios th:nth-child(7),
+    .tabla-usuarios td:nth-child(7) {
+        width: 9%;
+    }
+
+    .tabla-usuarios th:nth-child(8),
+    .tabla-usuarios td:nth-child(8) {
+        width: 7%;
+    }
+
+    .tabla-usuarios th:nth-child(9),
+    .tabla-usuarios td:nth-child(9) {
+        width: 10.5%;
+    }
+
+    .tabla-usuarios td.acciones-cell {
+        overflow: visible;
     }
 
     .tabla-usuarios thead {
@@ -2543,40 +3404,58 @@ Esta acción eliminará el usuario de la base de datos.`)) {
     .tabla-usuarios .table {
         font-size: 0.75rem;
         margin-bottom: 0;
-        table-layout: auto;
-        min-width: 600px;
+        table-layout: fixed;
+        min-width: 720px;
         width: 100%;
     }
 
     .tabla-usuarios th:nth-child(1),
     .tabla-usuarios td:nth-child(1) {
-        width: auto;
-        min-width: 110px;
+        width: 3.5%;
     }
 
     .tabla-usuarios th:nth-child(2),
     .tabla-usuarios td:nth-child(2) {
-        width: auto;
-        min-width: 65px;
+        width: 16%;
     }
 
     .tabla-usuarios th:nth-child(3),
     .tabla-usuarios td:nth-child(3) {
-        width: auto;
-        min-width: 140px;
+        width: 11%;
     }
 
     .tabla-usuarios th:nth-child(4),
     .tabla-usuarios td:nth-child(4) {
-        width: auto;
-        min-width: 65px;
+        width: 19%;
     }
 
     .tabla-usuarios th:nth-child(5),
     .tabla-usuarios td:nth-child(5) {
-        width: auto;
-        min-width: 130px;
-        white-space: nowrap;
+        width: 11%;
+    }
+
+    .tabla-usuarios th:nth-child(6),
+    .tabla-usuarios td:nth-child(6) {
+        width: 11%;
+    }
+
+    .tabla-usuarios th:nth-child(7),
+    .tabla-usuarios td:nth-child(7) {
+        width: 9%;
+    }
+
+    .tabla-usuarios th:nth-child(8),
+    .tabla-usuarios td:nth-child(8) {
+        width: 7%;
+    }
+
+    .tabla-usuarios th:nth-child(9),
+    .tabla-usuarios td:nth-child(9) {
+        width: 12.5%;
+    }
+
+    .tabla-usuarios td.acciones-cell {
+        overflow: visible;
     }
 
     .tabla-usuarios thead th {
@@ -2678,8 +3557,8 @@ Esta acción eliminará el usuario de la base de datos.`)) {
     }
 
     .tabla-usuarios .table {
-        table-layout: auto;
-        min-width: 600px;
+        table-layout: fixed;
+        min-width: 720px;
     }
 
     .btn-sm {

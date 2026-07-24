@@ -13,6 +13,8 @@ import persistedState from "./persistedstate";
 import { createStore } from "vuex";
 import { getAllUsers, getUserById } from "@/api/usersApi";
 import router from "../router/index.js";
+import { encuestaPermitidaParaFacturador, encuestaVisibleParaFacturador } from "@/utils/grupoUtils.js";
+import { formatApiError } from "@/utils/apiError.js";
 import moment from "moment";
 
 // ============================================================================
@@ -117,6 +119,48 @@ function normalizeComparableDocument(value) {
     .toLowerCase()
     .replace(/^([0-9]+)\.0+$/, "$1")
     .replace(/[^a-z0-9]/g, "");
+}
+
+/** Coincide valor con patrón SQL LIKE. Sin comodines: contiene (parcial) o exacto según opciones. */
+function coincidePatronLike(valor, patron, { parcial = false } = {}) {
+  const value = String(valor ?? "").trim();
+  const pattern = String(patron ?? "").trim();
+  if (!pattern) return true;
+
+  if (parcial && !/[%_]/.test(pattern)) {
+    const compactValue = normalizeComparableDocument(value);
+    const compactPattern = normalizeComparableDocument(pattern);
+    if (compactValue && compactPattern && compactValue.includes(compactPattern)) {
+      return true;
+    }
+    if (value.toLowerCase().includes(pattern.toLowerCase())) {
+      return true;
+    }
+  }
+
+  const effectivePattern =
+    parcial && !/[%_]/.test(pattern) ? `%${pattern}%` : pattern;
+
+  if (!/[%_]/.test(effectivePattern)) {
+    if (value === effectivePattern) return true;
+    const compactValue = normalizeComparableDocument(value);
+    const compactPattern = normalizeComparableDocument(effectivePattern);
+    return Boolean(compactValue && compactPattern && compactValue === compactPattern);
+  }
+
+  const regexBody = Array.from(effectivePattern)
+    .map((ch) => {
+      if (ch === "%") return ".*";
+      if (ch === "_") return ".";
+      return ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    })
+    .join("");
+
+  try {
+    return new RegExp(`^${regexBody}$`, "i").test(value);
+  } catch {
+    return value === pattern;
+  }
 }
 
 function isFacturacionPendientesDebugEnabled() {
@@ -265,6 +309,7 @@ function getEncuestaDateFieldValue(encuesta = {}, legacyField = "") {
     fechagestPsicologo: "fecha_gest_psicologo",
     fechagestTsocial: "fecha_gest_tsocial",
     fechagestNutricionista: "fecha_gest_nutricionista",
+    fechagestHigienistaOral: "fecha_gest_higienista_oral",
     fechagestAuxiliar: "fecha_gest_auxiliar",
   };
 
@@ -359,6 +404,7 @@ export default createStore({
     psicologosByGrupo: [],
     tsocialesByGrupo: [],
     nutricionistasByGrupo: [],
+    higienistasOralByGrupo: [],
 
     // Parámetros
     comunasBarrios: [],
@@ -406,6 +452,7 @@ export default createStore({
           idPsicologoAtiende,
           idTsocialAtiende,
           idNutricionistaAtiende,
+          idHigienistaOralAtiende,
           fechavisita,
           status_gest_aux,
           status_gest_medica,
@@ -413,6 +460,7 @@ export default createStore({
           status_gest_psicologo,
           status_gest_tsocial,
           status_gest_nutricionista,
+          status_gest_higienista_oral,
           status_caracterizacion,
           status_visita,
           idEncuesta,
@@ -430,6 +478,11 @@ export default createStore({
           numdoc,
           sexo,
           fechaNac,
+          departamentoNacimiento,
+          municipioNacimiento,
+          identidadGenero,
+          ocupacion,
+          nivelOcupacion,
           direccion,
           telefono,
           barrioVeredacomuna,
@@ -476,6 +529,7 @@ export default createStore({
           idPsicologoAtiende,
           idTsocialAtiende,
           idNutricionistaAtiende,
+          idHigienistaOralAtiende,
           fechavisita,
           status_gest_aux,
           status_gest_medica,
@@ -483,6 +537,7 @@ export default createStore({
           status_gest_psicologo,
           status_gest_tsocial,
           status_gest_nutricionista,
+          status_gest_higienista_oral,
           status_caracterizacion,
           status_visita,
           idEncuesta,
@@ -500,6 +555,11 @@ export default createStore({
           numdoc,
           sexo,
           fechaNac,
+          departamentoNacimiento,
+          municipioNacimiento,
+          identidadGenero,
+          ocupacion,
+          nivelOcupacion,
           direccion,
           telefono,
           barrioVeredacomuna,
@@ -659,6 +719,10 @@ export default createStore({
         varStatus = "status_gest_nutricionista";
         dateStatus = "fechagestNutricionista";
         cargoTexto = "nutricionista";
+      } else if (cargo === "Higienista oral") {
+        varStatus = "status_gest_higienista_oral";
+        dateStatus = "fechagestHigienistaOral";
+        cargoTexto = "higienista oral";
       } else {
         varStatus = "status_gest_aux";
         dateStatus = "fechagestAuxiliar";
@@ -957,6 +1021,79 @@ export default createStore({
         return encuestasFiltradas;
       } catch (error) {
         console.error("Error en getEncuestasPendientesNutricionista:", error);
+        throw error;
+      }
+    },
+
+    /**
+     * Obtiene registros pendientes para higienista oral
+     */
+    getEncuestasPendientesHigienistaOral: async ({ commit }, { idUsuario, includeSource = false } = {}) => {
+      console.log("Obteniendo encuestas pendientes para higienista oral:", idUsuario);
+      try {
+        const { data } = await realtime_api.get(
+          "/Encuesta.json",
+          buildNoCacheRequestConfig({
+            idHigienistaOralAtiende: idUsuario,
+          })
+        );
+
+        if (!data) {
+          commit("setEncuestas", []);
+          commit("setcantEncuestas", 0);
+          return includeSource ? { filtered: [], source: [] } : [];
+        }
+
+        const encuestas = Object.entries(data).map(([key, value]) => ({
+          id: key,
+          ...value,
+        }));
+
+        const esAsignadaAHigienistaOral = (encuesta) =>
+          String(encuesta.idHigienistaOralAtiende || "").trim() === String(idUsuario || "").trim();
+
+        const estadoCerrado = (valor) => {
+          if (valor === true || valor === 1) return true;
+          if (typeof valor === "string") {
+            const limpio = valor.trim().toLowerCase();
+            return limpio === "true" || limpio === "1" || limpio === "2";
+          }
+          if (typeof valor === "number") {
+            return valor >= 1;
+          }
+          return false;
+        };
+
+        const estaCerradaPorHigienistaOral = (encuesta) =>
+          estadoCerrado(encuesta.status_gest_higienista_oral);
+
+        const encuestasFiltradas = encuestas.filter(
+          (encuesta) =>
+            esAsignadaAHigienistaOral(encuesta) &&
+            estadoCerrado(encuesta.status_gest_aux) &&
+            !estaCerradaPorHigienistaOral(encuesta)
+        );
+
+        const enProcesoCount = encuestas.filter(
+          (encuesta) =>
+            esAsignadaAHigienistaOral(encuesta) &&
+            !estadoCerrado(encuesta.status_gest_aux)
+        ).length;
+
+        commit("setEncuestas", encuestasFiltradas);
+        commit("setcantEncuestas", encuestasFiltradas.length);
+        commit("setCantEncuestasEnProceso", enProcesoCount);
+
+        if (includeSource) {
+          return {
+            filtered: encuestasFiltradas,
+            source: encuestas,
+          };
+        }
+
+        return encuestasFiltradas;
+      } catch (error) {
+        console.error("Error en getEncuestasPendientesHigienistaOral:", error);
         throw error;
       }
     },
@@ -1310,6 +1447,10 @@ export default createStore({
           params.idNutricionistaAtiende = documentoEmpleado;
         }
 
+        if (documentoEmpleado && cargoNormalizado === "higienistaoral") {
+          params.idHigienistaOralAtiende = documentoEmpleado;
+        }
+
         const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(params));
         if (!data) {
           commit("setEncuestasfiltradas", []);
@@ -1379,6 +1520,21 @@ export default createStore({
             const fechaNutri = normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestNutricionista"));
             if (!fechaNutri) return false;
             if (!(fechaNutri >= fechaInicio && fechaNutri <= fechaFin)) return false;
+
+            return true;
+          }
+
+          if (cargoNormalizado === "higienistaoral") {
+            const docHigienista = String(encuesta.idHigienistaOralAtiende || "").trim();
+            if (documentoEmpleado && docHigienista !== documentoEmpleado) {
+              return false;
+            }
+
+            if (!isEstadoGestionCerrado(encuesta.status_gest_higienista_oral)) return false;
+
+            const fechaHigienista = normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestHigienistaOral"));
+            if (!fechaHigienista) return false;
+            if (!(fechaHigienista >= fechaInicio && fechaHigienista <= fechaFin)) return false;
 
             return true;
           }
@@ -1746,7 +1902,7 @@ export default createStore({
      * Obtiene datos de paciente por tipodoc y numdoc
      * Busca el paciente en Encuesta y luego carga datos relacionados
      */
-    getAllByPacientesID: async ({ commit }, { tipodoc, numdoc }) => {
+    getAllByPacientesID: async ({ commit }, { tipodoc, numdoc, parcial = false }) => {
       try {
         const normalizarIdRelacion = (valor) => String(valor ?? "").trim();
         const extraerCupsAsignaciones = (asignaciones = {}) => {
@@ -1852,10 +2008,15 @@ export default createStore({
             });
         };
 
-        // Obtener todas las encuestas (contienen datos básicos del paciente)
+        // Obtener encuestas (búsqueda parcial implícita cuando parcial=true)
         const paramsEncuesta = {
           numdoc,
         };
+
+        if (parcial) {
+          paramsEncuesta.parcial = 1;
+          paramsEncuesta.numdocContains = 1;
+        }
 
         if (String(tipodoc ?? "").trim()) {
           paramsEncuesta.tipodoc = String(tipodoc ?? "").trim();
@@ -1871,7 +2032,7 @@ export default createStore({
         const tipodocNormalizado = String(tipodoc ?? "").trim();
         const numdocNormalizado = String(numdoc ?? "").trim();
 
-        // Convertir a array con IDs y buscar por numdoc (y tipodoc cuando se envía)
+        // Convertir a array con IDs y filtrar por numdoc (parcial implícito si aplica)
         const pacientesEncontrados = [];
 
         for (const [encuestaId, encuesta] of Object.entries(data)) {
@@ -1881,7 +2042,10 @@ export default createStore({
             ? tipodocEncuesta === tipodocNormalizado
             : true;
 
-          if (coincideTipodoc && numdocEncuesta === numdocNormalizado) {
+          if (
+            coincideTipodoc &&
+            coincidePatronLike(numdocEncuesta, numdocNormalizado, { parcial })
+          ) {
             pacientesEncontrados.push({
               id: encuestaId,
               ...encuesta,
@@ -1976,7 +2140,7 @@ export default createStore({
         for (const [encuestaId, encuesta] of Object.entries(data)) {
           if (
             String(encuesta?.tipodoc ?? "").trim() === tipodocNormalizado &&
-            String(encuesta?.numdoc ?? "").trim() === numdocNormalizado &&
+            coincidePatronLike(String(encuesta?.numdoc ?? "").trim(), numdocNormalizado) &&
             String(encuesta?.convenio ?? "").trim() === convenioNormalizado
           ) {
             datospaciente.push({
@@ -2555,6 +2719,27 @@ export default createStore({
     },
 
     /**
+     * Obtiene higienistas orales por grupo y convenio
+     */
+    getAllHigienistasOralbyGrupo: async ({ commit }, { grupo, convenio }) => {
+      console.log("datos que entran en getAllHigienistasOralbyGrupo - grupo:", grupo, "convenio:", convenio);
+      try {
+        const usuarios = await getAllUsers();
+        const higienistasFiltrados = usuarios.filter(
+          (u) => userBelongsToGroup(u.grupo, grupo) &&
+            String(u.convenio || "") === String(convenio || "") &&
+            String(u.cargo || "") === "Higienista oral"
+        );
+
+        commit("setHigienistasOralByGrupo", higienistasFiltrados);
+        return higienistasFiltrados;
+      } catch (error) {
+        console.error("Error en getAllHigienistasOralbyGrupo:", error);
+        throw error;
+      }
+    },
+
+    /**
      * Resetea contraseña a valor por defecto
      */
     resetPassword: async ({ commit }, id) => {
@@ -2777,7 +2962,7 @@ export default createStore({
         return data;
       } catch (error) {
         console.error("Error en Action_crearContrato:", error);
-        throw error;
+        throw new Error(formatApiError(error, "No se pudo crear el contrato."));
       }
     },
 
@@ -2799,7 +2984,7 @@ export default createStore({
         return contratos;
       } catch (error) {
         console.error("Error en Action_getAllContratos:", error);
-        throw error;
+        throw new Error(formatApiError(error, "No se pudieron cargar los contratos."));
       }
     },
 
@@ -2813,7 +2998,7 @@ export default createStore({
         return data;
       } catch (error) {
         console.error("Error en Action_eliminarContrato:", error);
-        throw error;
+        throw new Error(formatApiError(error, "No se pudo eliminar el contrato."));
       }
     },
 
@@ -2832,7 +3017,7 @@ export default createStore({
         return data;
       } catch (error) {
         console.error("Error en Action_actualizarContrato:", error);
-        throw error;
+        throw new Error(formatApiError(error, "No se pudo actualizar el contrato."));
       }
     },
 
@@ -3396,7 +3581,7 @@ export default createStore({
      */
     GetRegistersbyRangeGeneralFact: async ({ commit }, parametros) => {
       try {
-        const { finicial, ffinal, convenio } = parametros;
+        const { finicial, ffinal, convenio, gruposFacturador } = parametros;
         const normalizarTexto = (valor) =>
           String(valor ?? "")
             .trim()
@@ -3534,8 +3719,13 @@ export default createStore({
             !convenioFiltro || conveniodelCUPS === convenioFiltro;
           const sinFacturar = encuestaAsociada.status_facturacion !== true;
           const noAsignado = !String(encuestaAsociada.asigfact ?? "").trim();
+          const cumpleGrupoFacturador = encuestaVisibleParaFacturador(
+            encuestaAsociada,
+            gruposFacturador,
+            convenio
+          );
 
-          if (cumpleFecha && sinFacturar && cumpleConvenio && noAsignado) {
+          if (cumpleFecha && sinFacturar && cumpleConvenio && noAsignado && cumpleGrupoFacturador) {
             resultados.push({
               id: idActividad,
               ...encuestaAsociada,
@@ -3559,6 +3749,8 @@ export default createStore({
       try {
         const { data: actividades } = await realtime_api.get("/Actividades.json");
         const { data: encuestas } = await realtime_api.get("/Encuesta.json");
+        const gruposFacturador = parametros?.gruposFacturador;
+        const convenioFacturador = parametros?.convenio;
 
         const normalizarTexto = (valor) =>
           String(valor ?? "")
@@ -3588,11 +3780,17 @@ export default createStore({
           }
 
           const sinAsignar = !String(encuestaAsociada.asigfact ?? "").trim();
+          const cumpleGrupoFacturador = encuestaVisibleParaFacturador(
+            encuestaAsociada,
+            gruposFacturador,
+            convenioFacturador
+          );
 
           if (
             normalizarTexto(encuestaAsociada?.numdoc) === numdocBuscado &&
             normalizarTexto(encuestaAsociada?.tipodoc) === tipodocBuscado &&
-            sinAsignar
+            sinAsignar &&
+            cumpleGrupoFacturador
           ) {
             resultados.push({
               id: idActividad,
@@ -3613,8 +3811,11 @@ export default createStore({
     /**
      * Obtiene registros aprobados para facturación
      */
-    GetRegistersbyRangeGeneralFactAprov: async ({ commit }, iduser) => {
+    GetRegistersbyRangeGeneralFactAprov: async ({ commit }, payload) => {
       try {
+        const iduser = typeof payload === "object" ? payload?.iduser : payload;
+        const gruposFacturador = typeof payload === "object" ? payload?.gruposFacturador : "";
+        const convenioFacturador = typeof payload === "object" ? payload?.convenio : "";
         const noCacheConfig = getNoCacheRequestConfig();
         const [actividadesResponse, encuestasResponse, asignacionesResponse] = await Promise.all([
           realtime_api.get("/Actividades.json", noCacheConfig),
@@ -3683,7 +3884,12 @@ export default createStore({
             return normalizeComparableDocument(cup?.FactProf ?? cup?.factProf ?? cup?.fact_prof) === idUsuarioNormalizado;
           });
           const cerrado = encuestaAsociada.status_facturacion === true;
-          const incluido = (coincideFacturadorPaciente || coincideFacturadorEnCups) && !cerrado;
+          const cumpleGrupoFacturador = encuestaVisibleParaFacturador(
+            encuestaAsociada,
+            gruposFacturador,
+            convenioFacturador
+          );
+          const incluido = (coincideFacturadorPaciente || coincideFacturadorEnCups) && !cerrado && cumpleGrupoFacturador;
           const exclusionReasons = [];
 
           if (!coincideFacturadorPaciente && !coincideFacturadorEnCups) {
@@ -4069,6 +4275,9 @@ export default createStore({
     },
     setNutricionistasByGrupo(state, nutricionistas) {
       state.nutricionistasByGrupo = nutricionistas;
+    },
+    setHigienistasOralByGrupo(state, higienistas) {
+      state.higienistasOralByGrupo = higienistas;
     },
 
     // Pacientes

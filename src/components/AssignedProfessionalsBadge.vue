@@ -57,6 +57,10 @@ export default {
               ""
           ).trim(),
         },
+        {
+          role: "Higienista oral",
+          document: String(row?.idHigienistaOralAtiende || "").trim(),
+        },
       ];
 
       return entries.filter((item) => item.document);

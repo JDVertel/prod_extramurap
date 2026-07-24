@@ -5,9 +5,17 @@
 
     <!-- FORMULARIO DE BÚSQUEDA -->
     <form class="row mb-3" @submit.prevent="consultarP">
-      <div class="col-12 col-md-4 mb-3">
+      <div class="col-12 col-md-6 col-lg-5 mb-3">
         <label for="numdoc" class="form-label">Número de Documento</label>
-        <input type="text" id="numdoc" v-model="numdoc" class="form-control" required />
+        <input
+          type="text"
+          id="numdoc"
+          v-model="numdoc"
+          class="form-control"
+          required
+          placeholder="Ej: 10203040 o solo una parte del documento"
+          autocomplete="off"
+        />
       </div>
       <div class="col-12 col-md-2">
         <button class="btn btn-sm btn-primary mt-4" type="submit" :disabled="cargandoPacientes">
@@ -45,7 +53,7 @@
           <div class="card-header consulta-resultados-header">
             <div>
               <span class="consulta-eyebrow">Resultados de búsqueda</span>
-              <strong>Pacientes encontrados con el documento {{ numdoc }}</strong>
+              <strong>Pacientes encontrados para: {{ numdoc }}</strong>
             </div>
             <span class="badge rounded-pill bg-primary">{{ datosPaciente.length }} registro(s)</span>
           </div>
@@ -521,6 +529,7 @@ export default {
       try {
         await this.getAllByPacientesID({
           numdoc: this.numdoc,
+          parcial: true,
         });
       } catch (error) {
         console.error("[consultarP] Error:", error);
@@ -821,6 +830,12 @@ export default {
           documento: paciente.idNutricionistaAtiende || paciente.idNutriAtiende,
           estado: paciente.status_gest_nutricionista,
           fecha: paciente.fechagestNutricionista,
+        },
+        {
+          rol: "Higienista oral",
+          documento: paciente.idHigienistaOralAtiende,
+          estado: paciente.status_gest_higienista_oral,
+          fecha: paciente.fechagestHigienistaOral,
         },
         {
           rol: "Facturación",

@@ -19,6 +19,7 @@
         </div>
         <div v-else>
             <h1 class="display-6 center">{{ cargoMostrado }}</h1>
+            <ProfesionalGrupoInfo :es-estado-view="esEstadoView" />
             <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
                 Visualizando estado de: {{ nombreProfesionalSeleccionado }}
             </p>
@@ -201,11 +202,13 @@ import { construirTooltipEpsCierres, contarCierresPorPeriodo } from "@/utils/ges
 import { formatBandejaShortDate, groupBandejaItemsByDay } from "@/utils/bandejaPresentation";
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 import AssignedProfessionalsBadge from "@/components/AssignedProfessionalsBadge.vue";
+import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
 
 export default {
     components: {
         HoverInfoBadge,
         AssignedProfessionalsBadge,
+        ProfesionalGrupoInfo,
     },
     data() {
         return {

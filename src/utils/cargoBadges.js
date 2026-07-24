@@ -43,6 +43,10 @@ export function getCargoBadgeTheme(cargo) {
     return "badge-cargo-nutricionista";
   }
 
+  if (compacto.includes("higienista") && compacto.includes("oral")) {
+    return "badge-cargo-higienista-oral";
+  }
+
   if (compacto.includes("superusuario")) {
     return "badge-cargo-superusuario";
   }

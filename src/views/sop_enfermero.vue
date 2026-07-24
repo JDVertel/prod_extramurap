@@ -13,6 +13,7 @@
     </div>
     <div v-if="!cargando" :class="['convenio-theme', convenioThemeClass]">
         <h1 class="display-6 center">{{ cargoMostrado }}</h1>
+        <ProfesionalGrupoInfo :es-estado-view="esEstadoView" />
         <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
             Visualizando como admin: {{ nombreProfesionalSeleccionado }}
         </p>
@@ -133,7 +134,7 @@
                                     <th>F. Nac</th>
                                     <th>F. Encuesta</th>
                                     <th>Estados</th>
-                                    <th>Acciones</th>
+                                    <th>Devolver</th>
                                 </tr>
                                 <tr>
                                     <th></th>
@@ -230,10 +231,12 @@ import { construirTooltipEpsCierres } from "@/utils/gestionCounters";
 import { formatBandejaShortDate, groupBandejaItemsByDay, sortBandejaItems } from "@/utils/bandejaPresentation";
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 import AssignedProfessionalsBadge from "@/components/AssignedProfessionalsBadge.vue";
+import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
 export default {
     components: {
         HoverInfoBadge,
         AssignedProfessionalsBadge,
+        ProfesionalGrupoInfo,
     },
     data() {
         return {
@@ -294,6 +297,7 @@ export default {
                 encuesta?.id_nutricionista_atiende ||
                 ""
             ).trim();
+            const docHigienistaOral = String(encuesta?.idHigienistaOralAtiende || encuesta?.id_higienista_oral_atiende || "").trim();
             const docAux = String(encuesta?.idEncuestador || "").trim();
 
             return [
@@ -303,6 +307,7 @@ export default {
                 { statusKey: "status_gest_psicologo", fechaKey: "fechagestPsicologo", rolLabel: "Psicólogo", rolShort: "Psi", doc: docPsicologo },
                 { statusKey: "status_gest_tsocial", fechaKey: "fechagestTsocial", rolLabel: "Trabajador social", rolShort: "TS", doc: docTsocial },
                 { statusKey: "status_gest_nutricionista", fechaKey: "fechagestNutricionista", rolLabel: "Nutricionista", rolShort: "Nut", doc: docNutricionista },
+                { statusKey: "status_gest_higienista_oral", fechaKey: "fechagestHigienistaOral", rolLabel: "Higienista oral", rolShort: "Hig", doc: docHigienistaOral },
             ].filter((item) => !!item.doc);
         },
 
@@ -613,59 +618,89 @@ export default {
             const estados = [];
             const convenio = this.getConvenioObjetivo();
 
-            if ('status_gest_aux' in encuesta && (convenio !== 'E Basicos' || encuesta.idEncuestador)) {
+            const agregarEstado = ({ keyPrefix, idProfesional, rol, statusValue, fechaValue }) => {
+                const documento = String(idProfesional || "").trim();
+                if (!documento) return;
+
+                const completado = statusValue === true;
                 estados.push({
-                    key: `aux-${encuesta.id || encuesta.numdoc || encuesta.fecha || ''}`,
-                    idProfesional: String(encuesta.idEncuestador || "").trim(),
+                    key: `${keyPrefix}-${encuesta.id || encuesta.numdoc || encuesta.fecha || ''}`,
+                    idProfesional: documento,
+                    rol,
+                    nombre: this.obtenerNombreProfesional(documento),
+                    completado,
+                    fecha: completado ? (fechaValue || '') : '',
+                });
+            };
+
+            // Solo se muestran roles con profesional asignado en la encuesta.
+            if ('status_gest_aux' in encuesta) {
+                agregarEstado({
+                    keyPrefix: 'aux',
+                    idProfesional: encuesta.idEncuestador,
                     rol: 'Auxiliar',
-                    nombre: this.obtenerNombreProfesional(encuesta.idEncuestador),
-                    completado: encuesta.status_gest_aux === true,
-                    fecha: encuesta.status_gest_aux === true ? (encuesta.fechagestAuxiliar || '') : '',
+                    statusValue: encuesta.status_gest_aux,
+                    fechaValue: encuesta.fechagestAuxiliar,
                 });
             }
 
-            if ('status_gest_medica' in encuesta && (convenio !== 'E Basicos' || encuesta.idMedicoAtiende)) {
-                estados.push({
-                    key: `med-${encuesta.id || encuesta.numdoc || encuesta.fecha || ''}`,
-                    idProfesional: String(encuesta.idMedicoAtiende || "").trim(),
+            if ('status_gest_medica' in encuesta) {
+                agregarEstado({
+                    keyPrefix: 'med',
+                    idProfesional: encuesta.idMedicoAtiende,
                     rol: 'Médico',
-                    nombre: this.obtenerNombreProfesional(encuesta.idMedicoAtiende),
-                    completado: encuesta.status_gest_medica === true,
-                    fecha: encuesta.status_gest_medica === true ? (encuesta.fechagestMedica || '') : '',
+                    statusValue: encuesta.status_gest_medica,
+                    fechaValue: encuesta.fechagestMedica,
                 });
             }
 
-            if ('status_gest_psicologo' in encuesta && convenio !== 'Extramural' && (convenio !== 'E Basicos' || encuesta.idPsicologoAtiende)) {
-                estados.push({
-                    key: `psi-${encuesta.id || encuesta.numdoc || encuesta.fecha || ''}`,
-                    idProfesional: String(encuesta.idPsicologoAtiende || "").trim(),
+            if ('status_gest_psicologo' in encuesta && convenio !== 'Extramural') {
+                agregarEstado({
+                    keyPrefix: 'psi',
+                    idProfesional: encuesta.idPsicologoAtiende,
                     rol: 'Psicólogo',
-                    nombre: this.obtenerNombreProfesional(encuesta.idPsicologoAtiende),
-                    completado: encuesta.status_gest_psicologo === true,
-                    fecha: encuesta.status_gest_psicologo === true ? (encuesta.fechagestPsicologo || '') : '',
+                    statusValue: encuesta.status_gest_psicologo,
+                    fechaValue: encuesta.fechagestPsicologo,
                 });
             }
 
-            if ('status_gest_tsocial' in encuesta && convenio !== 'Extramural' && (convenio !== 'E Basicos' || encuesta.idTsocialAtiende)) {
-                estados.push({
-                    key: `ts-${encuesta.id || encuesta.numdoc || encuesta.fecha || ''}`,
-                    idProfesional: String(encuesta.idTsocialAtiende || "").trim(),
+            if ('status_gest_tsocial' in encuesta && convenio !== 'Extramural') {
+                agregarEstado({
+                    keyPrefix: 'ts',
+                    idProfesional: encuesta.idTsocialAtiende,
                     rol: 'Trabajador social',
-                    nombre: this.obtenerNombreProfesional(encuesta.idTsocialAtiende),
-                    completado: encuesta.status_gest_tsocial === true,
-                    fecha: encuesta.status_gest_tsocial === true ? (encuesta.fechagestTsocial || '') : '',
+                    statusValue: encuesta.status_gest_tsocial,
+                    fechaValue: encuesta.fechagestTsocial,
                 });
             }
 
-            if ('status_gest_nutricionista' in encuesta && convenio !== 'Extramural' && (convenio !== 'E Basicos' || encuesta.idNutricionistaAtiende || encuesta.idNutriAtiende)) {
-                const idNutricionista = String(encuesta.idNutricionistaAtiende || encuesta.idNutriAtiende || "").trim();
-                estados.push({
-                    key: `nut-${encuesta.id || encuesta.numdoc || encuesta.fecha || ''}`,
-                    idProfesional: idNutricionista,
+            if (
+                'status_gest_nutricionista' in encuesta &&
+                convenio !== 'Extramural' &&
+                convenio !== 'Unidesa' &&
+                convenio !== 'Unides'
+            ) {
+                agregarEstado({
+                    keyPrefix: 'nut',
+                    idProfesional: encuesta.idNutricionistaAtiende || encuesta.idNutriAtiende,
                     rol: 'Nutricionista',
-                    nombre: this.obtenerNombreProfesional(idNutricionista),
-                    completado: encuesta.status_gest_nutricionista === true,
-                    fecha: encuesta.status_gest_nutricionista === true ? (encuesta.fechagestNutricionista || '') : '',
+                    statusValue: encuesta.status_gest_nutricionista,
+                    fechaValue: encuesta.fechagestNutricionista,
+                });
+            }
+
+            if (
+                'status_gest_higienista_oral' in encuesta &&
+                convenio !== 'Extramural' &&
+                convenio !== 'E Basicos' &&
+                convenio !== 'PIC'
+            ) {
+                agregarEstado({
+                    keyPrefix: 'hig',
+                    idProfesional: encuesta.idHigienistaOralAtiende,
+                    rol: 'Higienista oral',
+                    statusValue: encuesta.status_gest_higienista_oral,
+                    fechaValue: encuesta.fechagestHigienistaOral,
                 });
             }
 
@@ -861,6 +896,11 @@ export default {
                 return encuesta?.status_gest_nutricionista === true;
             };
         },
+        estadoGestionHigienistaOral() {
+            return (encuesta) => {
+                return encuesta?.status_gest_higienista_oral === true;
+            };
+        },
         encuestasPendientesBase() {
             if (!this.encuestas || this.encuestas.length === 0) return [];
             const convenioObjetivo = this.getConvenioObjetivo();
@@ -897,6 +937,7 @@ export default {
             const convenio = this.getConvenioObjetivo();
             const esExtramural = convenio === 'Extramural';
             const esEBasicos = convenio === 'E Basicos';
+            const esUnidesa = convenio === 'Unidesa' || convenio === 'Unides';
 
             return sortBandejaItems(this.encuestasPendientesBase.filter((encuesta) => {
                 if (encuesta.idEnfermeroAtiende !== documento) return false;
@@ -904,6 +945,14 @@ export default {
 
                 if (esExtramural) {
                     return encuesta.status_gest_aux === true && this.estadoGestionMedica(encuesta);
+                }
+
+                if (esUnidesa) {
+                    const requiereHigienista = !!encuesta.idHigienistaOralAtiende;
+                    if (encuesta.status_gest_aux !== true) return false;
+                    if (!this.estadoGestionMedica(encuesta)) return false;
+                    if (requiereHigienista && !this.estadoGestionHigienistaOral(encuesta)) return false;
+                    return true;
                 }
 
                 if (esEBasicos) {
@@ -950,12 +999,20 @@ export default {
             const convenio = this.getConvenioObjetivo();
             const esExtramural = convenio === 'Extramural';
             const esEBasicos = convenio === 'E Basicos';
+            const esUnidesa = convenio === 'Unidesa' || convenio === 'Unides';
 
             return this.encuestasEnProcesoBase.filter((encuesta) => {
                 if (encuesta.idEnfermeroAtiende !== documento) return false;
 
                 if (esExtramural) {
                     return encuesta.status_gest_aux === false || !this.estadoGestionMedica(encuesta);
+                }
+
+                if (esUnidesa) {
+                    const requiereHigienista = !!encuesta.idHigienistaOralAtiende;
+                    const estados = [encuesta.status_gest_aux, this.estadoGestionMedica(encuesta)];
+                    if (requiereHigienista) estados.push(this.estadoGestionHigienistaOral(encuesta));
+                    return estados.some((valor) => valor === false);
                 }
 
                 if (esEBasicos) {

@@ -16,6 +16,7 @@
             <h4 class="center mt-2">
                 <i class="bi bi-journal-medical"></i> Registro de Demanda Inducida
             </h4>
+            <ProfesionalGrupoInfo />
             <br />
             <!-- FORMULARIO -->
 
@@ -23,7 +24,7 @@
                 <!-- SECCIÓN BÚSQUEDA -->
                 <div class="row mb-4">
                     <div class="col-6 col-md-3 mb-3">
-                        <label for="tipodoc" class="form-label">Tipo de Documento</label>
+                        <label for="tipodoc" class="form-label campo-obligatorio">Tipo de Documento</label>
                         <select id="tipodoc" v-model="tipodoc" class="form-select" required>
                             <option value="">Seleccione</option>
                             <option value="RC">Registro Civil</option>
@@ -39,8 +40,21 @@
                         </select>
                     </div>
                     <div class="col-6 col-md-3 mb-3">
-                        <label for="numdoc" class="form-label">Número de Documento</label>
-                        <input type="text" id="numdoc" v-model="numdoc" class="form-control" required />
+                        <label for="numdoc" class="form-label campo-obligatorio">Número de Documento</label>
+                        <input
+                            type="text"
+                            id="numdoc"
+                            :value="numdoc"
+                            class="form-control"
+                            required
+                            autocomplete="off"
+                            inputmode="text"
+                            pattern="[A-Za-z0-9]+"
+                            title="Solo letras y números, sin signos ni caracteres especiales"
+                            placeholder="Solo letras y números"
+                            @input="onNumdocInput"
+                        />
+                        <div class="form-text">Solo alfanumérico (A-Z, 0-9). Sin puntos, guiones ni espacios.</div>
                     </div>
                     <div class="col-6 col-md-3 mb-4">
                         <button type="button" class="btn btn-primary mt-4" @click="consultar">
@@ -63,20 +77,32 @@
                             </ul>
                         </div>
                     </div>
+                    <div v-if="estadoConsulta === 'seguimiento'" class="alert alert-warning" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>Paciente ya registrado.</strong>
+                        Se cargaron sus datos del paciente (incluida la información adicional); puede corregirlos antes de guardar el nuevo registro.
+                        Equipos Básicos permite registros repetidos. En la caracterización podrá indicar si es
+                        <strong>control</strong> o <strong>seguimiento</strong>.
+                        <div class="mt-3" v-if="pacienteEncontrado">
+                            <strong>Información del registro previo:</strong>
+                            <ul class="mt-2 mb-0">
+                                <li><strong>Fecha de encuesta:</strong> {{ pacienteEncontrado.fecha }}</li>
+                                <li><strong>Encuestador:</strong> {{ nombreEncuestador || 'Cargando...' }}</li>
+                                <li><strong>Convenio:</strong> {{ pacienteEncontrado.convenio }}</li>
+                            </ul>
+                        </div>
+                    </div>
                     <div v-if="estadoConsulta === 'disponible'" class="alert alert-success" role="alert">
                         <i class="bi bi-check-circle-fill"></i> Paciente disponible para encuestar
                         <div class="mt-3" v-if="pacienteEncontrado && pacienteEncontrado.convenioDiferente">
-                            <div style="display: flex; align-items: stretch; justify-content: space-between;">
-                                <span style="display: flex; align-items: center;">
-                                    <strong>Nota:</strong> Este paciente fue encuestado previamente en el convenio <b>{{ pacienteEncontrado.convenio }}</b>.
-                                </span>
-                                <span style="display: flex; align-items: center; height: 100%;">
-                                    <span style="display: flex; align-items: center; justify-content: center; height: 60px; width: 60px; background: rgba(13,110,253,0.12); border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
-                                        <i class="bi bi-info-circle-fill" style="color: #0d6efd; font-size: 2.5em;"></i>
-                                    </span>
-                                </span>
-                            </div>
-                            <ul class="mt-2">
+                            <p class="mb-2">
+                                <strong>Nota:</strong>
+                                Este paciente fue encuestado previamente en el convenio
+                                <strong>{{ pacienteEncontrado.convenio }}</strong>.
+                                Se cargaron sus datos del paciente (incluida la información adicional);
+                                puede corregirlos en este nuevo registro.
+                            </p>
+                            <ul class="mt-2 mb-0">
                                 <li><strong>Fecha de encuesta:</strong> {{ pacienteEncontrado.fecha }}</li>
                                 <li><strong>Encuestador:</strong> {{ nombreEncuestador || 'Cargando...' }}</li>
                             </ul>
@@ -85,12 +111,12 @@
                 </div>
 
                 <!-- FORMULARIO PACIENTE -->
-                <div v-if="estadoConsulta === 'disponible'" class="form-section">
+                <div v-if="mostrarFormularioEncuesta" class="form-section">
 
                     <div class="row mt-3">
                         <h2> <i class="bi bi-person-circle h2"></i> Datos del paciente</h2>
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="eps" class="form-label">EPS del paciente</label>
+                            <label for="eps" class="form-label campo-obligatorio">EPS del paciente</label>
                             <select id="eps" v-model="epsId" class="form-select" required>
                                 <option value="">Seleccione</option>
                                 <option v-for="(ep, index) in epssConContrato" :key="index" :value="ep.id">
@@ -99,7 +125,7 @@
                             </select>
                         </div>
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="regimen" class="form-label">Regimen del paciente</label>
+                            <label for="regimen" class="form-label campo-obligatorio">Régimen del paciente</label>
                             <select id="regimen" v-model="regimen" class="form-select" required>
                                 <option value="">Seleccione</option>
                                 <option v-for="(regimen, index) in Dregimen" :key="index" :value="regimen.nombre">
@@ -108,7 +134,7 @@
                             </select>
                         </div>
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="nombre1" class="form-label">Primer Nombre</label>
+                            <label for="nombre1" class="form-label campo-obligatorio">Primer Nombre</label>
                             <input type="text" id="nombre1" v-model="nombre1" class="form-control" required />
                         </div>
                         <div class="col-6 col-md-3 mb-3">
@@ -116,7 +142,7 @@
                             <input type="text" id="nombre2" v-model="nombre2" class="form-control" />
                         </div>
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="apellido1" class="form-label">Primer Apellido</label>
+                            <label for="apellido1" class="form-label campo-obligatorio">Primer Apellido</label>
                             <input type="text" id="apellido1" v-model="apellido1" class="form-control" required />
                         </div>
                         <div class="col-6 col-md-3 mb-3">
@@ -124,30 +150,84 @@
                             <input type="text" id="apellido2" v-model="apellido2" class="form-control" />
                         </div>
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="fechaNac" class="form-label">Fecha de nacimiento</label>
+                            <label for="fechaNac" class="form-label campo-obligatorio">Fecha de nacimiento</label>
                             <input type="date" id="fechaNac" v-model="fechaNac" class="form-control" :max="fechaActual"
                                 required />
                         </div>
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="sexo" class="form-label">Sexo</label>
+                            <label for="sexo" class="form-label campo-obligatorio">Sexo</label>
                             <select id="sexo" v-model="sexo" class="form-select" required>
                                 <option value="">---Seleccione---</option>
                                 <option value="M">Masculino</option>
                                 <option value="F">Femenino</option>
                             </select>
                         </div>
+                        <div class="col-12 mb-3">
+                            <div class="datos-paciente-extra">
+                                <h6 class="datos-paciente-extra-titulo">
+                                    <i class="bi bi-card-list"></i> Información adicional del paciente
+                                </h6>
+                                <div class="row">
+                                    <div class="col-6 col-md-3 mb-3 mb-md-0">
+                                        <label for="municipioNacimiento" class="form-label campo-obligatorio">Municipio de nacimiento</label>
+                                        <input type="text" id="municipioNacimiento" v-model="municipioNacimiento" class="form-control" required />
+                                    </div>
+                                    <div class="col-6 col-md-3 mb-3 mb-md-0">
+                                        <label for="departamentoNacimiento" class="form-label campo-obligatorio">Departamento de nacimiento</label>
+                                        <select id="departamentoNacimiento" v-model="departamentoNacimiento" class="form-select" required>
+                                            <option value="">---Seleccione---</option>
+                                            <option v-for="(depto, index) in departamentosColombia" :key="`depto-${index}`" :value="depto">
+                                                {{ depto }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-3 mb-3 mb-md-0">
+                                        <label for="identidadGenero" class="form-label campo-obligatorio">Identidad de género</label>
+                                        <select id="identidadGenero" v-model="identidadGenero" class="form-select" required>
+                                            <option value="">---Seleccione---</option>
+                                            <option v-for="(opcion, index) in identidadGeneroOptions" :key="`genero-${index}`" :value="opcion">
+                                                {{ opcion }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-3 mb-3 mb-md-0">
+                                        <label for="ocupacion" class="form-label campo-obligatorio">Ocupación</label>
+                                        <select id="ocupacion" v-model="ocupacion" class="form-select" required>
+                                            <option value="">---Seleccione---</option>
+                                            <option v-for="(opcion, index) in ocupacionOptions" :key="`ocupacion-${index}`" :value="opcion">
+                                                {{ opcion }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label for="nivelOcupacion" class="form-label campo-obligatorio">Nivel ocupacional / Condición laboral</label>
+                                        <select id="nivelOcupacion" v-model="nivelOcupacion" class="form-select" required>
+                                            <option value="">---Seleccione---</option>
+                                            <option
+                                                v-for="(opcion, index) in nivelOcupacionOptions"
+                                                :key="`nivel-${index}`"
+                                                :value="opcion.value"
+                                                :title="opcion.label"
+                                            >
+                                                {{ opcion.value }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="direccion" class="form-label">Dirección</label>
+                            <label for="direccion" class="form-label campo-obligatorio">Dirección</label>
                             <input type="text" id="direccion" v-model="direccion" class="form-control" required />
                         </div>
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="telefono" class="form-label">Teléfono</label>
+                            <label for="telefono" class="form-label campo-obligatorio">Teléfono</label>
                             <input type="number" id="telefono" v-model="telefono" class="form-control" required />
                         </div>
 
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="barrioVeredacomuna" class="form-label">Barrio-vereda/comuna</label>
+                            <label for="barrioVeredacomuna" class="form-label campo-obligatorio">Barrio-vereda/comuna</label>
                             <div class="position-relative">
                                 <input id="barrioVeredacomuna" v-model="barrioVeredacomunaSearch" type="text"
                                     class="form-control" placeholder="Escribe barrio o comuna" autocomplete="off"
@@ -204,7 +284,7 @@
                         </div>
 
                         <div class="col-12 col-md-6 mb-3">
-                            <label for="tipoActividad" class="form-label">Tipo de Actividad (Proyectada)</label>
+                            <label for="tipoActividad" class="form-label campo-obligatorio">Tipo de Actividad (Proyectada)</label>
                             <div class="mt-2">
                                 <ul class="list-group list-group-flush actividad-lista actividad-grid">
                                     <li class="list-group-item actividad-lista-item"
@@ -217,7 +297,7 @@
                         </div>
 
                         <div class="col-6 ">
-                            <label for="desplazamiento" class="form-label">¿Desplazamiento efectivo?</label>
+                            <label for="desplazamiento" class="form-label campo-obligatorio">¿Desplazamiento efectivo?</label>
                             <select id="desplazamiento" v-model="desplazamiento" class="form-select" required>
                                 <option value="" disabled>---Seleccione---</option>
                                 <option value="si">Sí</option>
@@ -225,7 +305,7 @@
                             </select>
                         </div>
                         <div class="col-6 ">
-                            <label for="requiereRemision" class="form-label">¿Requiere remisión a procedimiento?</label>
+                            <label for="requiereRemision" class="form-label campo-obligatorio">¿Requiere remisión a procedimiento?</label>
                             <select id="requiereRemision" v-model="requiereRemision" class="form-select" required>
                                 <option value="" disabled>---Seleccione---</option>
                                 <option value="si">Sí</option>
@@ -240,7 +320,7 @@
 
 
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="medico" class="form-label">Médico</label>
+                            <label for="medico" class="form-label campo-obligatorio">Médico</label>
                             <select id="medico" v-model="medico" class="form-select" required>
                                 <option value="">---Seleccione---</option>
                                 <option v-for="medico in medicosByGrupo" :key="medico.numDocumento"
@@ -250,7 +330,7 @@
                             </select>
                         </div>
                         <div class="col-6 col-md-3 mb-3">
-                            <label for="enfermero" class="form-label">Enfermero Jefe </label>
+                            <label for="enfermero" class="form-label campo-obligatorio">Enfermero Jefe </label>
                             <select id="enfermero" v-model="enfermero" class="form-select" required>
                                 <option value="">---Seleccione---</option>
                                 <option v-for="enfermero in enfermerosByGrupo" :key="enfermero.numDocumento"
@@ -293,6 +373,17 @@
                             </select>
                         </div>
 
+                        <div v-if="requiereHigienistaOral" class="col-6 col-md-3 mb-3">
+                            <label for="higienistaOral" class="form-label">Higienista oral</label>
+                            <select id="higienistaOral" v-model="higienistaOral" class="form-select">
+                                <option value="">---Seleccione---</option>
+                                <option v-for="higienista in higienistasOralByGrupo" :key="higienista.numDocumento"
+                                    :value="higienista.numDocumento">
+                                    {{ higienista.nombre }}
+                                </option>
+                            </select>
+                        </div>
+
                         <!-- BOTÓN SUBMIT -->
                         <div class="col-12 mb-4">
                             <button type="submit" class="btn btn-primary" v-if="userData" :disabled="enviando">
@@ -313,8 +404,12 @@ import {
 } from "vuex";
 import moment from "moment";
 import { getAllUsers } from "@/api/usersApi";
+import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
 
 export default {
+    components: {
+        ProfesionalGrupoInfo,
+    },
     data: () => ({
         epsId: "",
         regimen: "",
@@ -326,6 +421,11 @@ export default {
         tipodoc: "",
         numdoc: "",
         sexo: "",
+        departamentoNacimiento: "",
+        municipioNacimiento: "",
+        identidadGenero: "",
+        ocupacion: "",
+        nivelOcupacion: "",
         fechaNac: "",
         direccion: "",
         barrioVeredacomuna: "",
@@ -341,8 +441,9 @@ export default {
         psicologo: "",
         trabajadorSocial: "",
         nutricionista: "",
+        higienistaOral: "",
         enviando: false,
-        estadoConsulta: null, // 'encuestado', 'disponible' o null
+        estadoConsulta: null, // 'encuestado', 'disponible', 'seguimiento' o null
         pacienteEncontrado: null,
         nombreEncuestador: "",
 
@@ -379,10 +480,103 @@ export default {
             nombre: "PPNA",
         },
         ],
+        departamentosColombia: [
+            "Amazonas",
+            "Antioquia",
+            "Arauca",
+            "Atlántico",
+            "Bogotá D.C.",
+            "Bolívar",
+            "Boyacá",
+            "Caldas",
+            "Caquetá",
+            "Casanare",
+            "Cauca",
+            "Cesar",
+            "Chocó",
+            "Córdoba",
+            "Cundinamarca",
+            "Guainía",
+            "Guaviare",
+            "Huila",
+            "La Guajira",
+            "Magdalena",
+            "Meta",
+            "Nariño",
+            "Norte de Santander",
+            "Putumayo",
+            "Quindío",
+            "Risaralda",
+            "San Andrés y Providencia",
+            "Santander",
+            "Sucre",
+            "Tolima",
+            "Valle del Cauca",
+            "Vaupés",
+            "Vichada",
+        ],
+        identidadGeneroOptions: [
+            "Masculino / Hombre",
+            "Femenino / Mujer",
+            "Transgénero / Trans (Mujer trans, Hombre trans)",
+            "No binario",
+            "Otra",
+            "Sin información / Prefiere no responder",
+        ],
+        ocupacionOptions: [
+            "Estudiante",
+            "Hogar / Labores de cuidado no remunerado",
+            "Empleado / Trabajador dependiente (sector formal)",
+            "Trabajador independiente / Cuenta propia",
+            "Informal / Oficios varios",
+            "Agricultor / Campesino / Jornalero",
+            "Desempleado / Cesante (buscando empleo)",
+            "Jubilado / Pensionado",
+            "Incapacitado permanente para trabajar",
+            "Oficios tradicionales / Sabedor ancestral (pesca, artesanía, medicina tradicional)",
+        ],
+        nivelOcupacionOptions: [
+            {
+                value: "Directivo / Directiva / Gerencial",
+                label: "Directivo / Directiva / Gerencial: Cargos de alta dirección, toma de decisiones o grandes empleadores.",
+            },
+            {
+                value: "Profesional / Especializado",
+                label: "Profesional / Especializado: Labores que requieren título universitario o postgrado.",
+            },
+            {
+                value: "Técnico / Tecnólogo",
+                label: "Técnico / Tecnólogo: Ocupaciones que requieren formación técnica o tecnológica intermedia.",
+            },
+            {
+                value: "Auxiliar / Operativo",
+                label: "Auxiliar / Operativo: Personal de apoyo administrativo, ventas, servicios básicos o conducción.",
+            },
+            {
+                value: "Operario / Mano de obra no calificada",
+                label: "Operario / Mano de obra no calificada: Labores operativas directas, del campo, construcción o servicios generales sin requerimiento de titulación previa.",
+            },
+            {
+                value: "Sin nivel ocupacional",
+                label: "Sin nivel ocupacional: Personas en situación de desempleo, dedicadas exclusivamente al hogar, estudiantes o menores de edad.",
+            },
+        ],
         ListpoblacionRiesgo: [],
         ListtipoActividad: [],
     }),
     methods: {
+        sanitizarDocumento(valor) {
+            return String(valor ?? "").replace(/[^A-Za-z0-9]/g, "");
+        },
+
+        onNumdocInput(event) {
+            const limpio = this.sanitizarDocumento(event?.target?.value);
+            this.numdoc = limpio;
+            if (event?.target && event.target.value !== limpio) {
+                event.target.value = limpio;
+            }
+        },
+
         estaVacio(valor) {
             if (Array.isArray(valor)) return valor.length === 0;
             if (valor && typeof valor === "object") return Object.keys(valor).length === 0;
@@ -392,21 +586,26 @@ export default {
         obtenerCamposObligatoriosFaltantes() {
             const campos = [
                 { label: "EPS del paciente", value: this.epsId, id: "eps" },
-                { label: "Regimen del paciente", value: this.regimen, id: "regimen" },
+                { label: "Régimen del paciente", value: this.regimen, id: "regimen" },
                 { label: "Primer Nombre", value: this.nombre1, id: "nombre1" },
                 { label: "Primer Apellido", value: this.apellido1, id: "apellido1" },
                 { label: "Fecha de nacimiento", value: this.fechaNac, id: "fechaNac" },
                 { label: "Sexo", value: this.sexo, id: "sexo" },
+                { label: "Municipio de nacimiento", value: this.municipioNacimiento, id: "municipioNacimiento" },
+                { label: "Departamento de nacimiento", value: this.departamentoNacimiento, id: "departamentoNacimiento" },
+                { label: "Identidad de género", value: this.identidadGenero, id: "identidadGenero" },
+                { label: "Ocupación", value: this.ocupacion, id: "ocupacion" },
+                { label: "Nivel ocupacional / Condición laboral", value: this.nivelOcupacion, id: "nivelOcupacion" },
                 { label: "Tipo de Documento", value: this.tipodoc, id: "tipodoc" },
-                { label: "Numero de Documento", value: this.numdoc, id: "numdoc" },
-                { label: "Direccion", value: this.direccion, id: "direccion" },
-                { label: "Telefono", value: this.telefono, id: "telefono" },
+                { label: "Número de Documento", value: this.numdoc, id: "numdoc" },
+                { label: "Dirección", value: this.direccion, id: "direccion" },
+                { label: "Teléfono", value: this.telefono, id: "telefono" },
                 { label: "Barrio-vereda/comuna", value: this.barrioVeredacomuna, id: "barrioVeredacomuna" },
                 { label: "Tipo de Actividad (Proyectada)", value: this.ListtipoActividad },
                 { label: "Desplazamiento efectivo", value: this.desplazamiento, id: "desplazamiento" },
-                { label: "Requiere remision a procedimiento", value: this.requiereRemision, id: "requiereRemision" },
+                { label: "Requiere remisión a procedimiento", value: this.requiereRemision, id: "requiereRemision" },
                 { label: "Documento del encuestador", value: this.userData?.numDocumento },
-                { label: "Medico", value: this.medico, id: "medico" },
+                { label: "Médico", value: this.medico, id: "medico" },
                 { label: "Enfermero Jefe", value: this.enfermero, id: "enfermero" },
             ];
 
@@ -426,6 +625,7 @@ export default {
         async addRegistroEncuesta() {
             if (this.enviando) return;
             this.enviando = true;
+            this.numdoc = this.sanitizarDocumento(this.numdoc);
 
             // Validar que el paciente haya sido consultado
             if (this.estadoConsulta === null) {
@@ -435,14 +635,32 @@ export default {
             }
 
             // Validar que el paciente no haya sido encuestado previamente
+            // (excepto Equipos Básicos: permite seguimiento)
             if (this.estadoConsulta === "encuestado") {
                 alert("Este paciente ya fue encuestado previamente. No se puede guardar el registro.");
                 this.enviando = false;
                 return;
             }
 
+            if (this.estadoConsulta !== "disponible" && this.estadoConsulta !== "seguimiento") {
+                alert("Por favor, consulte primero si el paciente está disponible para encuestar.");
+                this.enviando = false;
+                return;
+            }
+
+            if (this.estadoConsulta === "seguimiento") {
+                const confirmarSeguimiento = confirm(
+                    "Este paciente ya existe en Equipos Básicos.\n\nSe creará un nuevo registro. En la caracterización podrá seleccionar control o seguimiento. ¿Desea continuar?"
+                );
+                if (!confirmarSeguimiento) {
+                    this.enviando = false;
+                    return;
+                }
+            }
+
             const requierePsicoTs = this.mostrarPsicoTs;
             const requiereNutricionista = this.requiereNutricionista;
+            const requiereHigienistaOral = this.requiereHigienistaOral;
 
             // Validación de campos obligatorios
             const camposFaltantes = this.obtenerCamposObligatoriosFaltantes();
@@ -455,13 +673,16 @@ export default {
             }
 
             // Validación especial para Psicólogo y Trabajador Social en E Basicos
-            if (requierePsicoTs || requiereNutricionista) {
+            if (requierePsicoTs || requiereNutricionista || requiereHigienistaOral) {
                 let mensajeAdvertencia = "";
                 const faltaPsicologo = !this.psicologo;
                 const faltaTSocial = !this.trabajadorSocial;
                 const faltaNutricionista = !this.nutricionista;
+                const faltaHigienistaOral = !this.higienistaOral;
 
-                if (requierePsicoTs && requiereNutricionista && faltaPsicologo && faltaTSocial && faltaNutricionista) {
+                if (requierePsicoTs && requiereNutricionista && requiereHigienistaOral && faltaPsicologo && faltaTSocial && faltaNutricionista && faltaHigienistaOral) {
+                    mensajeAdvertencia = "No ha seleccionado Psicólogo, Trabajador Social, Nutricionista ni Higienista oral.";
+                } else if (requierePsicoTs && requiereNutricionista && faltaPsicologo && faltaTSocial && faltaNutricionista) {
                     mensajeAdvertencia = "No ha seleccionado Psicólogo, Trabajador Social ni Nutricionista.";
                 } else if (requierePsicoTs && faltaPsicologo) {
                     mensajeAdvertencia = "No ha seleccionado Psicólogo.";
@@ -469,6 +690,8 @@ export default {
                     mensajeAdvertencia = "No ha seleccionado Trabajador Social.";
                 } else if (requiereNutricionista && faltaNutricionista) {
                     mensajeAdvertencia = "No ha seleccionado Nutricionista.";
+                } else if (requiereHigienistaOral && faltaHigienistaOral) {
+                    mensajeAdvertencia = "No ha seleccionado Higienista oral.";
                 }
 
                 if (mensajeAdvertencia) {
@@ -483,7 +706,7 @@ export default {
             }
 
             const registro = {
-                tipoRegistro: "Extramural",
+                tipoRegistro: this.userData?.convenio || "Extramural",
                 fechavisita: "",
                 idMedicoAtiende: this.medico,
                 idEnfermeroAtiende: this.enfermero,
@@ -496,12 +719,16 @@ export default {
                 ...(requiereNutricionista && this.nutricionista
                     ? { idNutricionistaAtiende: this.nutricionista }
                     : {}),
+                ...(requiereHigienistaOral && this.higienistaOral
+                    ? { idHigienistaOralAtiende: this.higienistaOral }
+                    : {}),
                 status_gest_aux: false,
                 status_gest_medica: false,
                 status_gest_enfermera: false,
                 status_gest_psicologo: false,
                 status_gest_tsocial: false,
                 status_gest_nutricionista: false,
+                status_gest_higienista_oral: false,
                 status_caracterizacion: false,
                 status_visita: false,
                 idEncuesta: 1,
@@ -519,8 +746,13 @@ export default {
                 apellido1: this.apellido1,
                 apellido2: this.apellido2,
                 tipodoc: this.tipodoc,
-                numdoc: this.numdoc,
+                numdoc: this.sanitizarDocumento(this.numdoc),
                 sexo: this.sexo,
+                departamentoNacimiento: this.departamentoNacimiento,
+                municipioNacimiento: this.municipioNacimiento,
+                identidadGenero: this.identidadGenero,
+                ocupacion: this.ocupacion,
+                nivelOcupacion: this.nivelOcupacion,
                 direccion: this.direccion,
                 telefono: this.telefono,
                 barrioVeredacomuna: this.barrioVeredacomuna,
@@ -569,6 +801,7 @@ export default {
             "getAllPsicologosbyGrupo",
             "getAllTsocialesbyGrupo",
             "getAllNutricionistasbyGrupo",
+            "getAllHigienistasOralbyGrupo",
             "getAllEps",
             "getAllContratos",
             "getAllActividadesExtra",
@@ -576,7 +809,8 @@ export default {
 
         async consultar() {
             const tipodocNormalizado = String(this.tipodoc ?? "").trim();
-            const numdocNormalizado = String(this.numdoc ?? "").trim();
+            const numdocNormalizado = this.sanitizarDocumento(this.numdoc);
+            this.numdoc = numdocNormalizado;
 
             // Validar datos mínimos de búsqueda
             if (!tipodocNormalizado) {
@@ -585,7 +819,12 @@ export default {
             }
 
             if (!numdocNormalizado) {
-                alert("Por favor, ingrese el número de documento.");
+                alert("Por favor, ingrese el número de documento (solo letras y números).");
+                return;
+            }
+
+            if (!/^[A-Za-z0-9]+$/.test(numdocNormalizado)) {
+                alert("El número de documento solo puede contener letras y números, sin signos ni caracteres especiales.");
                 return;
             }
 
@@ -613,17 +852,26 @@ export default {
                         (r) => String(r.convenio || "").trim().toLowerCase() === convenioUsuario.toLowerCase()
                     );
                     if (pacienteMismoConvenio) {
-                        this.estadoConsulta = "encuestado";
-                        this.pacienteEncontrado = pacienteMismoConvenio;
-                        await this.obtenerNombreEncuestador(this.pacienteEncontrado.idEncuestador);
+                        // Equipos Básicos: permite repetir como seguimiento
+                        if (esConvenioEBasicos) {
+                            this.estadoConsulta = "seguimiento";
+                            this.pacienteEncontrado = pacienteMismoConvenio;
+                            this.precargarDatosPaciente(pacienteMismoConvenio);
+                            await this.obtenerNombreEncuestador(this.pacienteEncontrado.idEncuestador);
+                        } else {
+                            this.estadoConsulta = "encuestado";
+                            this.pacienteEncontrado = pacienteMismoConvenio;
+                            await this.obtenerNombreEncuestador(this.pacienteEncontrado.idEncuestador);
+                        }
                     } else {
-                        // Si no hay registro en el mismo convenio, mostrar info del otro convenio
+                        // Si no hay registro en el mismo convenio, precargar solo datos del paciente
                         this.estadoConsulta = "disponible";
                         const otroConvenio = resultado[0];
                         this.pacienteEncontrado = {
                             ...otroConvenio,
                             convenioDiferente: true
                         };
+                        this.precargarDatosPaciente(otroConvenio);
                         await this.obtenerNombreEncuestador(otroConvenio.idEncuestador);
                     }
                 } else {
@@ -655,6 +903,165 @@ export default {
                 console.error("Error al obtener encuestador:", error);
                 this.nombreEncuestador = "Error al cargar nombre";
             }
+        },
+
+        normalizarFechaCampo(valor) {
+            if (valor === null || valor === undefined || valor === "") return "";
+            if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+                const yyyy = valor.getFullYear();
+                const mm = String(valor.getMonth() + 1).padStart(2, "0");
+                const dd = String(valor.getDate()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd}`;
+            }
+            const text = String(valor).trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+            const match = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+            if (match) {
+                return `${match[3]}-${String(match[2]).padStart(2, "0")}-${String(match[1]).padStart(2, "0")}`;
+            }
+            return "";
+        },
+
+        normalizarTextoComparable(valor) {
+            return String(valor ?? "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, " ");
+        },
+
+        coincidirOpcionLista(valor, opciones = []) {
+            const buscado = this.normalizarTextoComparable(valor);
+            if (!buscado) return null;
+            const lista = Array.isArray(opciones) ? opciones : [];
+            const exacta = lista.find((op) => this.normalizarTextoComparable(op) === buscado);
+            if (exacta !== undefined) return exacta;
+            const parcial = lista.find((op) => {
+                const actual = this.normalizarTextoComparable(op);
+                return actual.includes(buscado) || buscado.includes(actual);
+            });
+            return parcial !== undefined ? parcial : null;
+        },
+
+        coincidirNivelOcupacion(valor) {
+            const buscado = this.normalizarTextoComparable(valor);
+            if (!buscado) return null;
+            const opciones = Array.isArray(this.nivelOcupacionOptions) ? this.nivelOcupacionOptions : [];
+            const porValor = opciones.find((op) => this.normalizarTextoComparable(op.value) === buscado);
+            if (porValor) return porValor.value;
+            const porLabel = opciones.find((op) => this.normalizarTextoComparable(op.label).includes(buscado)
+                || buscado.includes(this.normalizarTextoComparable(op.value)));
+            return porLabel ? porLabel.value : null;
+        },
+
+        /** Precarga solo datos del paciente (editables). No carga actividades ni profesionales. */
+        precargarDatosPaciente(paciente = {}) {
+            if (!paciente || typeof paciente !== "object") return;
+
+            const pick = (...vals) => {
+                for (const val of vals) {
+                    if (val === null || val === undefined) continue;
+                    const text = typeof val === "string" ? val.trim() : val;
+                    if (text === "") continue;
+                    return text;
+                }
+                return null;
+            };
+
+            const nombre1 = pick(paciente.nombre1);
+            const nombre2 = pick(paciente.nombre2);
+            const apellido1 = pick(paciente.apellido1);
+            const apellido2 = pick(paciente.apellido2);
+            const fechaNac = this.normalizarFechaCampo(paciente.fechaNac ?? paciente.fecha_nac);
+            const sexo = pick(paciente.sexo);
+            const departamentoNacimiento = this.coincidirOpcionLista(
+                pick(paciente.departamentoNacimiento, paciente.departamento_nacimiento),
+                this.departamentosColombia
+            );
+            const municipioNacimiento = pick(
+                paciente.municipioNacimiento,
+                paciente.municipio_nacimiento
+            );
+            const identidadGenero = this.coincidirOpcionLista(
+                pick(paciente.identidadGenero, paciente.identidad_genero),
+                this.identidadGeneroOptions
+            );
+            const ocupacion = this.coincidirOpcionLista(
+                pick(paciente.ocupacion),
+                this.ocupacionOptions
+            );
+            const nivelOcupacion = this.coincidirNivelOcupacion(
+                pick(paciente.nivelOcupacion, paciente.nivel_ocupacion)
+            );
+            const direccion = pick(paciente.direccion);
+            const telefono = pick(paciente.telefono);
+            const regimen = pick(paciente.regimen);
+
+            if (nombre1 !== null) this.nombre1 = nombre1;
+            if (nombre2 !== null) this.nombre2 = nombre2;
+            if (apellido1 !== null) this.apellido1 = apellido1;
+            if (apellido2 !== null) this.apellido2 = apellido2;
+            if (fechaNac) this.fechaNac = fechaNac;
+            if (sexo !== null) this.sexo = sexo;
+            if (departamentoNacimiento !== null) this.departamentoNacimiento = departamentoNacimiento;
+            if (municipioNacimiento !== null) this.municipioNacimiento = municipioNacimiento;
+            if (identidadGenero !== null) this.identidadGenero = identidadGenero;
+            if (ocupacion !== null) this.ocupacion = ocupacion;
+            if (nivelOcupacion !== null) this.nivelOcupacion = nivelOcupacion;
+            if (direccion !== null) this.direccion = direccion;
+            if (telefono !== null) this.telefono = telefono;
+            if (regimen !== null) this.regimen = regimen;
+
+            const epsId = pick(paciente.epsId, paciente.eps_id);
+            if (epsId !== null) {
+                this.epsId = epsId;
+            } else {
+                const epsNombre = pick(paciente.eps);
+                if (epsNombre && Array.isArray(this.epssConContrato)) {
+                    const epsMatch = this.epssConContrato.find(
+                        (ep) => this.normalizarTextoComparable(ep?.eps) === this.normalizarTextoComparable(epsNombre)
+                    );
+                    if (epsMatch?.id) this.epsId = epsMatch.id;
+                }
+            }
+
+            const barrioRaw = paciente.barrioVeredacomuna ?? paciente.barrio_vereda_comuna;
+            if (barrioRaw && typeof barrioRaw === "object") {
+                this.barrioVeredacomuna = barrioRaw;
+                const barrio = barrioRaw.barrio || "";
+                const comuna = barrioRaw.comuna || "";
+                this.barrioVeredacomunaSearch = [barrio, comuna].filter(Boolean).join(" - ");
+            } else if (typeof barrioRaw === "string" && barrioRaw.trim()) {
+                try {
+                    const parsed = JSON.parse(barrioRaw);
+                    if (parsed && typeof parsed === "object") {
+                        this.barrioVeredacomuna = parsed;
+                        this.barrioVeredacomunaSearch = [parsed.barrio, parsed.comuna]
+                            .filter(Boolean)
+                            .join(" - ");
+                    }
+                } catch (_) {
+                    this.barrioVeredacomunaSearch = barrioRaw.trim();
+                }
+            }
+
+            const riesgos = paciente.poblacionRiesgo ?? paciente.poblacion_riesgo;
+            if (Array.isArray(riesgos)) {
+                this.ListpoblacionRiesgo = [...riesgos];
+            } else if (typeof riesgos === "string" && riesgos.trim()) {
+                try {
+                    const parsed = JSON.parse(riesgos);
+                    if (Array.isArray(parsed)) this.ListpoblacionRiesgo = [...parsed];
+                } catch (_) {
+                    // ignore
+                }
+            }
+        },
+
+        // Compatibilidad con llamadas previas
+        precargarDatosPacienteSeguimiento(paciente = {}) {
+            this.precargarDatosPaciente(paciente);
         },
 
         addRiesgo() {
@@ -795,6 +1202,12 @@ export default {
                     this.nutricionista = this.primerDocumentoDisponible(this.nutricionistasByGrupo);
                 }
             }
+
+            if (this.requiereHigienistaOral) {
+                if (!this.higienistaOral) {
+                    this.higienistaOral = this.primerDocumentoDisponible(this.higienistasOralByGrupo);
+                }
+            }
         },
         cargarActividadesPorDefecto() {
             if (!Array.isArray(this.actividadesExtra) || this.actividadesExtra.length === 0) {
@@ -846,6 +1259,11 @@ export default {
             this.direccion = "";
             this.fechaNac = "";
             this.sexo = "";
+            this.departamentoNacimiento = "";
+            this.municipioNacimiento = "";
+            this.identidadGenero = "";
+            this.ocupacion = "";
+            this.nivelOcupacion = "";
             this.telefono = "";
             this.barrioVeredacomuna = "";
             this.barrioVeredacomunaSearch = "";
@@ -861,6 +1279,7 @@ export default {
             this.psicologo = "";
             this.trabajadorSocial = "";
             this.nutricionista = "";
+            this.higienistaOral = "";
             this.estadoConsulta = null;
             this.pacienteEncontrado = null;
             this.nombreEncuestador = "";
@@ -885,6 +1304,7 @@ export default {
             "psicologosByGrupo",
             "tsocialesByGrupo",
             "nutricionistasByGrupo",
+            "higienistasOralByGrupo",
             "epss",
             "contratos",
             "actividadesExtra",
@@ -893,15 +1313,25 @@ export default {
             const convenioUsuario = String(this.userData?.convenio ?? "").trim();
             return convenioUsuario === "E Basicos";
         },
+        mostrarFormularioEncuesta() {
+            return this.estadoConsulta === "disponible" || this.estadoConsulta === "seguimiento";
+        },
         esConvenioPIC() {
             const convenioUsuario = String(this.userData?.convenio ?? "").trim();
             return convenioUsuario === "PIC";
+        },
+        esConvenioUnidesa() {
+            const convenioUsuario = String(this.userData?.convenio ?? "").trim().toLowerCase();
+            return convenioUsuario === "unidesa" || convenioUsuario === "unides";
         },
         mostrarPsicoTs() {
             return this.esConvenioEBasicos || this.esConvenioPIC;
         },
         requiereNutricionista() {
             return this.esConvenioPIC;
+        },
+        requiereHigienistaOral() {
+            return this.esConvenioUnidesa;
         },
         epssConContrato() {
             if (!this.epss) return [];
@@ -940,7 +1370,12 @@ export default {
         },
     },
     watch: {
-        numdoc() {
+        numdoc(nuevoValor) {
+            const limpio = this.sanitizarDocumento(nuevoValor);
+            if (limpio !== String(nuevoValor ?? "")) {
+                this.numdoc = limpio;
+                return;
+            }
             this.estadoConsulta = null;
             this.pacienteEncontrado = null;
             this.nombreEncuestador = "";
@@ -967,6 +1402,14 @@ export default {
 
             this.aplicarProfesionalesPorDefecto();
         },
+        requiereHigienistaOral(valor) {
+            if (!valor) {
+                this.higienistaOral = "";
+                return;
+            }
+
+            this.aplicarProfesionalesPorDefecto();
+        },
         medicosByGrupo() {
             this.aplicarProfesionalesPorDefecto();
         },
@@ -980,6 +1423,9 @@ export default {
             this.aplicarProfesionalesPorDefecto();
         },
         nutricionistasByGrupo() {
+            this.aplicarProfesionalesPorDefecto();
+        },
+        higienistasOralByGrupo() {
             this.aplicarProfesionalesPorDefecto();
         },
         actividadesExtra() {
@@ -1011,6 +1457,12 @@ export default {
         }
         if (this.requiereNutricionista) {
             await this.getAllNutricionistasbyGrupo({
+                grupo: this.userData.grupo,
+                convenio: this.userData.convenio,
+            });
+        }
+        if (this.requiereHigienistaOral) {
+            await this.getAllHigienistasOralbyGrupo({
                 grupo: this.userData.grupo,
                 convenio: this.userData.convenio,
             });
@@ -1066,6 +1518,12 @@ body.modal-open {
     padding-right: 0 !important;
 }
 
+.form-label.campo-obligatorio::after {
+    content: " *";
+    color: #dc3545;
+    font-weight: 700;
+}
+
 .form-section {
     background-color: #f2e6ff;
     border-radius: 5px;
@@ -1074,6 +1532,41 @@ body.modal-open {
     margin-bottom: 2rem;
     position: relative;
     z-index: 1;
+}
+
+.datos-paciente-extra {
+    background-color: #d9f2ee;
+    border: 1px solid #1a8a7c;
+    border-left: 5px solid #0b6b5f;
+    border-radius: 8px;
+    padding: 1rem 1.25rem 0.25rem;
+}
+
+.datos-paciente-extra-titulo {
+    color: #063f39;
+    font-size: 0.98rem;
+    font-weight: 700;
+    margin-bottom: 0.85rem;
+}
+
+.datos-paciente-extra .form-label {
+    color: #124740;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.datos-paciente-extra .form-control,
+.datos-paciente-extra .form-select {
+    background-color: #ffffff;
+    border-color: #7eb8af;
+    color: #102925;
+}
+
+.datos-paciente-extra .form-control:focus,
+.datos-paciente-extra .form-select:focus {
+    background-color: #fff;
+    border-color: #0b6b5f;
+    box-shadow: 0 0 0 0.2rem rgba(11, 107, 95, 0.25);
 }
 
 .row {

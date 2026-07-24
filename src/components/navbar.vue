@@ -72,6 +72,11 @@
                   <i class="bi bi-person-circle"></i> <span class="nav-label">Nutricionista</span>
                 </router-link>
               </li>
+              <li class="nav-item" v-if="userData && userData.cargo === 'Higienista oral'">
+                <router-link class="nav-link" to="/sop_higienista_oral" @click="onNavLinkClick">
+                  <i class="bi bi-person-circle"></i> <span class="nav-label">Higienista oral</span>
+                </router-link>
+              </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Enfermero'">
                 <router-link class="nav-link" to="/sop_enfermero" @click="onNavLinkClick">
                   <i class="bi bi-person-circle"></i> <span class="nav-label">Enfermer@</span>
@@ -107,6 +112,11 @@
                   <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
                 </router-link>
               </li>
+              <li class="nav-item" v-if="userData && userData.cargo === 'Higienista oral'">
+                <router-link class="nav-link" to="/higienista_oral_informes" @click="onNavLinkClick">
+                  <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
+                </router-link>
+              </li>
               <li class="nav-item" v-if="userData && userData.cargo === 'Enfermero'">
                 <router-link class="nav-link" to="/enfermero_informes" @click="onNavLinkClick">
                   <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
@@ -130,6 +140,11 @@
                     <i class="bi bi-people-fill"></i> <span class="nav-label">Usuarios</span>
                   </router-link>
                 </li>
+                <li class="nav-item">
+                  <router-link class="nav-link" to="/admin_mantenimiento_bd" @click="onNavLinkClick">
+                    <i class="bi bi-database-gear"></i> <span class="nav-label">Mant.<br>BD</span>
+                  </router-link>
+                </li>
               </template>
 
               <template v-if="userData && userData.cargo === 'admin'">
@@ -148,6 +163,12 @@
                 <li class="nav-item">
                   <router-link class="nav-link" to="/admin_parametros" @click="onNavLinkClick">
                     <i class="bi bi-sliders"></i> <span class="nav-label">Parámetros</span>
+                  </router-link>
+                </li>
+
+                <li class="nav-item">
+                  <router-link class="nav-link" to="/admin_mantenimiento_bd" @click="onNavLinkClick">
+                    <i class="bi bi-database-gear"></i> <span class="nav-label">Mant.<br>BD</span>
                   </router-link>
                 </li>
 
@@ -324,6 +345,7 @@ export default {
 
       if (convenio === "e basicos") return "tema-ebasicos";
       if (convenio === "pic") return "tema-pic";
+      if (convenio === "unidesa" || convenio === "unides") return "tema-unidesa";
       return "";
     },
     isAdminUser() {
@@ -332,7 +354,21 @@ export default {
     },
     canViewEstadoProfesional() {
       const cargo = String(this.userData?.cargo || "").trim().toLowerCase();
-      return Boolean(this.userData && (this.userData.numDocumento || cargo === "admin" || cargo === "administrador" || cargo === "superusuario"));
+      if (cargo === "fact" || cargo === "facturador") {
+        return false;
+      }
+
+      const documento = String(
+        this.userData?.numDocumento ||
+        this.userData?.num_documento ||
+        this.userData?.documento ||
+        ""
+      ).trim();
+
+      return Boolean(
+        this.userData &&
+        (documento || cargo === "admin" || cargo === "administrador" || cargo === "superusuario")
+      );
     },
   },
   watch: {
@@ -390,6 +426,19 @@ export default {
   ) !important;
 }
 
+.tema-unidesa .navbar.bg-body-tertiary {
+  background: linear-gradient(
+    90deg,
+    #1e3a8a 0%,
+    #1d4ed8 18%,
+    #3b82f6 34%,
+    #93c5fd 50%,
+    #3b82f6 66%,
+    #1d4ed8 82%,
+    #1e3a8a 100%
+  ) !important;
+}
+
 .tema-admin-dorado .navbar.bg-body-tertiary {
   background: linear-gradient(
     90deg,
@@ -439,6 +488,10 @@ export default {
 
 .tema-pic .offcanvas {
   background: #c2410c !important;
+}
+
+.tema-unidesa .offcanvas {
+  background: #1d4ed8 !important;
 }
 
 .tema-admin-dorado .offcanvas {

@@ -100,7 +100,9 @@
             <div class="d-flex gap-2 align-items-center">
               <span class="badge" :class="getCargoBadgeClass(profesional.cargo)">{{ profesional.cargo }}</span>
               <span v-if="profesional.grupo" class="badge bg-info-subtle text-dark border">
-                Grupo {{ profesional.grupo }}
+                {{ profesional.cargo === 'Fact'
+                  ? formatearGruposFacturador(profesional.grupo)
+                  : `Grupo ${profesional.grupo}` }}
               </span>
               <span class="badge bg-light text-dark border">{{ profesional.convenio }}</span>
               <i class="bi bi-chevron-right text-muted"></i>
@@ -116,6 +118,7 @@
 import { getDelegatedProfessionals } from "@/api/usersApi";
 import { ipsApi } from "@/api/modulesApi";
 import { getCargoBadgeClass } from "@/utils/cargoBadges";
+import { formatearGruposFacturador } from "@/utils/grupoUtils";
 import { mapState } from "vuex";
 
 const CARGO_CANONICO_POR_NORMALIZADO = {
@@ -128,6 +131,7 @@ const CARGO_CANONICO_POR_NORMALIZADO = {
   trabajadorsocial: "Tsocial",
   trabajadorasocial: "Tsocial",
   nutricionista: "Nutricionista",
+  higienistaoral: "Higienista oral",
   fact: "Fact",
   facturacion: "Fact",
 };
@@ -139,6 +143,7 @@ const RUTA_POR_CARGO_CANONICO = {
   Psicologo: "/sop_psicologo",
   Tsocial: "/sop_tsocial",
   Nutricionista: "/sop_nutricionista",
+  "Higienista oral": "/sop_higienista_oral",
   Fact: "/sop_facturacion",
 };
 
@@ -243,6 +248,7 @@ export default {
   },
   methods: {
     getCargoBadgeClass,
+    formatearGruposFacturador,
     limpiarFiltros() {
       this.filtroNombre = "";
       this.filtroConvenio = "";
@@ -306,6 +312,7 @@ export default {
           profesionalCargo: cargoCanonico || cargo,
           profesionalConvenio: String(profesional.convenio || ""),
           profesionalNombre: String(profesional.nombre || ""),
+          profesionalGrupo: String(profesional.grupo || ""),
         },
       });
     },
