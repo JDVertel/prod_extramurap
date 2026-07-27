@@ -527,7 +527,17 @@ const informesCatalogCache = {
   inflight: null,
 };
 
-async function loadInformesCatalogSnapshot({ includeActividades = false, includeCups = false } = {}) {
+function invalidateInformesCatalogCache() {
+  informesCatalogCache.at = 0;
+  informesCatalogCache.data = null;
+  informesCatalogCache.inflight = null;
+}
+
+async function loadInformesCatalogSnapshot({ includeActividades = false, includeCups = false, force = false } = {}) {
+  if (force) {
+    invalidateInformesCatalogCache();
+  }
+
   const now = Date.now();
   const cached = informesCatalogCache.data;
   const cacheHit =
@@ -1282,7 +1292,7 @@ export default {
 
             const [respEncuestas, catalog] = await Promise.all([
                 realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
-                loadInformesCatalogSnapshot({ includeActividades: true }),
+                loadInformesCatalogSnapshot({ includeActividades: true, force: true }),
             ]);
 
             const encuestasObj = respEncuestas?.data || {};
@@ -1627,7 +1637,7 @@ export default {
 
             const [respEncuestas, catalog] = await Promise.all([
                 realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
-                loadInformesCatalogSnapshot(),
+                loadInformesCatalogSnapshot({ force: true }),
             ]);
 
             const encuestasObj = respEncuestas?.data || {};
@@ -2074,6 +2084,7 @@ export default {
                 const catalog = await loadInformesCatalogSnapshot({
                     includeActividades: true,
                     includeCups: true,
+                    force: true,
                 });
 
                 const actividadesGlobal = catalog.actividades || {};
@@ -2138,6 +2149,7 @@ export default {
 
         async generarInforme() {
             this.cargandoInforme = true;
+            invalidateInformesCatalogCache();
             this.actualizarProgreso(5, "Preparando parámetros del informe...");
             this.$store.commit('setEncuestasAdmin', []);
             let consultaUsada = null;

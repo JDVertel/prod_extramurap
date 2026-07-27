@@ -1000,8 +1000,12 @@
 </template>
 
 <script>
-import Papa from "papaparse";
 import { getCargoBadgeClass as getSharedCargoBadgeClass } from "@/utils/cargoBadges";
+import {
+    parseUsersCsvContent,
+    decodeCsvArrayBuffer,
+    CSV_USER_HEADERS,
+} from "@/utils/csvUsersImport";
 import {
     GRUPO_FACTURADOR_TODOS,
     normalizarGruposFacturador,
@@ -1471,29 +1475,8 @@ export default {
             return this.contarUsuariosConvenio(grupos);
         },
 
-        puntuarTextoCsv(texto) {
-            const valor = String(texto || '');
-            let puntaje = 0;
-
-            if (valor.includes('\uFFFD')) {
-                puntaje -= 10;
-            }
-
-            const coincidencias = valor.match(/[ÁÉÍÓÚáéíóúÑñÜü]/g);
-            if (coincidencias) {
-                puntaje += coincidencias.length;
-            }
-
-            return puntaje;
-        },
-
         decodificarCsv(arrayBuffer) {
-            const utf8 = new TextDecoder('utf-8').decode(arrayBuffer);
-            const windows1252 = new TextDecoder('windows-1252').decode(arrayBuffer);
-
-            return this.puntuarTextoCsv(windows1252) > this.puntuarTextoCsv(utf8)
-                ? windows1252
-                : utf8;
+            return decodeCsvArrayBuffer(arrayBuffer);
         },
 
         async handleCsvUpload(e) {
@@ -1507,29 +1490,31 @@ export default {
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const csvContent = this.decodificarCsv(arrayBuffer);
-
-                Papa.parse(csvContent, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: (results) => {
-                        const headers = Array.isArray(results.meta?.fields) ? results.meta.fields : [];
-                        const expectedHeaders = ["Nombre", "Email", "Cargo", "Grupo", "Convenio", "Documento"];
-                        const requiredHeaders = this.isSuperUser ? [...expectedHeaders, "idips"] : expectedHeaders;
-                        if (!expectedHeaders.every(h => headers.includes(h))) {
-                            this.csvError = "El archivo CSV no tiene los encabezados requeridos: " + requiredHeaders.join(", ");
-                            return;
-                        }
-                        if (this.isSuperUser && !headers.includes("idips")) {
-                            this.csvError = "Como superusuario, el CSV debe incluir la columna idips.";
-                            return;
-                        }
-                        this.csvUsers = results.data;
-                        this.csvPreview = this.csvUsers.slice(0, 5);
-                    },
-                    error: (err) => {
-                        this.csvError = "Error al leer el archivo: " + err.message;
-                    }
+                const parsed = parseUsersCsvContent(csvContent, {
+                    requireIdips: this.isSuperUser,
                 });
+
+                if (!parsed.ok) {
+                    const requiredHeaders = this.isSuperUser
+                        ? [...CSV_USER_HEADERS, "idips"]
+                        : [...CSV_USER_HEADERS];
+                    const detectados = parsed.headers.length
+                        ? ` Encabezados detectados: ${parsed.headers.join(", ")}.`
+                        : " No se detectaron columnas; guarde el CSV con coma (,) o punto y coma (;).";
+                    const faltantes = parsed.faltantes?.length
+                        ? ` Faltan: ${parsed.faltantes.join(", ")}.`
+                        : "";
+                    this.csvError =
+                        "El archivo CSV no tiene los encabezados requeridos: " +
+                        requiredHeaders.join(", ") +
+                        "." +
+                        detectados +
+                        faltantes;
+                    return;
+                }
+
+                this.csvUsers = parsed.rows;
+                this.csvPreview = this.csvUsers.slice(0, 5);
             } catch (err) {
                 this.csvError = "Error al leer el archivo: " + (err?.message || err);
             }

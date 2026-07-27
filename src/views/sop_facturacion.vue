@@ -1006,6 +1006,7 @@ export default {
                     });
                 }
                 const resultados = await this.GetRegistersbyRangeGeneralFactAprov({
+                    force: true,
                     iduser: documento,
                     gruposFacturador: this.gruposFacturadorUsuario,
                     convenio: this.convenioUsuario,
@@ -1076,12 +1077,37 @@ export default {
             }
         },
         AprovisionarPaciente(id) {
+            return this.ejecutarAprovisionamiento(id);
+        },
+        async ejecutarAprovisionamiento(id) {
             this.aprovDisabled[id] = true;
-            let data = {
-                idEnc: id,
-                idProf: this.obtenerDocumentoUsuarioActual(),
+            this.cargando = true;
+            const reloadParams = {
+                force: true,
+                iduser: this.obtenerDocumentoUsuarioActual(),
+                gruposFacturador: this.gruposFacturadorUsuario,
+                convenio: this.convenioUsuario,
             };
-            this.aprovicionarP(data);
+            try {
+                await this.aprovicionarP({
+                    idEnc: id,
+                    idProf: this.obtenerDocumentoUsuarioActual(),
+                });
+
+                await this.GetRegistersbyRangeGeneralFactAprov(reloadParams);
+
+                if (this.fechaInicio && this.fechaFin) {
+                    await this.getdataEncuestas(this.fechaInicio, this.fechaFin, this.convenioFiltro);
+                } else if (this.tipodoc && this.numdoc) {
+                    await this.getdataEncuestasById(this.tipodoc, this.numdoc);
+                }
+            } catch (error) {
+                console.error("Error al aprovisionar paciente:", error);
+                alert("No se pudo aprovisionar el paciente: " + (error?.message || error));
+                this.aprovDisabled[id] = false;
+            } finally {
+                this.cargando = false;
+            }
         },
         async devolverARegistroInicial(id) {
             const confirmar = confirm("Este registro se devolverá a la tabla inicial. ¿Desea continuar?");
@@ -1093,6 +1119,7 @@ export default {
                 await this.revertirAprovisionFacturacion(id);
 
                 await this.GetRegistersbyRangeGeneralFactAprov({
+                    force: true,
                     iduser: this.obtenerDocumentoUsuarioActual(),
                     gruposFacturador: this.gruposFacturadorUsuario,
                     convenio: this.convenioUsuario,
@@ -1376,6 +1403,7 @@ export default {
                 // Recargar la lista y esperar a que termine
                 if (this.GetRegistersbyRangeGeneralFactAprov) {
                     await this.GetRegistersbyRangeGeneralFactAprov({
+                        force: true,
                         iduser: this.obtenerDocumentoUsuarioActual(),
                         gruposFacturador: this.gruposFacturadorUsuario,
                         convenio: this.convenioUsuario,
@@ -1487,18 +1515,40 @@ export default {
         async guardarEdicionCodigos() {
             try {
                 this.cargando = true;
-                // Actualizar los valores en InfoEncuestasById
+                const idEncuesta = this.pacienteIdModal;
+                const documentoFacturador = this.obtenerDocumentoUsuarioActual();
+                const tareas = [];
+
                 if (this.InfoEncuestasById && Array.isArray(this.InfoEncuestasById)) {
-                    this.InfoEncuestasById.forEach(paciente => {
-                        if (paciente.cups && typeof paciente.cups === 'object') {
-                            Object.entries(paciente.cups).forEach(([cupId, cup]) => {
-                                if (this.facturaEditables[cupId]) {
-                                    cup.FactNum = this.facturaEditables[cupId];
-                                }
-                            });
+                    this.InfoEncuestasById.forEach((paciente) => {
+                        if (!paciente.cups || typeof paciente.cups !== "object") {
+                            return;
                         }
+                        Object.entries(paciente.cups).forEach(([cupId, cup]) => {
+                            if (!Object.prototype.hasOwnProperty.call(this.facturaEditables, cupId)) {
+                                return;
+                            }
+                            tareas.push(
+                                this.asigFacturacion({
+                                    cupId,
+                                    numFactura: this.facturaEditables[cupId],
+                                    idFacturador: documentoFacturador,
+                                    idEncuesta,
+                                    cup,
+                                    facturado: cup?.facturado === true,
+                                })
+                            );
+                        });
                     });
                 }
+
+                if (!tareas.length) {
+                    alert("No hay cambios para guardar.");
+                    return;
+                }
+
+                await Promise.all(tareas);
+                await this.getEncuestaById(idEncuesta);
                 alert("Códigos de factura actualizados correctamente");
                 this.facturaEditables = {};
                 this.modoEdicion = false;

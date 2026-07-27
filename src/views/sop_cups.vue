@@ -154,7 +154,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="(item, key) in actividadesPaciente" :key="`${item.key}-${key}`">
+                                <tr v-for="(item, key) in actividadesPaciente" :key="`${item.key}-${key}-${asignacionesRevision}`">
                                         <td> <button class="btn btn-primary btn-sm"
                                             v-if="item && puedeMostrarActividad(item) && tieneCupsDisponiblesActividad(item.key)" type="button"
                                             @click="abrirModalCups(item)">
@@ -163,8 +163,9 @@
                                     </td>
                                     <td>{{ obtenerNombreActividadDelContrato(item.key) }}</td>
                                     <td>
-                                        <div v-if="obtenerCupsArrayPorActividad(item.key).length > 0">
-                                            <div v-for="(cup, idx) in obtenerCupsArrayPorActividad(item.key)" :key="idx"
+                                        <div v-if="(cupsPorActividad[normalizarActividadId(item.key)] || []).length > 0">
+                                            <div v-for="(cup, idx) in cupsPorActividad[normalizarActividadId(item.key)]"
+                                                :key="`${cup._rowKey || cup.id || idx}-${asignacionesRevision}`"
                                                 class="d-flex align-items-center justify-content-between mb-1 p-1 border-bottom">
                                                 <div style="flex: 1; min-width: 0;">
                                                     <div class="cup-texto-completo">
@@ -382,6 +383,7 @@ export default {
             CupsSeleccionadoId: "",
             cupsArray: [], // Esta propiedad se usará para almacenar los cups seleccionados
             asignaciones: {}, // Para almacenar las asignaciones cargadas
+            asignacionesRevision: 0, // Fuerza re-render de tablas tras guardar/eliminar
             keyActividad: "",
             idItem: "",
             cantidad: 1, // Valor por defecto para la cantidad
@@ -756,7 +758,7 @@ export default {
 
             // Locales en el modal
             this.cupsArray.forEach((cup) => {
-                if (cup && cup.actividadId === this.idItem) {
+                if (cup && this.actividadCoincide(cup.actividadId, this.idItem)) {
                     idsBloqueados.add(this.obtenerIdCup(cup));
                 }
             });
@@ -768,7 +770,7 @@ export default {
                     : Object.values(this.asignaciones.cups);
 
                 cupsGuardados.forEach((cup) => {
-                    if (cup && cup.actividadId === this.idItem) {
+                    if (cup && this.actividadCoincide(cup.actividadId, this.idItem)) {
                         idsBloqueados.add(this.obtenerIdCup(cup));
                     }
                 });
@@ -803,6 +805,32 @@ export default {
                 && String(this.cargoMostrado || "").trim() !== "Auxiliar de enfermeria"
                 && this.actividadesPaciente.length === 0;
         },
+
+        /** Mapa reactivo actividadId -> cups asignados (tabla principal). */
+        cupsPorActividad() {
+            void this.asignacionesRevision;
+            const map = {};
+
+            if (!this.asignaciones?.cups) {
+                return map;
+            }
+
+            const cupsLista = Array.isArray(this.asignaciones.cups)
+                ? this.asignaciones.cups
+                : Object.values(this.asignaciones.cups);
+
+            cupsLista.forEach((cup) => {
+                if (!cup) return;
+                const actividadId = this.normalizarActividadId(cup.actividadId);
+                if (!actividadId) return;
+                if (!map[actividadId]) {
+                    map[actividadId] = [];
+                }
+                map[actividadId].push(cup);
+            });
+
+            return map;
+        },
     },
     /* ----------------------------------------------------------------------------------------------- */
     methods: {
@@ -818,6 +846,14 @@ export default {
             "cerrarEncuesta",
             "getAsignacionesByEncuesta",
         ]),
+
+        normalizarActividadId(valor) {
+            return String(valor ?? "").trim();
+        },
+
+        actividadCoincide(left, right) {
+            return this.normalizarActividadId(left) === this.normalizarActividadId(right);
+        },
 
         async obtenerCatalogoActividadesPorDefecto() {
             let catalogo = Array.isArray(this.actividadesExtra) ? this.actividadesExtra.filter(Boolean) : [];
@@ -1559,22 +1595,13 @@ export default {
                 this.cupsArray = [];
             }
         },
-        async cargarAsignaciones() {
-            try {
-                const asignacionesData = await this.getAsignacionesByEncuesta(this.idEncuesta);
-                this.aplicarAsignacionesLocales(asignacionesData);
-            } catch (error) {
-                console.error("Error al cargar asignaciones:", error);
-                this.asignaciones = {};
-            }
-        },
 
         aplicarAsignacionesLocales(asignacionesData) {
             const cups = asignacionesData?.cups;
             this.asignaciones = {
                 ...(asignacionesData || {}),
                 cups: Array.isArray(cups)
-                    ? cups
+                    ? cups.map((cup) => (cup && typeof cup === "object" ? { ...cup } : cup))
                     : (cups && typeof cups === 'object'
                         ? Object.fromEntries(
                             Object.entries(cups).map(([rowKey, cup]) => [
@@ -1586,6 +1613,7 @@ export default {
                         )
                         : cups),
             };
+            this.asignacionesRevision += 1;
         },
 
         aplicarAsignacionesDesdeEncuesta(encuesta) {
@@ -1598,8 +1626,63 @@ export default {
                 return;
             }
             this.asignaciones = {};
+            this.asignacionesRevision += 1;
         },
 
+        async refrescarTablasCups({ force = true } = {}) {
+            if (!this.isComponentActive || !this.idEncuesta) return;
+
+            try {
+                const payloadAsignaciones = {
+                    idEncuesta: this.idEncuesta,
+                    force,
+                };
+
+                const [encuesta, asignacionesData] = await Promise.all([
+                    this.getEncuestaById({
+                        idEncuesta: this.idEncuesta,
+                        allowGlobalFallback: false,
+                    }),
+                    this.getAsignacionesByEncuesta(payloadAsignaciones),
+                ]);
+
+                if (!this.isComponentActive) return;
+
+                if (asignacionesData) {
+                    this.aplicarAsignacionesLocales(asignacionesData);
+                } else if (encuesta) {
+                    this.aplicarAsignacionesDesdeEncuesta(encuesta);
+                } else {
+                    this.asignaciones = {};
+                    this.asignacionesRevision += 1;
+                }
+            } catch (error) {
+                console.error("Error en refrescarTablasCups:", error);
+            }
+        },
+
+        async recargar() {
+            await this.refrescarTablasCups({ force: true });
+        },
+
+        async cargarAsignaciones({ force = true } = {}) {
+            try {
+                const asignacionesData = await this.getAsignacionesByEncuesta({
+                    idEncuesta: this.idEncuesta,
+                    force,
+                });
+                if (asignacionesData) {
+                    this.aplicarAsignacionesLocales(asignacionesData);
+                } else {
+                    this.asignaciones = {};
+                    this.asignacionesRevision += 1;
+                }
+            } catch (error) {
+                console.error("Error al cargar asignaciones:", error);
+                this.asignaciones = {};
+                this.asignacionesRevision += 1;
+            }
+        },
         async ensureCatalogosCups({ force = false } = {}) {
             if (this._catalogosPromise && !force) {
                 return this._catalogosPromise;
@@ -1705,7 +1788,10 @@ export default {
                     return;
                 }
 
-                const asignacionActual = await asignacionesApi.getById(this.idEncuesta);
+                const asignacionActual = await this.getAsignacionesByEncuesta({
+                    idEncuesta: this.idEncuesta,
+                    force: true,
+                });
                 const cupsActuales = Array.isArray(asignacionActual?.cups)
                     ? asignacionActual.cups
                     : (asignacionActual?.cups && typeof asignacionActual.cups === 'object'
@@ -1727,7 +1813,7 @@ export default {
                     cups: cupsSaneados,
                 });
 
-                await this.cargarAsignaciones();
+                await this.refrescarTablasCups({ force: true });
                 alert('CUPS eliminado correctamente');
             } catch (error) {
                 console.error('Error al eliminar CUPS:', error);
@@ -1782,7 +1868,7 @@ export default {
                 await this.adicionarCups(data);
                 this.cerrarModalCups();
                 this.clear();
-                await this.recargar();
+                await this.refrescarTablasCups({ force: true });
             } catch (error) {
                 console.error('Error al guardar CUPS:', error);
                 alert('No se pudieron guardar los CUPS. Intente nuevamente.');
@@ -1860,22 +1946,21 @@ export default {
             }
         },
 
-        eliminarCUP(idEncuesta, idActividad, idCup) {
-            if (confirm("¿Estás seguro de que deseas eliminar este CUP?")) {
-                /*    console.log("Eliminar cup con id:", idx); */
-                this.$store
-                    .dispatch("deleteCUPS", {
-                        idEncuesta: this.idEncuesta,
-                        idActividad: idActividad,
-                        idCup: idCup,
-                        rol: this.userData.cargo,
-                    })
-                    .then(() => {
-                        this.recargar();
-                    })
-                    .catch((error) => {
-                        console.error("Error al eliminar el CUP:", error);
-                    });
+        async eliminarCUP(idEncuesta, idActividad, idCup) {
+            if (!confirm("¿Estás seguro de que deseas eliminar este CUP?")) {
+                return;
+            }
+
+            try {
+                await this.$store.dispatch("deleteCUPS", {
+                    idEncuesta: this.idEncuesta,
+                    idActividad: idActividad,
+                    idCup: idCup,
+                    rol: this.userData.cargo,
+                });
+                await this.refrescarTablasCups({ force: true });
+            } catch (error) {
+                console.error("Error al eliminar el CUP:", error);
             }
         },
 
@@ -2008,22 +2093,6 @@ export default {
 
         puedeEliminarCups(cup) {
             return this.esAutorDelCup(cup);
-        },
-
-        async recargar() {
-            if (!this.isComponentActive) return;
-
-            try {
-                const encuesta = await this.getEncuestaById({
-                    idEncuesta: this.idEncuesta,
-                    allowGlobalFallback: false,
-                });
-                if (!this.isComponentActive) return;
-
-                this.aplicarAsignacionesDesdeEncuesta(encuesta);
-            } catch (error) {
-                console.error("Error en recargar:", error);
-            }
         },
 
         resolverRutaDestino(cargo) {
@@ -2182,19 +2251,13 @@ export default {
         this.cargandoDatos = true;
 
         try {
-            // Fase crítica: encuesta puntual + catálogos ligeros (nombres de actividades).
-            // El catálogo grande de CUPS / EPS queda en background.
-            const [encuesta] = await Promise.all([
-                this.getEncuestaById({
-                    idEncuesta: this.idEncuesta,
-                    allowGlobalFallback: false,
-                }),
+            await Promise.all([
                 this.getAllContratos(),
                 this.getAllActividadesExtra(),
             ]);
+            await this.refrescarTablasCups({ force: true });
             if (!this.isComponentActive) return;
 
-            this.aplicarAsignacionesDesdeEncuesta(encuesta);
             this.cargandoDatos = false;
 
             // cups.json + eps.json en background (caché 10 min); el modal los espera si aún no llegan.

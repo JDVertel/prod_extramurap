@@ -36,8 +36,23 @@ const catalogInflight = {
 };
 
 function isCatalogFresh(loadedAt) {
-  const ts = Number(loadedAt) || 0;
-  return ts > 0 && Date.now() - ts < CATALOG_TTL_MS;
+  const ts = Number(loadedAt);
+  if (!Number.isFinite(ts) || ts <= 0) {
+    return false;
+  }
+  return Date.now() - ts < CATALOG_TTL_MS;
+}
+
+function prepareCatalogFetch(commit, { inflightKey, catalogKey, force }) {
+  if (!force) {
+    return;
+  }
+  catalogInflight[inflightKey] = null;
+  commit("setCatalogLoadedAt", { key: catalogKey, at: 0 });
+}
+
+function catalogReadConfig(force) {
+  return force ? getNoCacheRequestConfig() : undefined;
 }
 
 function resolveEncuestaPayload(payload) {
@@ -1742,7 +1757,7 @@ export default createStore({
 
         const safeGet = async (url) => {
           try {
-            const response = await realtime_api.get(url);
+            const response = await realtime_api.get(url, getNoCacheRequestConfig());
             return response.data;
           } catch (errorGet) {
             if (errorGet?.response?.status === 404) {
@@ -2484,7 +2499,7 @@ export default createStore({
       devLog("consultando agendas desde:", fecha);
       try {
         // Obtener todas las agendas y filtrar en el cliente
-        const { data } = await realtime_api.get("/agendas.json");
+        const { data } = await realtime_api.get("/agendas.json", getNoCacheRequestConfig());
 
         const agendas = data
           ? Object.entries(data)
@@ -2510,7 +2525,7 @@ export default createStore({
     getAgendasTomaLab: async ({ commit }, dataidlab) => {
       devLog("datos que entran", dataidlab);
       try {
-        const { data } = await realtime_api.get("/agendas.json");
+        const { data } = await realtime_api.get("/agendas.json", getNoCacheRequestConfig());
         const encuestas = Object.entries(data).map(([key, value]) => ({
           id: key,
           ...value,
@@ -2537,7 +2552,7 @@ export default createStore({
     getAgendasTomaLabById: async ({ commit }, { id }) => {
       devLog("datos que entran", id);
       try {
-        const { data } = await realtime_api.get("/agendas.json");
+        const { data } = await realtime_api.get("/agendas.json", getNoCacheRequestConfig());
         const encuestas = Object.entries(data).map(([key, value]) => ({
           id: key,
           ...value,
@@ -2559,7 +2574,7 @@ export default createStore({
     getAgendasVisitaById: async ({ commit }, { id }) => {
       devLog("datos que entran", id);
       try {
-        const { data } = await realtime_api.get("/agendas.json");
+        const { data } = await realtime_api.get("/agendas.json", getNoCacheRequestConfig());
         const encuestas = Object.entries(data).map(([key, value]) => ({
           id: key,
           ...value,
@@ -2928,6 +2943,7 @@ export default createStore({
      */
     getAllEpss: async ({ commit, state }, { force = false } = {}) => {
       try {
+        prepareCatalogFetch(commit, { inflightKey: "epss", catalogKey: "epss", force });
         if (
           !force &&
           Array.isArray(state.epss) &&
@@ -2941,7 +2957,7 @@ export default createStore({
         }
 
         const loadPromise = (async () => {
-          const { data } = await realtime_api.get("/eps.json");
+          const { data } = await realtime_api.get("/eps.json", catalogReadConfig(force));
           if (!data || typeof data !== "object") {
             commit("setEps", []);
             commit("setCatalogLoadedAt", { key: "epss", at: Date.now() });
@@ -3032,6 +3048,7 @@ export default createStore({
      */
     getAllContratos: async ({ commit, state }, { force = false } = {}) => {
       try {
+        prepareCatalogFetch(commit, { inflightKey: "contratos", catalogKey: "contratos", force });
         if (
           !force &&
           Array.isArray(state.contratos) &&
@@ -3045,7 +3062,7 @@ export default createStore({
         }
 
         const loadPromise = (async () => {
-          const { data } = await realtime_api.get("/contratos.json");
+          const { data } = await realtime_api.get("/contratos.json", catalogReadConfig(force));
           if (!data) {
             commit("setContratos", []);
             commit("setCatalogLoadedAt", { key: "contratos", at: Date.now() });
@@ -3349,11 +3366,19 @@ export default createStore({
     /**
      * Obtiene asignaciones de una encuesta
      */
-    getAsignacionesByEncuesta: async ({ commit }, idEncuesta) => {
+    getAsignacionesByEncuesta: async ({ commit }, payload) => {
       try {
+        const idEncuesta =
+          typeof payload === "object"
+            ? payload?.idEncuesta ?? payload?.id
+            : payload;
+        const force = typeof payload === "object" ? Boolean(payload?.force) : false;
         if (!idEncuesta) return null;
         const ruta = `/Asignaciones/${idEncuesta}.json`;
-        const { data } = await realtime_api.get(ruta);
+        const { data } = await realtime_api.get(
+          ruta,
+          force ? getNoCacheRequestConfig() : undefined
+        );
         return data;
       } catch (error) {
         console.error("Error en Action_getAsignacionesByEncuesta:", error);
@@ -3366,6 +3391,7 @@ export default createStore({
      */
     getAllActividadesExtra: async ({ commit, state }, { force = false } = {}) => {
       try {
+        prepareCatalogFetch(commit, { inflightKey: "actividadesExtra", catalogKey: "actividadesExtra", force });
         if (
           !force &&
           Array.isArray(state.actividadesExtra) &&
@@ -3379,7 +3405,7 @@ export default createStore({
         }
 
         const loadPromise = (async () => {
-          const { data } = await realtime_api.get("/actividadesExtra.json");
+          const { data } = await realtime_api.get("/actividadesExtra.json", catalogReadConfig(force));
 
           if (!data || data === null) {
             commit("setActividadesExtra", []);
@@ -3473,6 +3499,7 @@ export default createStore({
       try {
         if (!id) throw new Error("ID invalido para eliminar");
         const { data } = await realtime_api.delete(`/actividadesExtra/${id}.json`);
+        commit("setCatalogLoadedAt", { key: "actividadesExtra", at: 0 });
         return data;
       } catch (error) {
         console.error("Error en Action_deleteActividadExtra:", error);
@@ -3485,6 +3512,7 @@ export default createStore({
      */
     getAllCups: async ({ commit, state }, { force = false } = {}) => {
       try {
+        prepareCatalogFetch(commit, { inflightKey: "cups", catalogKey: "cups", force });
         if (
           !force &&
           Array.isArray(state.cups) &&
@@ -3498,7 +3526,7 @@ export default createStore({
         }
 
         const loadPromise = (async () => {
-          const { data } = await realtime_api.get("/cups.json");
+          const { data } = await realtime_api.get("/cups.json", catalogReadConfig(force));
 
           if (!data || data === null) {
             commit("setCups", []);
@@ -3580,7 +3608,7 @@ export default createStore({
           });
         }
 
-        const { data } = await realtime_api.get(Ruta);
+        const { data } = await realtime_api.get(Ruta, getNoCacheRequestConfig());
         return data;
       } catch (error) {
         console.error("Error en Action_adicionarCups:", error);
@@ -3937,15 +3965,20 @@ export default createStore({
       const iduser = typeof payload === "object" ? payload?.iduser : payload;
       const gruposFacturador = typeof payload === "object" ? payload?.gruposFacturador : "";
       const convenioFacturador = typeof payload === "object" ? payload?.convenio : "";
+      const force = typeof payload === "object" ? Boolean(payload?.force) : false;
       const cacheKey = [
         normalizeComparableDocument(iduser),
         String(gruposFacturador || "").trim(),
         String(convenioFacturador || "").trim().toLowerCase(),
       ].join("|");
 
-      if (factAprovInflight.has(cacheKey)) {
+      if (force) {
+        factAprovInflight.delete(cacheKey);
+      } else if (factAprovInflight.has(cacheKey)) {
         return factAprovInflight.get(cacheKey);
       }
+
+      const readConfig = force ? getNoCacheRequestConfig() : buildReadRequestConfig;
 
       const loadPromise = (async () => {
       try {
@@ -3958,8 +3991,8 @@ export default createStore({
 
         // Solo pendientes + asignaciones (sin dump global de Actividades).
         const [encuestasResponse, asignacionesResponse] = await Promise.all([
-          realtime_api.get("/Encuesta.json", buildReadRequestConfig(encuestaParams)),
-          realtime_api.get("/Asignaciones.json"),
+          realtime_api.get("/Encuesta.json", readConfig(encuestaParams)),
+          realtime_api.get("/Asignaciones.json", force ? getNoCacheRequestConfig() : undefined),
         ]);
 
         const encuestas = encuestasResponse?.data;
@@ -4413,7 +4446,8 @@ export default createStore({
         };
       }
       if (key) {
-        state.catalogLoadedAt[key] = Number(at) || Date.now();
+        const numericAt = Number(at);
+        state.catalogLoadedAt[key] = Number.isFinite(numericAt) ? numericAt : Date.now();
       }
     },
 

@@ -1339,7 +1339,7 @@ export default {
           await this.crearEps(data);
           alert("EPS creada exitosamente.");
         }
-        await this.getAllEps();
+        await this.getAllEps({ force: true });
         this.clearFormEps();
       } catch (error) {
         console.error("Error al guardar EPS:", error);
@@ -1370,7 +1370,7 @@ export default {
 
       await this.deleteEps(epsId);
       alert("EPS eliminado exitosamente.");
-      this.getAllEps();
+      await this.getAllEps({ force: true });
     },
 
     clearFormEps() {
@@ -1411,7 +1411,7 @@ export default {
           alert("Actividad creada exitosamente.");
         }
 
-        await this.getAllActividadesExtra();
+        await this.getAllActividadesExtra({ force: true });
         this.clearFormActividadExtra();
       } catch (error) {
         console.error("Error al guardar actividad:", error);
@@ -1444,7 +1444,7 @@ export default {
       try {
         await this.deleteActividadExtra(id);
         alert("Actividad eliminada exitosamente.");
-        await this.getAllActividadesExtra();
+        await this.getAllActividadesExtra({ force: true });
 
         if (this.actividadExtraEditId === id) {
           this.clearFormActividadExtra();
@@ -1591,7 +1591,7 @@ export default {
           await new Promise(resolve => setTimeout(resolve, 300));
 
           // Recargar lista desde API
-          await this.getAllCups();
+          await this.getAllCups({ force: true });
           console.log("Lista de CUPS actualizada después de editar:", this.cups);
 
           alert("CUP editado exitosamente.");
@@ -1617,7 +1617,7 @@ export default {
           await new Promise(resolve => setTimeout(resolve, 300));
 
           // Recargar lista desde API
-          await this.getAllCups();
+          await this.getAllCups({ force: true });
           console.log("Lista de CUPS actualizada después de crear:", this.cups);
 
           alert("CUP guardado exitosamente.");
@@ -1676,7 +1676,7 @@ export default {
         await new Promise(resolve => setTimeout(resolve, 500));
 
         // Luego recargar la lista desde API
-        await this.getAllCups();
+        await this.getAllCups({ force: true });
         console.log("Lista de CUPS actualizada después de eliminar");
         console.log("CUPS en store después de cargar:", this.cups);
 
@@ -1938,7 +1938,7 @@ export default {
           };
 
           await this.actualizarContrato({ contratoId: this.contratoEdicionId, contratoData });
-          await this.getAllContratos();
+          await this.getAllContratos({ force: true });
 
           let mensaje = `Se agregaron ${agregados} CUPS al contrato existente.`;
           if (duplicados > 0) {
@@ -2002,7 +2002,7 @@ export default {
         alert(`Se guardaron ${epsArray.length} contrato(s) exitosamente.`);
 
         // Recargar contratos
-        await this.getAllContratos();
+        await this.getAllContratos({ force: true });
 
         // Limpiar formulario
         this.clearFormContratos();
@@ -2050,7 +2050,7 @@ export default {
         }
 
         // Recargar contratos
-        await this.getAllContratos();
+        await this.getAllContratos({ force: true });
       } catch (error) {
         console.error("Error al eliminar CUPS:", error);
         alert(
@@ -2184,7 +2184,7 @@ export default {
         alert(`${contratoIds.length} contrato(s) eliminado(s) exitosamente.`);
 
         // Recargar contratos
-        await this.getAllContratos();
+        await this.getAllContratos({ force: true });
       } catch (error) {
         console.error("Error al eliminar contratos:", error);
         alert(
@@ -2379,7 +2379,7 @@ export default {
           mensaje: `Procesando registro ${i + 1} de ${validas.length}`,
         });
       }
-      await this.getAllEps();
+      await this.getAllEps({ force: true });
       this.finalizarProgresoCsv("Importacion de EPS finalizada");
       event.target.value = "";
       const resumen = `Importación completada: ${validas.length - errores} EPS importadas${errores > 0 ? `, ${errores} con error` : ""}.`;
@@ -2436,7 +2436,7 @@ export default {
           mensaje: `Procesando registro ${i + 1} de ${validas.length}`,
         });
       }
-      await this.getAllCups();
+      await this.getAllCups({ force: true });
       this.finalizarProgresoCsv("Importacion de CUPS finalizada");
       event.target.value = "";
       alert(`Importación completada: ${validas.length - errores} CUPS importados${errores > 0 ? `, ${errores} con error` : ""}.`);
@@ -2494,7 +2494,7 @@ export default {
           mensaje: `Procesando registro ${i + 1} de ${validas.length}`,
         });
       }
-      await this.getAllActividadesExtra();
+      await this.getAllActividadesExtra({ force: true });
       this.finalizarProgresoCsv("Importacion de Actividades finalizada");
       event.target.value = "";
       alert(`Importación completada: ${validas.length - errores} actividades importadas${errores > 0 ? `, ${errores} con error` : ""}.`);

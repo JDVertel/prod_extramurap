@@ -366,16 +366,15 @@ export default {
             }
         },
 
-        removeRegEncuesta(id) {
-            this.removeRegEnc(id);
-            alert("Registro eliminado exitosamente.");
-            this.getAllRegistersByFecha({
-                idUsuario: this.userData.numDocumento,
-                fecha: this.fechaActual,
-            });
-            this.getAllRegistersByFechaStatus({
-                idUsuario: this.userData.numDocumento,
-            });
+        async removeRegEncuesta(id) {
+            try {
+                await this.removeRegEnc(id);
+                alert("Registro eliminado exitosamente.");
+                await this.cargarEncuestas();
+            } catch (error) {
+                console.error("Error al eliminar registro:", error);
+                alert("No se pudo eliminar el registro: " + (error?.message || error));
+            }
         },
         Agendar(id, tipo) {
             this.$router.push({
