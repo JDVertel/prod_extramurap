@@ -823,11 +823,18 @@ export default {
             const filas = Array.isArray(this.EncuestasFact) ? [...this.EncuestasFact] : [];
 
             const filtradas = filas.filter(paciente => {
-                const cumpleAccesoFacturador = encuestaVisibleParaFacturador(
-                    paciente,
-                    this.gruposFacturadorUsuario,
-                    this.convenioUsuario
-                );
+                const convenioFila = String(paciente?.convenio || "").trim();
+                const cumpleAccesoFacturador = !convenioFila
+                    ? encuestaVisibleParaFacturador(
+                        { ...paciente, convenio: this.convenioUsuario || paciente?.convenio },
+                        this.gruposFacturadorUsuario,
+                        ""
+                      )
+                    : encuestaVisibleParaFacturador(
+                        paciente,
+                        this.gruposFacturadorUsuario,
+                        this.convenioUsuario
+                      );
                 const cumpleGrupo = !this.filtrosRegistro.grupo || String(paciente.grupo || "").trim() === this.filtrosRegistro.grupo;
                 const cumpleSexo = !this.filtrosRegistro.sexo || String(paciente.sexo || "").trim() === this.filtrosRegistro.sexo;
                 const cumpleFechaNac = !this.filtrosRegistro.fechaNac || this.formatearFechaYYYYMMDD(paciente.fechaNac) === this.filtrosRegistro.fechaNac;
@@ -877,9 +884,16 @@ export default {
         },
         encuestasPendientesProcesadas() {
             const filas = Array.isArray(this.EncuestasFactAprov) ? [...this.EncuestasFactAprov] : [];
+            const docActual = String(this.documentoUsuarioActual || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
             const filtradas = filas.filter(paciente => {
-                const cumpleAccesoFacturador = encuestaVisibleParaFacturador(
+                const asig = String(paciente?.asigfact ?? paciente?.asig_fact ?? "")
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]/g, "");
+                // Si ya está aprovisionado a este facturador, siempre visible.
+                const asignadoAMi = !!docActual && !!asig && asig === docActual;
+                const cumpleAccesoFacturador = asignadoAMi || encuestaVisibleParaFacturador(
                     paciente,
                     this.gruposFacturadorUsuario,
                     this.convenioUsuario

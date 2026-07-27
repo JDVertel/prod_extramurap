@@ -7,13 +7,18 @@
 // ============================================================================
 import realtime_api from "@/api/realtimeApi.js";
 import { informesApi } from "@/api/informesApi";
+import {
+  getDisponiblesFacturacionPorDocumento,
+  getDisponiblesFacturacionPorRango,
+  getPendientesFacturacion,
+} from "@/api/facturacionApi";
 import { caracterizacionApi, encuestasApi, encuestaActividadesApi } from "@/api/modulesApi";
 import { workflowApi } from "@/api/workflowApi";
 import persistedState from "./persistedstate";
 import { createStore } from "vuex";
 import { getAllUsers, getUserById } from "@/api/usersApi";
 import router from "../router/index.js";
-import { encuestaPermitidaParaFacturador, encuestaVisibleParaFacturador } from "@/utils/grupoUtils.js";
+import { encuestaVisibleParaFacturador } from "@/utils/grupoUtils.js";
 import { formatApiError } from "@/utils/apiError.js";
 import moment from "moment";
 
@@ -3727,228 +3732,87 @@ export default createStore({
     },
 
     /**
-     * Obtiene registros generales para facturación
+     * Obtiene registros generales para facturación (disponibles para aprovisionar).
+     * Usa endpoint SQL filtrado (sin dumps globales).
      */
     GetRegistersbyRangeGeneralFact: async ({ commit }, parametros) => {
       try {
-        const { finicial, ffinal, convenio, gruposFacturador } = parametros;
-        const normalizarTexto = (valor) =>
-          String(valor ?? "")
-            .trim()
-            .toLowerCase();
-
-        const normalizarFechaSoloDia = (valor) => {
-          if (valor === null || valor === undefined) {
-            return null;
-          }
-
-          const raw = String(valor).trim();
-          if (!raw) {
-            return null;
-          }
-
-          // YYYY-MM-DD (o prefijo de ISO)
-          const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-          if (iso) {
-            return `${iso[1]}-${iso[2]}-${iso[3]}`;
-          }
-
-          // DD/MM/YYYY o DD-MM-YYYY
-          const latam = raw.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})/);
-          if (latam) {
-            return `${latam[3]}-${latam[2]}-${latam[1]}`;
-          }
-
-          const parsed = new Date(raw);
-          if (!Number.isNaN(parsed.getTime())) {
-            return parsed.toISOString().slice(0, 10);
-          }
-
-          return null;
-        };
-
-        const toDateStart = (yyyyMmDd) => {
-          const parsed = new Date(`${yyyyMmDd}T00:00:00`);
-          return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
-        };
-
-        const toDateEnd = (yyyyMmDd) => {
-          const parsed = new Date(`${yyyyMmDd}T23:59:59.999`);
-          return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
-        };
-
+        const { finicial, ffinal, convenio, gruposFacturador } = parametros || {};
         const inicio = String(finicial ?? "").trim();
         const fin = String(ffinal ?? "").trim();
-        const convenioFiltro = normalizarTexto(convenio);
 
         if (!inicio || !fin) {
-          console.warn("⚠️ Filtro inválido: fechas vacías en facturación");
           commit("setEncuestasFact", []);
           return [];
         }
 
-        const inicioNormalizado = normalizarFechaSoloDia(inicio);
-        const finNormalizado = normalizarFechaSoloDia(fin);
-        const inicioTs = inicioNormalizado ? toDateStart(inicioNormalizado) : null;
-        const finTs = finNormalizado ? toDateEnd(finNormalizado) : null;
-
-        if (!inicioTs || !finTs) {
-          console.warn("⚠️ Filtro inválido: no se pudieron normalizar las fechas del rango", {
-            inicio,
-            fin,
-            inicioNormalizado,
-            finNormalizado,
-          });
-          commit("setEncuestasFact", []);
-          return [];
-        }
-
-        // Obtener actividades, encuestas y asignaciones (CUPS)
-        const { data: actividades } = await realtime_api.get("/Actividades.json");
-        const { data: encuestas } = await realtime_api.get("/Encuesta.json");
-        const { data: asignaciones } = await realtime_api.get("/Asignaciones.json");
-
-        if (!encuestas) {
-          console.warn("⚠️ No hay datos en /Encuesta.json");
-          commit("setEncuestasFact", []);
-          return [];
-        }
-
-        const actividadesMap = actividades && typeof actividades === "object" ? actividades : {};
-
-        // Mapear encuestas
-        const encuestasMap = Object.entries(encuestas).map(([key, value]) => ({
-          id: key,
-          ...value,
-        }));
-
-        // Función auxiliar para extraer convenio de CUPS
-        const obtenerConvenioDelCUPS = (idEncuesta, encuestaBase = {}) => {
-          if (!asignaciones || !asignaciones[idEncuesta]) {
-            return normalizarTexto(encuestaBase?.convenio);
-          }
-
-          const asignacionData = asignaciones[idEncuesta];
-
-          // Si la asignación tiene directamente convenio, usarlo
-          if (asignacionData.convenio) {
-            return normalizarTexto(asignacionData.convenio);
-          }
-
-          // Si tiene cups, extraer convenio del primer CUPS disponible
-          if (asignacionData.cups && typeof asignacionData.cups === 'object') {
-            const cupsArray = Object.values(asignacionData.cups);
-            for (let cup of cupsArray) {
-              if (cup && cup.convenio) {
-                return normalizarTexto(cup.convenio);
-              }
-            }
-          }
-
-          return normalizarTexto(encuestaBase?.convenio);
+        const baseParams = {
+          fechaInicio: inicio,
+          fechaFin: fin,
+          gruposFacturador: gruposFacturador || "",
         };
 
-        // Filtrar directamente sobre encuestas; Actividades es dato opcional de apoyo.
-        const resultados = [];
-        encuestasMap.forEach((encuestaAsociada) => {
-          const idActividad = encuestaAsociada?.id;
-          if (!idActividad) {
-            return;
-          }
-
-          const fechaBD = encuestaAsociada.fechagestEnfermera;
-          const fechaBDSolo = normalizarFechaSoloDia(fechaBD);
-          const fechaBdTs = fechaBDSolo ? toDateStart(fechaBDSolo) : null;
-
-          // Obtener convenio del CUPS; fallback a convenio de la encuesta.
-          const conveniodelCUPS = obtenerConvenioDelCUPS(idActividad, encuestaAsociada);
-
-          const cumpleFecha =
-            !!fechaBdTs && fechaBdTs >= inicioTs && fechaBdTs <= finTs;
-          const cumpleConvenio =
-            !convenioFiltro || conveniodelCUPS === convenioFiltro;
-          const sinFacturar = encuestaAsociada.status_facturacion !== true;
-          const noAsignado = !String(encuestaAsociada.asigfact ?? "").trim();
-          const cumpleGrupoFacturador = encuestaVisibleParaFacturador(
-            encuestaAsociada,
-            gruposFacturador,
-            convenio
-          );
-
-          if (cumpleFecha && sinFacturar && cumpleConvenio && noAsignado && cumpleGrupoFacturador) {
-            resultados.push({
-              id: idActividad,
-              ...encuestaAsociada,
-              tipoActividad: actividadesMap[idActividad] || { tipoActividad: {} },
-            });
-          }
+        let resultados = await getDisponiblesFacturacionPorRango({
+          ...baseParams,
+          convenio: convenio || "",
         });
+
+        // Si el convenio del usuario deja la lista vacía, reintenta sin convenio
+        // (algunos registros históricos no lo traen poblado).
+        if (!resultados.length && String(convenio || "").trim()) {
+          resultados = await getDisponiblesFacturacionPorRango(baseParams);
+          if (Array.isArray(resultados) && resultados.length) {
+            resultados = resultados.filter((row) =>
+              encuestaVisibleParaFacturador(row, gruposFacturador, convenio)
+            );
+          }
+        }
 
         commit("setEncuestasFact", resultados);
         return resultados;
       } catch (error) {
-        console.error("❌ Error en Action_GetRegistersbyRangeGeneralFact:", error);
+        console.error("Error en Action_GetRegistersbyRangeGeneralFact:", error);
         throw error;
       }
     },
 
     /**
-     * Obtiene registros para facturación por ID de paciente
+     * Obtiene registros para facturación por documento de paciente.
+     * Usa endpoint SQL filtrado (sin dumps globales).
      */
     GetRegistersbyRangeGeneralFactByID: async ({ commit }, parametros) => {
       try {
-        const { data: actividades } = await realtime_api.get("/Actividades.json");
-        const { data: encuestas } = await realtime_api.get("/Encuesta.json");
-        const gruposFacturador = parametros?.gruposFacturador;
-        const convenioFacturador = parametros?.convenio;
+        const tipodoc = String(parametros?.tipodoc ?? "").trim();
+        const numdoc = String(parametros?.numdoc ?? "").trim();
 
-        const normalizarTexto = (valor) =>
-          String(valor ?? "")
-            .trim()
-            .toLowerCase();
-
-        const numdocBuscado = normalizarTexto(parametros?.numdoc);
-        const tipodocBuscado = normalizarTexto(parametros?.tipodoc);
-
-        if (!encuestas) {
+        if (!tipodoc || !numdoc) {
           commit("setEncuestasFact", []);
           return [];
         }
 
-        const actividadesMap = actividades && typeof actividades === "object" ? actividades : {};
+        const baseParams = {
+          tipodoc,
+          numdoc,
+          gruposFacturador: parametros?.gruposFacturador || "",
+        };
 
-        const encuestasMap = Object.entries(encuestas).map(([key, value]) => ({
-          id: key,
-          ...value,
-        }));
-
-        const resultados = [];
-        encuestasMap.forEach((encuestaAsociada) => {
-          const idActividad = encuestaAsociada?.id;
-          if (!idActividad) {
-            return;
-          }
-
-          const sinAsignar = !String(encuestaAsociada.asigfact ?? "").trim();
-          const cumpleGrupoFacturador = encuestaVisibleParaFacturador(
-            encuestaAsociada,
-            gruposFacturador,
-            convenioFacturador
-          );
-
-          if (
-            normalizarTexto(encuestaAsociada?.numdoc) === numdocBuscado &&
-            normalizarTexto(encuestaAsociada?.tipodoc) === tipodocBuscado &&
-            sinAsignar &&
-            cumpleGrupoFacturador
-          ) {
-            resultados.push({
-              id: idActividad,
-              ...encuestaAsociada,
-              tipoActividad: actividadesMap[idActividad] || { tipoActividad: {} },
-            });
-          }
+        let resultados = await getDisponiblesFacturacionPorDocumento({
+          ...baseParams,
+          convenio: parametros?.convenio || "",
         });
+
+        if (!resultados.length && String(parametros?.convenio || "").trim()) {
+          resultados = await getDisponiblesFacturacionPorDocumento(baseParams);
+          if (Array.isArray(resultados) && resultados.length) {
+            resultados = resultados.filter((row) =>
+              encuestaVisibleParaFacturador(
+                row,
+                parametros?.gruposFacturador,
+                parametros?.convenio
+              )
+            );
+          }
+        }
 
         commit("setEncuestasFact", resultados);
         return resultados;
@@ -3959,7 +3823,8 @@ export default createStore({
     },
 
     /**
-     * Obtiene registros aprobados para facturación
+     * Obtiene pendientes asignados al facturador.
+     * Usa endpoint SQL filtrado (sin dumps de Encuesta/Asignaciones).
      */
     GetRegistersbyRangeGeneralFactAprov: async ({ commit }, payload) => {
       const iduser = typeof payload === "object" ? payload?.iduser : payload;
@@ -3978,192 +3843,50 @@ export default createStore({
         return factAprovInflight.get(cacheKey);
       }
 
-      const readConfig = force ? getNoCacheRequestConfig() : buildReadRequestConfig;
-
       const loadPromise = (async () => {
-      try {
-        const encuestaParams = {
-          status_facturacion: false,
-        };
-        if (String(convenioFacturador || "").trim()) {
-          encuestaParams.convenio = String(convenioFacturador).trim();
-        }
-
-        // Solo pendientes + asignaciones (sin dump global de Actividades).
-        const [encuestasResponse, asignacionesResponse] = await Promise.all([
-          realtime_api.get("/Encuesta.json", readConfig(encuestaParams)),
-          realtime_api.get("/Asignaciones.json", force ? getNoCacheRequestConfig() : undefined),
-        ]);
-
-        const encuestas = encuestasResponse?.data;
-        const asignaciones = asignacionesResponse?.data;
-
-        const idUsuarioNormalizado = normalizeComparableDocument(iduser);
-
-        logFacturacionPendientesDebug("inicio-carga", {
-          iduser,
-          idUsuarioNormalizado,
-          debugFiltro: getFacturacionPendientesDebugFilter() || null,
-        });
-
-        if (!encuestas) {
-          commit("setEncuestasFactAprov", []);
-          logFacturacionPendientesDebug("sin-encuestas", { iduser, idUsuarioNormalizado });
-          return [];
-        }
-
-        const actividadesMap = {};
-
-        const encuestasMap = Object.entries(encuestas).map(([key, value]) => ({
-          id: key,
-          ...value,
-        }));
-
-        const resultados = [];
-        const resumen = {
-          totalEncuestas: encuestasMap.length,
-          incluidas: 0,
-          excluidas: 0,
-          porPaciente: 0,
-          porCups: 0,
-          cerradasExcluidas: 0,
-          sinAsignacionExcluidas: 0,
-        };
-        const debugFiltro = getFacturacionPendientesDebugFilter();
-        let coincidenciasFiltro = 0;
-
-        encuestasMap.forEach((encuestaAsociada) => {
-          const idActividad = encuestaAsociada?.id;
-          if (!idActividad) {
-            return;
-          }
-
-          const cups = asignaciones?.[idActividad]?.cups;
-          const listaCups = cups && typeof cups === "object" ? Object.values(cups) : [];
-          const facturadorPaciente = encuestaAsociada?.asigfact ?? encuestaAsociada?.asig_fact;
-          const documentoPaciente = `${encuestaAsociada?.tipodoc || ""}-${encuestaAsociada?.numdoc || ""}`.replace(/^-|-$|^$/g, "");
-          const documentoPacienteComparable = buildComparablePatientDocument(
-            encuestaAsociada?.tipodoc,
-            encuestaAsociada?.numdoc
-          );
-          const facturadoresCups = listaCups.map(
-            (cup) => cup?.FactProf ?? cup?.factProf ?? cup?.fact_prof ?? ""
-          ).filter((value) => String(value || "").trim());
-          const coincideFacturadorPaciente =
-            normalizeComparableDocument(facturadorPaciente) === idUsuarioNormalizado;
-          const coincideFacturadorEnCups = listaCups.some((cup) => {
-            return normalizeComparableDocument(cup?.FactProf ?? cup?.factProf ?? cup?.fact_prof) === idUsuarioNormalizado;
+        try {
+          const idUsuarioNormalizado = normalizeComparableDocument(iduser);
+          logFacturacionPendientesDebug("inicio-carga", {
+            iduser,
+            idUsuarioNormalizado,
+            via: "api/facturacion/pendientes",
           });
-          const cerrado = encuestaAsociada.status_facturacion === true;
-          const cumpleGrupoFacturador = encuestaVisibleParaFacturador(
-            encuestaAsociada,
-            gruposFacturador,
-            convenioFacturador
-          );
-          const incluido = (coincideFacturadorPaciente || coincideFacturadorEnCups) && !cerrado && cumpleGrupoFacturador;
-          const exclusionReasons = [];
 
-          if (!coincideFacturadorPaciente && !coincideFacturadorEnCups) {
-            exclusionReasons.push("sin-asignacion-para-facturador");
-            resumen.sinAsignacionExcluidas++;
+          if (!String(iduser || "").trim()) {
+            commit("setEncuestasFactAprov", []);
+            return [];
           }
 
-          if (cerrado) {
-            exclusionReasons.push("cerrado");
-            resumen.cerradasExcluidas++;
-          }
+          const baseParams = {
+            idFacturador: iduser,
+            gruposFacturador: gruposFacturador || "",
+          };
 
-          if (coincideFacturadorPaciente) {
-            resumen.porPaciente++;
-          }
-
-          if (coincideFacturadorEnCups) {
-            resumen.porCups++;
-          }
-
-          if (isFacturacionPendientesDebugEnabled()) {
-            const debugPayload = {
-              encuestaId: idActividad,
-              tipodoc: encuestaAsociada?.tipodoc,
-              numdoc: encuestaAsociada?.numdoc,
-              documentoPaciente,
-              paciente: `${encuestaAsociada?.nombre1 || ""} ${encuestaAsociada?.apellido1 || ""}`.trim(),
-              facturadorPaciente,
-              facturadoresCups,
-              status_facturacion: encuestaAsociada?.status_facturacion,
-              coincideFacturadorPaciente,
-              coincideFacturadorEnCups,
-              incluido,
-              exclusionReasons,
-            };
-
-            if (shouldLogFacturacionPendientesRecord(debugPayload)) {
-              coincidenciasFiltro++;
-              logFacturacionPendientesDebug("evaluacion-encuesta", debugPayload);
-            }
-
-            if (debugFiltro && documentoPacienteComparable === debugFiltro) {
-              logFacturacionPendientesDebug("rastreo-documento", {
-                encuestaId: idActividad,
-                documentoPaciente,
-                paciente: debugPayload.paciente,
-                status_facturacion: encuestaAsociada?.status_facturacion,
-                facturadorPaciente,
-                facturadoresCups,
-                totalCups: listaCups.length,
-                cupsConFacturador: listaCups
-                  .map((cup, index) => ({
-                    index,
-                    actividadId: cup?.actividadId,
-                    FactProf: cup?.FactProf ?? cup?.factProf ?? cup?.fact_prof ?? null,
-                    FactNum: cup?.FactNum ?? cup?.factNum ?? cup?.fact_num ?? null,
-                    facturado: cup?.facturado === true,
-                  }))
-                  .filter((cup) => cup.FactProf || cup.FactNum || cup.facturado),
-                coincideFacturadorPaciente,
-                coincideFacturadorEnCups,
-                incluido,
-                exclusionReasons,
-              });
-            }
-          }
-
-          if (incluido) {
-            const allFacturasVacias = listaCups.length === 0 || listaCups.every(cup => {
-              const fact = String(cup?.FactNum ?? "").trim();
-              return !fact;
-            });
-
-            resumen.incluidas++;
-            resultados.push({
-              id: idActividad,
-              ...encuestaAsociada,
-              tipoActividad: actividadesMap[idActividad] || { tipoActividad: {} },
-              allFacturasVacias,
-            });
-          } else {
-            resumen.excluidas++;
-          }
-        });
-
-        commit("setEncuestasFactAprov", resultados);
-        logFacturacionPendientesDebug("fin-carga", {
-          ...resumen,
-          coincidenciasFiltro,
-          debugFiltro: debugFiltro || null,
-          idsIncluidos: resultados.map((item) => item.id),
-        });
-        if (debugFiltro && coincidenciasFiltro === 0) {
-          logFacturacionPendientesDebug("rastreo-documento-no-encontrado", {
-            debugFiltro,
-            mensaje: "No se encontró ninguna encuesta con ese documento, id de encuesta o asignación dentro de la carga actual.",
+          let resultados = await getPendientesFacturacion({
+            ...baseParams,
+            convenio: convenioFacturador || "",
+            _ts: force ? Date.now() : undefined,
           });
+
+          // Reintento sin convenio: registros aprovisionados históricos a veces
+          // no tienen convenio y el filtro estricto los oculta.
+          if (!resultados.length && String(convenioFacturador || "").trim()) {
+            resultados = await getPendientesFacturacion({
+              ...baseParams,
+              _ts: force ? Date.now() : undefined,
+            });
+          }
+
+          commit("setEncuestasFactAprov", resultados);
+          logFacturacionPendientesDebug("fin-carga", {
+            incluidas: resultados.length,
+            idsIncluidos: resultados.map((item) => item.id),
+          });
+          return resultados;
+        } catch (error) {
+          console.error("Error en Action_GetRegistersbyRangeGeneralFactAprov:", error);
+          throw error;
         }
-        return resultados;
-      } catch (error) {
-        console.error("Error en Action_GetRegistersbyRangeGeneralFactAprov:", error);
-        throw error;
-      }
       })().finally(() => {
         factAprovInflight.delete(cacheKey);
       });
