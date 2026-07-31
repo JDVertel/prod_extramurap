@@ -1184,8 +1184,23 @@ export default {
             }
 
             if (valor && typeof valor === "object") {
-                const items = Object.values(valor)
-                    .map((item) => String(item ?? "").trim())
+                if (valor.ginecobstetrico && typeof valor.ginecobstetrico === "object") {
+                    const gineco = valor.ginecobstetrico;
+                    const partes = [];
+                    if (gineco.fechaFum) partes.push(`FUM: ${gineco.fechaFum}`);
+                    if (gineco.fechaMenarquia) partes.push(`Menarquia: ${gineco.fechaMenarquia}`);
+                    if (gineco.planifica) partes.push(`Planifica: ${gineco.planifica}`);
+                    return partes.join(" | ") || "N/A";
+                }
+
+                const items = Object.entries(valor)
+                    .map(([clave, item]) => {
+                        if (item && typeof item === "object") {
+                            return `${clave}: ${this.formatearListaCaracterizacion(item)}`;
+                        }
+                        const texto = String(item ?? "").trim();
+                        return texto ? `${clave}: ${texto}` : "";
+                    })
                     .filter(Boolean);
 
                 return items.join(", ") || "N/A";

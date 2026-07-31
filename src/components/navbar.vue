@@ -35,6 +35,12 @@
 
           <div class="offcanvas-body">
             <ul class="navbar-nav justify-content-end flex-grow-1 pe-3 small">
+              <li class="nav-item">
+                <router-link class="nav-link" to="/homeviews" @click="onNavLinkClick">
+                  <i class="bi bi-house-door-fill"></i> <span class="nav-label">Home</span>
+                </router-link>
+              </li>
+
               <li class="nav-item" v-if="userData && userData.cargo === 'Fact'">
                 <router-link class="nav-link" to="/sop_facturacion" @click="onNavLinkClick">
                   <i class="bi bi-person-circle"></i> <span class="nav-label">Facturador</span>
@@ -192,20 +198,20 @@
               </li>
 
               <li class="nav-item">
-                <router-link class="nav-link" to="/homeviews" @click="onNavLinkClick">
-                  <i class="bi bi-house-door-fill"></i> <span class="nav-label">Home</span>
+                <router-link class="nav-link" to="/cambiar-password" @click="onNavLinkClick">
+                  <i class="bi bi-key-fill"></i> <span class="nav-label">Cambiar<br>clave</span>
+                </router-link>
+              </li>
+
+              <li class="nav-item">
+                <router-link class="nav-link" to="/tutorial" @click="onNavLinkClick">
+                  <i class="bi bi-mortarboard-fill"></i> <span class="nav-label">Tutorial</span>
                 </router-link>
               </li>
 
               <li class="nav-item">
                 <router-link class="nav-link" to="/info" @click="onNavLinkClick">
                   <i class="bi bi-info-circle"></i> <span class="nav-label">Info</span>
-                </router-link>
-              </li>
-
-              <li class="nav-item">
-                <router-link class="nav-link" to="/cambiar-password" @click="onNavLinkClick">
-                  <i class="bi bi-key-fill"></i> <span class="nav-label">Cambiar<br>clave</span>
                 </router-link>
               </li>
 

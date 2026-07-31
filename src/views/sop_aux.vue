@@ -118,11 +118,10 @@
 
                       <template v-if="esAuxiliarMostrado">
                         <div>
-                          <button type="button" class="btn btn-danger agendar-btn" @click="eliminarRegistro(encuesta.id)"
-                            :disabled="eliminandoRegistro === encuesta.id" :title="'Eliminar registro'">
-                            <i class="bi bi-trash" v-if="eliminandoRegistro !== encuesta.id"></i>
-                            <i class="bi bi-hourglass-split" v-else></i>
-                            <span class="agendar-label">{{ eliminandoRegistro === encuesta.id ? 'Verif' : 'Elim' }}</span>
+                          <button type="button" class="btn btn-secondary agendar-btn" @click="gestionarRegistro(encuesta.id)"
+                            title="Gestionar / editar registro">
+                            <i class="bi bi-gear-fill"></i>
+                            <span class="agendar-label">Gest</span>
                           </button>
                         </div>
                       </template>
@@ -168,6 +167,13 @@
                           <span class="agendar-label">Cups</span>
                         </button>
                       </div>
+                      <div v-if="esAuxiliarMostrado">
+                        <button type="button" class="btn btn-secondary agendar-btn" @click="gestionarRegistro(encuesta.id)"
+                          title="Gestionar / editar registro">
+                          <i class="bi bi-gear-fill"></i>
+                          <span class="agendar-label">Gest</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -177,6 +183,13 @@
         </div>
       </div>
     </div>
+
+    <GestionarEncuestaModal
+      :visible="mostrarModalGestion"
+      :encuesta-id="encuestaGestionId"
+      @close="cerrarModalGestion"
+      @saved="onGestionGuardada"
+    />
   </div>
 </template>
 
@@ -189,61 +202,46 @@ import { formatBandejaShortDate, groupBandejaItemsByDay } from "@/utils/bandejaP
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 import AssignedProfessionalsBadge from "@/components/AssignedProfessionalsBadge.vue";
 import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
+import GestionarEncuestaModal from "@/components/GestionarEncuestaModal.vue";
 
 export default {
   components: {
     HoverInfoBadge,
     AssignedProfessionalsBadge,
     ProfesionalGrupoInfo,
+    GestionarEncuestaModal,
   },
   data() {
     return {
       cargando: true,
       fechaActual: "",
-      eliminandoRegistro: null,
       rutaAnterior: null,
       errorCarga: null,
       encuestasContador: [],
+      mostrarModalGestion: false,
+      encuestaGestionId: "",
     };
   },
 
   methods: {
     ...mapActions([
-      "removeRegEnc",
       "getAllRegistersByFechaStatus",
       "getAsignacionesByEncuesta",
     ]),
 
-    async eliminarRegistro(idEncuesta) {
-      if (!confirm('¿Está seguro de que desea eliminar este registro?\n\nEsta acción eliminará el registro de actividades y la encuesta asociada.')) {
-        return;
-      }
+    gestionarRegistro(idEncuesta) {
+      if (!idEncuesta) return;
+      this.encuestaGestionId = String(idEncuesta);
+      this.mostrarModalGestion = true;
+    },
 
-      this.eliminandoRegistro = idEncuesta;
+    cerrarModalGestion() {
+      this.mostrarModalGestion = false;
+      this.encuestaGestionId = "";
+    },
 
-      try {
-        const asignaciones = await this.getAsignacionesByEncuesta(idEncuesta);
-
-        // Validar específicamente si hay CUPS (no solo propiedades del objeto)
-        const hayCups = asignaciones && asignaciones.cups && 
-          ((Array.isArray(asignaciones.cups) && asignaciones.cups.length > 0) ||
-           (typeof asignaciones.cups === 'object' && Object.keys(asignaciones.cups).length > 0));
-
-        if (hayCups) {
-          alert('⚠️ No se puede eliminar el registro\n\nEste registro tiene CUPS asignados. Debe eliminar primero todos los CUPS antes de eliminar el registro principal.');
-          return;
-        }
-
-        await this.removeRegEnc(idEncuesta);
-        alert('✅ Registro eliminado exitosamente\n\nSe ha eliminado el registro de actividades y la encuesta asociada.');
-        await this.cargarEncuestas();
-
-      } catch (error) {
-        console.error('Error al eliminar registro:', error);
-        alert('⚠️ Error al eliminar el registro\n\n' + (error.message || 'Error desconocido. Intente nuevamente.'));
-      } finally {
-        this.eliminandoRegistro = null;
-      }
+    async onGestionGuardada() {
+      await this.cargarEncuestas();
     },
 
     Agendar(id, tipo) {

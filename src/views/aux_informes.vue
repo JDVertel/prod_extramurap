@@ -319,11 +319,15 @@ import {
     mapState,
     mapActions
 } from "vuex";
-import realtime_api from "@/api/realtimeApi";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 import appLogoUrl from "@/assets/images/logo_extramurapp.png";
 import esebLogoUrl from "@/assets/images/logo_eseb.png";
+import {
+    cargarCupsPorEncuestaIds,
+    filtrarCupsDelProfesional,
+    mapearActividadesDesdeCups,
+} from "@/utils/informesAsignaciones";
 
 pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 export default {
@@ -767,59 +771,28 @@ export default {
             const mapa = {};
             const cupsMap = {};
             const encuestas = this.encuestasFiltradas || [];
-            const cargoActual = this.normalizarTexto(this.userData?.cargo || "");
-            const nombreActual = this.normalizarTexto(this.userData?.nombre || "");
-            const documentoActual = String(this.userData?.numDocumento || "").trim();
+            const ids = encuestas.map((encuesta) => encuesta.id).filter(Boolean);
 
-            await Promise.all(
-                encuestas.map(async (encuesta) => {
-                    try {
-                        const { data } = await realtime_api.get(`/Asignaciones/${encuesta.id}.json`, {
-                            params: { _ts: Date.now() },
-                            headers: {
-                                "Cache-Control": "no-cache, no-store, must-revalidate",
-                                Pragma: "no-cache",
-                                Expires: "0",
-                            },
-                        });
-                        const cups = data?.cups && typeof data.cups === "object"
-                            ? Object.values(data.cups).filter(Boolean)
-                            : [];
-
-                        // Solo se marcan actividades con CUPS agregados por el usuario logueado.
-                        const cupsDelProfesional = cups.filter((cup) => {
-                            const cargoCup = this.normalizarTexto(cup?.key || "");
-                            if (!cargoActual || cargoCup !== cargoActual) return false;
-
-                            const documentoCup = String(cup?.idProf ?? cup?.idProfesional ?? "").trim();
-                            if (documentoActual && documentoCup) {
-                                return documentoCup === documentoActual;
-                            }
-
-                            const nombreCup = this.normalizarTexto(cup?.nombreProf || "");
-                            if (nombreActual && nombreCup) {
-                                return nombreCup === nombreActual;
-                            }
-
-                            return false;
-                        });
-                        cupsMap[encuesta.id] = cupsDelProfesional;
-
-                        const actividadIds = cupsDelProfesional
-                            .map((cup) => cup?.actividadId ?? cup?.idActividad)
-                            .filter(Boolean);
-
-                        const nombresActividades = Array.from(new Set(actividadIds))
-                            .map((idActividad) => this.obtenerNombreActividadExtra(idActividad))
-                            .filter(Boolean);
-
-                        mapa[encuesta.id] = nombresActividades;
-                    } catch (error) {
-                        mapa[encuesta.id] = [];
-                        cupsMap[encuesta.id] = [];
-                    }
-                })
-            );
+            try {
+                const cupsPorId = await cargarCupsPorEncuestaIds(ids);
+                encuestas.forEach((encuesta) => {
+                    const cupsDelProfesional = filtrarCupsDelProfesional(
+                        cupsPorId[encuesta.id] || [],
+                        this.userData
+                    );
+                    cupsMap[encuesta.id] = cupsDelProfesional;
+                    mapa[encuesta.id] = mapearActividadesDesdeCups(
+                        cupsDelProfesional,
+                        (idActividad) => this.obtenerNombreActividadExtra(idActividad)
+                    );
+                });
+            } catch (error) {
+                console.error("Error cargando asignaciones del informe:", error);
+                encuestas.forEach((encuesta) => {
+                    mapa[encuesta.id] = [];
+                    cupsMap[encuesta.id] = [];
+                });
+            }
 
             this.actividadesPorEncuesta = mapa;
             this.cupsPorEncuesta = cupsMap;

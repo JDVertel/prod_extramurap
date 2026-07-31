@@ -13,38 +13,40 @@
                 <div class="text-muted small">Guardando datos, por favor espere...</div>
             </div>
         </div>
-        <div class="container" :aria-busy="guardando">
+        <div class="container caracterizacion-form" :aria-busy="guardando">
             <h1 class="text-center">Caracterización de la visita</h1>
-            <div class="row">
+
+            <section class="seccion-caracterizacion">
                 <hr />
                 <h4>Visita</h4>
-                <div class="col-6">
-                    <select id="visita" name="visita" class="form-select" aria-label="Default select example"
-                        v-model="visita">
-                        <option selected value="">Seleccione</option>
-                        <option value="efectiva">Efectiva</option>
-                        <option value="no_efectiva">No Efectiva</option>
-                    </select>
+                <div class="row g-2">
+                    <div class="col-12 col-md-6">
+                        <select id="visita" name="visita" class="form-select" aria-label="Default select example"
+                            v-model="visita">
+                            <option selected value="">Seleccione</option>
+                            <option value="efectiva">Efectiva</option>
+                            <option value="no_efectiva">No Efectiva</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6" v-if="visita == 'efectiva'">
+                        <select id="tipovisita" name="tipovisita" class="form-select" aria-label="Default select example"
+                            v-model="tipovisita">
+                            <option selected value="">Tipo Visita</option>
+                            <option v-if="mostrarOpcionPrimeraVisita" value="1">primera visita</option>
+                            <option value="2">control</option>
+                            <option value="3">seguimiento</option>
+                        </select>
+                        <small v-if="ocultarPrimeraVisitaPorRegistroPrevio" class="text-muted d-block mt-1">
+                            Este paciente ya tiene registro previo en Equipos Básicos. Seleccione <strong>control</strong> o <strong>seguimiento</strong> según corresponda.
+                        </small>
+                    </div>
                 </div>
-                <div class="col-6" v-if="visita == 'efectiva'">
-                    <select id="tipovisita" name="tipovisita" class="form-select" aria-label="Default select example"
-                        v-model="tipovisita">
-                        <option selected value="">Tipo Visita</option>
-                        <option v-if="mostrarOpcionPrimeraVisita" value="1">primera visita</option>
-                        <option value="2">control</option>
-                        <option value="3">seguimiento</option>
-                    </select>
-                    <small v-if="ocultarPrimeraVisitaPorRegistroPrevio" class="text-muted d-block mt-1">
-                        Este paciente ya tiene registro previo en Equipos Básicos. Seleccione <strong>control</strong> o <strong>seguimiento</strong> según corresponda.
-                    </small>
-                </div>
-            </div>
+            </section>
 
-            <br />
-
-            <div class="row">
+            <section class="seccion-caracterizacion" v-if="!esConvenioUnidesa">
                 <hr />
                 <h4>Vivienda</h4>
+                <div class="row">
                 <div class="col-6">
                     <div class="form-floating mb-3">
                         <select id="tipoVivienda" class="form-select" v-model="tipovivienda"
@@ -57,8 +59,7 @@
                         <label for="tipoVivienda">Tipo de vivienda</label>
                     </div>
 
-                    <br />
-                    <p>Estado Actual</p>
+                    <p class="mt-2 mb-1">Estado Actual</p>
                     <div>
                         <div class="form-floating">
                             <select class="form-select" id="iluminacionSelect" v-model="EstActual_Iluminacion"
@@ -125,11 +126,10 @@
                     </div>
                     <!--   {{ seleccionadosServPublic }} -->
                 </div>
-            </div>
-        </div>
+                </div>
+            </section>
 
-        <br />
-        <div class="container">
+            <section class="seccion-caracterizacion" v-if="!esConvenioUnidesa">
             <div class="row">
                 <hr />
                 <h4>Factores de Riesgo</h4>
@@ -157,9 +157,9 @@
                     <!-- {{ seleccionadosPresenciaAnimales }} -->
                 </div>
             </div>
-        </div>
-        <br />
-        <div class="container">
+            </section>
+
+            <section class="seccion-caracterizacion" v-if="!esConvenioUnidesa">
             <hr />
             <div class="row p-1">
                 <div class="col-6 p-1">
@@ -333,9 +333,9 @@
                     </tbody>
                 </table>
             </div>
-        </div>
-        <br />
-        <div class="container">
+            </section>
+
+            <section class="seccion-caracterizacion" v-if="!esConvenioUnidesa">
             <div class="row">
                 <hr />
                 <h4>Antecedentes personales</h4>
@@ -346,12 +346,11 @@
                         {{ opcion.texto }}
                     </label>
                 </div>
-                <br />
                 <!--  {{ seleccionadosAntecedentes }} -->
             </div>
-        </div>
-        <br />
-        <div class="container">
+            </section>
+
+            <section class="seccion-caracterizacion" v-if="!esConvenioUnidesa">
             <div class="row">
                 <hr />
                 <h4>Riesgos</h4>
@@ -404,9 +403,34 @@
                     <!--  {{ seleccionadosRiesgos }} -->
                 </div>
             </div>
-        </div>
-        <br />
-        <div class="container">
+            </section>
+
+            <section class="seccion-caracterizacion" v-if="mostrarAntecedentesGinecobstetricos">
+            <div class="row">
+                <hr />
+                <h4>Antecedentes ginecobstétricos</h4>
+                <p class="small text-muted mb-2">Campos obligatorios para convenio Unidesa.</p>
+                <div class="col-md-4 mb-3">
+                    <label for="fechaFum" class="form-label">Fecha última menstruación (FUM)</label>
+                    <input id="fechaFum" type="date" class="form-control" v-model="fechaFum" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="fechaMenarquia" class="form-label">Fecha de menarquia</label>
+                    <input id="fechaMenarquia" type="date" class="form-control" v-model="fechaMenarquia" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="planifica" class="form-label">Planifica</label>
+                    <select id="planifica" class="form-select" v-model="planifica">
+                        <option value="">Seleccione</option>
+                        <option value="SI">SI</option>
+                        <option value="NO">NO</option>
+                        <option value="NA">NA</option>
+                    </select>
+                </div>
+            </div>
+            </section>
+
+            <section class="seccion-caracterizacion">
             <div class="row">
                 <hr />
                 <h4>Tamizaje</h4>
@@ -473,8 +497,7 @@
                             <label for="floatingInput8">Temperatura (°C) - Obligatorio</label>
                         </div>
                     </div>
-                    <div class="container">
-                        <div class="row">
+                    <div class="row">
                             <div class="col-6">
                                 <div class="form-floating mb-3">
                                     <input type="number" class="form-control" id="floatingInput9" v-model="Calimc"
@@ -489,13 +512,12 @@
                                     <label for="floatingInput10">Clasificacion IMC </label>
                                 </div>
                             </div>
-                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <br />
-        <div class="container">
+            </section>
+
+            <section class="seccion-caracterizacion">
             <div class="row">
                 <hr />
                 <h4>Tamizaje Visual (f de Snellen)</h4>
@@ -516,28 +538,29 @@
                     </div>
                 </div>
             </div>
-        </div>
-        <br />
-        <div class="container">
+            </section>
+
+            <section class="seccion-caracterizacion seccion-acciones">
             <div class="row">
                 <hr />
                 <h4>Estado del esquema vacunal</h4>
                 <p class="small text-muted mb-2">Campo Obligatorio</p>
-                <select id="evacunal" name="evacunal" class="form-select" aria-label="Default select example"
-                    v-model="Evacunal">
-                    <option selected value="">Seleccione</option>
-                    <option value="Completo">Completo</option>
-                    <option value="Incompleto">Incompleto</option>
-                </select>
+                <div class="col-12 col-md-6">
+                    <select id="evacunal" name="evacunal" class="form-select" aria-label="Default select example"
+                        v-model="Evacunal">
+                        <option selected value="">Seleccione</option>
+                        <option value="Completo">Completo</option>
+                        <option value="Incompleto">Incompleto</option>
+                    </select>
+                </div>
             </div>
-            <div>
-                <br />
+            <div class="mt-3">
                 <button class="btn btn-primary" @click="guardarDatosCaracterizacion">
                     Guardar Datos
                 </button>
             </div>
+            </section>
         </div>
-        <br />
     </div>
 </template>
 
@@ -547,12 +570,14 @@ import {
     mapState
 } from "vuex";
 import realtime_api from "@/api/realtimeApi";
+import { esConvenioUnidesa as esConvenioUnidesaValor } from "@/constants/convenios";
 export default {
     name: "SopCaracterizacion",
     data() {
         return {
             idEncuesta: "",
             pacienteYaRegistradoEBasicos: false,
+            sexoPaciente: "",
             visita: "",
             tipovisita: "",
             tipovivienda: "",
@@ -574,6 +599,9 @@ export default {
             Oizquierdo: "",
             Oderecho: "",
             Evacunal: "",
+            fechaFum: "",
+            fechaMenarquia: "",
+            planifica: "",
             detalleSedentarismo: "",
             detalleConsumoAlcohol: "",
             detalleConsumoCigarrillo: "",
@@ -933,109 +961,62 @@ export default {
         //requiero  que se pregunte si se desea guardar la informaicon antes de realizar el guardado
 
         async guardarDatosCaracterizacion() {
-            const campos = [{
-                valor: this.idEncuesta,
-                nombre: "ID Encuesta",
-            },
-            {
-                valor: this.visita,
-                nombre: "Visita",
-            },
-            {
-                valor: this.tipovisita,
-                nombre: "Tipo de Visita",
-            },
-            {
-                valor: this.tipovivienda,
-                nombre: "Tipo de Vivienda",
-            },
-            {
-                valor: this.EstActual_Iluminacion,
-                nombre: "Iluminación",
-            },
-            {
-                valor: this.EstActual_Ventilacion,
-                nombre: "Ventilación",
-            },
-            {
-                valor: this.EstActual_Paredes,
-                nombre: "Paredes",
-            },
-            {
-                valor: this.EstActual_Pisos,
-                nombre: "Pisos",
-            },
-            {
-                valor: this.EstActual_Techo,
-                nombre: "Techo",
-            },
-            {
-                valor: this.peso,
-                nombre: "Peso",
-            },
-            {
-                valor: this.talla,
-                nombre: "Talla",
-            },
-            {
-                valor: this.tensionSistolica,
-                nombre: "Tensión Sistólica",
-            },
-            {
-                valor: this.tensionDiastolica,
-                nombre: "Tensión Diastólica",
-            },
-            {
-                valor: this.perimetroAbdominal,
-                nombre: "Perímetro Abdominal",
-            },
-            {
-                valor: this.oximetria,
-                nombre: "Oximetría",
-            },
-            {
-                valor: this.temperatura,
-                nombre: "Temperatura",
-            },
-            {
-                valor: this.Oizquierdo,
-                nombre: "Oído Izquierdo",
-            },
-            {
-                valor: this.Oderecho,
-                nombre: "Oído Derecho",
-            },
-            {
-                valor: this.Evacunal,
-                nombre: "Estado Vacunal",
-            },
-            {
-                valor: this.seleccionadosServPublic,
-                nombre: "Servicios Públicos",
-            },
-            {
-                valor: this.seleccionadosFactoresRiesgo,
-                nombre: "Factores de Riesgo",
-            },
-            {
-                valor: this.seleccionadosPresenciaAnimales,
-                nombre: "Presencia de Animales",
-            },
-            {
-                valor: this.seleccionadosAntecedentes,
-                nombre: "Antecedentes Personales",
-            },
-
-            {
-                valor: this.seleccionadosRiesgos,
-                nombre: "Riesgos",
-            },
+            const camposBase = [
+                { valor: this.idEncuesta, nombre: "ID Encuesta" },
+                { valor: this.visita, nombre: "Visita" },
+                { valor: this.peso, nombre: "Peso" },
+                { valor: this.talla, nombre: "Talla" },
+                { valor: this.tensionSistolica, nombre: "Tensión Sistólica" },
+                { valor: this.tensionDiastolica, nombre: "Tensión Diastólica" },
+                { valor: this.perimetroAbdominal, nombre: "Perímetro Abdominal" },
+                { valor: this.oximetria, nombre: "Oximetría" },
+                { valor: this.temperatura, nombre: "Temperatura" },
+                { valor: this.Oizquierdo, nombre: "Oído Izquierdo" },
+                { valor: this.Oderecho, nombre: "Oído Derecho" },
+                { valor: this.Evacunal, nombre: "Estado Vacunal" },
             ];
+
+            const camposCompletos = [
+                ...camposBase,
+                { valor: this.tipovisita, nombre: "Tipo de Visita" },
+                { valor: this.tipovivienda, nombre: "Tipo de Vivienda" },
+                { valor: this.EstActual_Iluminacion, nombre: "Iluminación" },
+                { valor: this.EstActual_Ventilacion, nombre: "Ventilación" },
+                { valor: this.EstActual_Paredes, nombre: "Paredes" },
+                { valor: this.EstActual_Pisos, nombre: "Pisos" },
+                { valor: this.EstActual_Techo, nombre: "Techo" },
+                { valor: this.seleccionadosServPublic, nombre: "Servicios Públicos" },
+                { valor: this.seleccionadosFactoresRiesgo, nombre: "Factores de Riesgo" },
+                { valor: this.seleccionadosPresenciaAnimales, nombre: "Presencia de Animales" },
+                { valor: this.seleccionadosAntecedentes, nombre: "Antecedentes Personales" },
+                { valor: this.seleccionadosRiesgos, nombre: "Riesgos" },
+            ];
+
+            const camposUnidesa = [...camposBase];
+            if (this.mostrarAntecedentesGinecobstetricos) {
+                camposUnidesa.push(
+                    { valor: this.fechaFum, nombre: "Fecha última menstruación (FUM)" },
+                    { valor: this.fechaMenarquia, nombre: "Fecha de menarquia" },
+                    { valor: this.planifica, nombre: "Planifica" },
+                );
+            }
+
+            const campos = this.esConvenioUnidesa ? camposUnidesa : camposCompletos;
             let camposFaltantes = campos.filter((c) => !c.valor).map((c) => c.nombre);
-            if (this.seleccionadosServPublic.length === 0)
-                camposFaltantes.push("Servicios Públicos");
-            if (this.seleccionadosPresenciaAnimales.length === 0)
-                camposFaltantes.push("Presencia de Animales");
+
+            if (this.esConvenioUnidesa) {
+                if (this.visita === "efectiva" && !this.tipovisita) {
+                    camposFaltantes.push("Tipo de Visita");
+                }
+            } else {
+                if (this.seleccionadosServPublic.length === 0) {
+                    camposFaltantes.push("Servicios Públicos");
+                }
+                if (this.seleccionadosPresenciaAnimales.length === 0) {
+                    camposFaltantes.push("Presencia de Animales");
+                }
+            }
+
             if (camposFaltantes.length > 0) {
                 alert(
                     "!!Falta diligenciar los siguientes campos:\n" + camposFaltantes.join(", ")
@@ -1044,18 +1025,32 @@ export default {
             }
             const confirmado = window.confirm("¿Está seguro que desea guardar la información?");
             if (!confirmado) return;
+
+            let antecedentesPayload = this.seleccionadosAntecedentes;
+            if (this.esConvenioUnidesa) {
+                antecedentesPayload = this.mostrarAntecedentesGinecobstetricos
+                    ? {
+                        ginecobstetrico: {
+                            fechaFum: this.fechaFum,
+                            fechaMenarquia: this.fechaMenarquia,
+                            planifica: this.planifica,
+                        },
+                    }
+                    : [];
+            }
+
             const DatosGuardados = {
                 estadoCaracterizacion: true,
                 idEncuesta: this.idEncuesta,
                 convenio: this.userData?.convenio || "",
                 visita: this.visita,
                 tipovisita: this.tipovisita,
-                tipovivienda: this.tipovivienda,
-                EstActual_Iluminacion: this.EstActual_Iluminacion,
-                EstActual_Ventilacion: this.EstActual_Ventilacion,
-                EstActual_Paredes: this.EstActual_Paredes,
-                EstActual_Pisos: this.EstActual_Pisos,
-                EstActual_Techo: this.EstActual_Techo,
+                tipovivienda: this.esConvenioUnidesa ? "" : this.tipovivienda,
+                EstActual_Iluminacion: this.esConvenioUnidesa ? "" : this.EstActual_Iluminacion,
+                EstActual_Ventilacion: this.esConvenioUnidesa ? "" : this.EstActual_Ventilacion,
+                EstActual_Paredes: this.esConvenioUnidesa ? "" : this.EstActual_Paredes,
+                EstActual_Pisos: this.esConvenioUnidesa ? "" : this.EstActual_Pisos,
+                EstActual_Techo: this.esConvenioUnidesa ? "" : this.EstActual_Techo,
                 peso: this.peso,
                 talla: this.talla,
                 tensionSistolica: this.tensionSistolica,
@@ -1069,16 +1064,16 @@ export default {
                 Oizquierdo: this.Oizquierdo,
                 Oderecho: this.Oderecho,
                 Evacunal: this.Evacunal,
-                seleccionadosServPublic: this.seleccionadosServPublic,
-                seleccionadosFactoresRiesgo: this.seleccionadosFactoresRiesgo,
-                seleccionadosPresenciaAnimales: this.seleccionadosPresenciaAnimales,
-                seleccionadosAntecedentes: this.seleccionadosAntecedentes,
-                grupoFamiliar: this.grupoFamiliar,
-                seleccionadosRiesgos: this.seleccionadosRiesgos,
-                detalleSedentarismo: this.detalleSedentarismo,
-                detalleConsumoAlcohol: this.detalleConsumoAlcohol,
-                detalleConsumoCigarrillo: this.detalleConsumoCigarrillo,
-                AlimentacionPocoSaludable: this.AlimentacionPocoSaludable,
+                seleccionadosServPublic: this.esConvenioUnidesa ? [] : this.seleccionadosServPublic,
+                seleccionadosFactoresRiesgo: this.esConvenioUnidesa ? [] : this.seleccionadosFactoresRiesgo,
+                seleccionadosPresenciaAnimales: this.esConvenioUnidesa ? [] : this.seleccionadosPresenciaAnimales,
+                seleccionadosAntecedentes: antecedentesPayload,
+                grupoFamiliar: this.esConvenioUnidesa ? [] : this.grupoFamiliar,
+                seleccionadosRiesgos: this.esConvenioUnidesa ? [] : this.seleccionadosRiesgos,
+                detalleSedentarismo: this.esConvenioUnidesa ? "" : this.detalleSedentarismo,
+                detalleConsumoAlcohol: this.esConvenioUnidesa ? "" : this.detalleConsumoAlcohol,
+                detalleConsumoCigarrillo: this.esConvenioUnidesa ? "" : this.detalleConsumoCigarrillo,
+                AlimentacionPocoSaludable: this.esConvenioUnidesa ? "" : this.AlimentacionPocoSaludable,
             };
             this.guardando = true;
             try {
@@ -1110,6 +1105,19 @@ export default {
                 });
         },
 
+        async cargarSexoPaciente() {
+            this.sexoPaciente = "";
+            if (!this.idEncuesta) return;
+
+            try {
+                const { data: encuestaActual } = await realtime_api.get(`/Encuesta/${this.idEncuesta}.json`);
+                this.sexoPaciente = String(encuestaActual?.sexo || "").trim();
+            } catch (error) {
+                console.error("Error cargando sexo del paciente:", error);
+                this.sexoPaciente = "";
+            }
+        },
+
         async verificarRegistroPrevioEBasicos() {
             this.pacienteYaRegistradoEBasicos = false;
 
@@ -1120,6 +1128,9 @@ export default {
             try {
                 const { data: encuestaActual } = await realtime_api.get(`/Encuesta/${this.idEncuesta}.json`);
                 if (!encuestaActual) return;
+                if (!this.sexoPaciente) {
+                    this.sexoPaciente = String(encuestaActual?.sexo || "").trim();
+                }
 
                 const tipodoc = String(encuestaActual.tipodoc || "").trim();
                 const numdoc = String(encuestaActual.numdoc || "").trim();
@@ -1158,6 +1169,19 @@ export default {
 
         esConvenioEBasicos() {
             return String(this.userData?.convenio || "").trim() === "E Basicos";
+        },
+
+        esConvenioUnidesa() {
+            return esConvenioUnidesaValor(this.userData?.convenio);
+        },
+
+        esSexoFemenino() {
+            const sexo = String(this.sexoPaciente || "").trim().toLowerCase();
+            return sexo === "f" || sexo === "femenino" || sexo === "mujer";
+        },
+
+        mostrarAntecedentesGinecobstetricos() {
+            return this.esConvenioUnidesa && this.esSexoFemenino;
         },
 
         ocultarPrimeraVisitaPorRegistroPrevio() {
@@ -1259,6 +1283,7 @@ export default {
         } catch (e) {
             // Maneja el error si es necesario
         }
+        await this.cargarSexoPaciente();
         await this.verificarRegistroPrevioEBasicos();
         // Limpia posibles restos de modales
         document.body.classList.remove("modal-open");
@@ -1314,11 +1339,36 @@ export default {
 
 /* ===== COMPACTACIÓN DEL FORMULARIO ===== */
 
+.caracterizacion-form {
+    max-width: 960px;
+    padding-bottom: 1.5rem !important;
+}
+
+.caracterizacion-form > .seccion-caracterizacion {
+    margin: 0;
+    padding: 0.55rem 0 0.35rem;
+}
+
+.caracterizacion-form > .seccion-caracterizacion + .seccion-caracterizacion {
+    margin-top: 0.15rem;
+}
+
+.caracterizacion-form > .seccion-caracterizacion > hr,
+.caracterizacion-form > .seccion-caracterizacion .row > hr {
+    margin-top: 0.15rem;
+    margin-bottom: 0.45rem;
+    opacity: 0.35;
+}
+
+.caracterizacion-form .seccion-acciones {
+    padding-bottom: 0.75rem;
+}
+
 /* Título principal */
 .container h1.text-center {
     font-size: 1.3rem;
-    margin-bottom: 0.4rem;
-    margin-top: 0.5rem;
+    margin-bottom: 0.35rem;
+    margin-top: 0.35rem;
 }
 
 /* Separadores de sección */
@@ -1375,11 +1425,10 @@ export default {
     }
 }
 
-/* Espaciado entre bloques — reemplaza los <br /> */
-.container + br + .container,
-.container {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
+/* Espaciado entre bloques */
+.caracterizacion-form.container {
+    padding-top: 0.25rem !important;
+    padding-bottom: 1rem !important;
 }
 
 /* Form-floating compacto */

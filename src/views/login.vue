@@ -303,36 +303,36 @@ body {
 }
 
 .login-card {
-    max-width: 400px;
-    width: 90%;
+    max-width: 520px;
+    width: 94%;
     background: #fff;
-    border-radius: 15px;
+    border-radius: 18px;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(0, 0, 0, 0.1);
-    opacity: 0.8;
+    padding: 2rem !important;
 }
 
 .login-card h2 {
-    font-size: 1.8rem;
+    font-size: 2.1rem;
     font-weight: 600;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .login-card .form-label {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 500;
 }
 
 .login-card .form-control {
-    font-size: 1rem;
-    padding: 0.75rem;
+    font-size: 1.1rem;
+    padding: 0.9rem;
     height: auto;
 }
 
 .login-card .buttonLogin {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 600;
-    padding: 0.75rem;
+    padding: 0.9rem;
 }
 
 .login-card p.text-danger {
@@ -341,8 +341,8 @@ body {
 
 .login-logo-bg {
     display: block;
-    margin: 0 auto 25px auto;
-    max-width: 260px;
+    margin: 0 auto 28px auto;
+    max-width: 320px;
     width: 100%;
     height: auto;
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
@@ -350,7 +350,7 @@ body {
 
 .login-card i.bi {
     margin-right: 8px;
-    font-size: 1.3rem;
+    font-size: 1.45rem;
 }
 
 .login-footer-version {
@@ -393,8 +393,9 @@ body {
 
     .login-card {
         width: 95%;
-        max-width: 350px;
-        margin: 0 20px 20px 20px;
+        max-width: 440px;
+        margin: 0 16px 20px 16px;
+        padding: 1.5rem !important;
     }
 
     .login-footer-version {

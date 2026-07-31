@@ -71,7 +71,7 @@
                         <div class="mb-3">
                             <label for="busquedaUsuario" class="form-label mb-1"><strong>Buscar:</strong></label>
                             <input id="busquedaUsuario" v-model="busquedaUsuario" type="text" class="form-control"
-                                placeholder="Correo o número de documento" />
+                                placeholder="Nombre, correo o número de documento" />
                         </div>
 
                         <ul v-if="conveniosTabs.length" class="nav nav-tabs convenios-usuarios-tabs flex-wrap" role="tablist">
@@ -103,59 +103,124 @@
                         </ul>
                     </div>
 
-                    <!-- Acciones masivas -->
-                    <div v-if="usuariosSeleccionadosIds.length > 0" class="bulk-actions-bar mb-3 p-3 border rounded">
-                        <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between">
-                            <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <span class="badge bg-primary">
-                                    {{ usuariosSeleccionadosIds.length }} seleccionado{{ usuariosSeleccionadosIds.length === 1 ? '' : 's' }}
-                                </span>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" @click="limpiarSeleccionUsuarios">
-                                    Limpiar selección
-                                </button>
+                    <!-- Opciones masivas -->
+                    <div v-if="usuariosSeleccionadosIds.length > 0" class="bulk-actions-bar mb-3">
+                        <div class="bulk-actions-header">
+                            <div class="bulk-actions-title">
+                                <i class="bi bi-lightning-charge-fill"></i>
+                                <div>
+                                    <strong>Opciones masivas</strong>
+                                    <small class="d-block text-muted">
+                                        Se aplican a los
+                                        <strong>{{ usuariosSeleccionadosIds.length }}</strong>
+                                        usuario{{ usuariosSeleccionadosIds.length === 1 ? '' : 's' }}
+                                        seleccionado{{ usuariosSeleccionadosIds.length === 1 ? '' : 's' }}.
+                                    </small>
+                                </div>
                             </div>
-                            <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <button
-                                    type="button"
-                                    class="btn btn-sm btn-warning"
-                                    :disabled="loadingBulk"
-                                    @click="aplicarAccionMasivaActivo(false)"
-                                    title="Deshabilitar usuarios seleccionados"
-                                >
-                                    <i class="bi bi-person-x-fill"></i> Deshabilitar
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn btn-sm btn-success"
-                                    :disabled="loadingBulk"
-                                    @click="aplicarAccionMasivaActivo(true)"
-                                    title="Habilitar usuarios seleccionados"
-                                >
-                                    <i class="bi bi-person-check-fill"></i> Habilitar
-                                </button>
-                                <div class="input-group input-group-sm bulk-grupo-input">
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                :disabled="loadingBulk"
+                                @click="limpiarSeleccionUsuarios"
+                            >
+                                <i class="bi bi-x-circle"></i> Limpiar selección
+                            </button>
+                        </div>
+
+                        <div class="bulk-actions-grid">
+                            <section class="bulk-action-card">
+                                <h3 class="bulk-action-label">
+                                    <i class="bi bi-toggle-on"></i> Estado
+                                </h3>
+                                <div class="bulk-action-controls">
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-success"
+                                        :disabled="loadingBulk"
+                                        @click="aplicarAccionMasivaActivo(true)"
+                                        title="Habilitar usuarios seleccionados"
+                                    >
+                                        <i class="bi bi-person-check-fill"></i> Habilitar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-warning"
+                                        :disabled="loadingBulk"
+                                        @click="aplicarAccionMasivaActivo(false)"
+                                        title="Deshabilitar usuarios seleccionados"
+                                    >
+                                        <i class="bi bi-person-x-fill"></i> Deshabilitar
+                                    </button>
+                                </div>
+                            </section>
+
+                            <section class="bulk-action-card">
+                                <h3 class="bulk-action-label">
+                                    <i class="bi bi-people-fill"></i> Grupo
+                                </h3>
+                                <div class="input-group input-group-sm">
                                     <input
                                         v-model="bulkGrupoValor"
                                         type="text"
                                         class="form-control"
-                                        placeholder="Nuevo grupo (ej: 1 o 1,2)"
+                                        placeholder="Ej: 1 o 1,2"
                                         :disabled="loadingBulk"
                                         @keyup.enter="aplicarAccionMasivaGrupo"
                                     />
                                     <button
                                         type="button"
-                                        class="btn btn-outline-primary"
+                                        class="btn btn-primary"
                                         :disabled="loadingBulk || !String(bulkGrupoValor || '').trim()"
                                         @click="aplicarAccionMasivaGrupo"
                                     >
-                                        <i class="bi bi-people-fill"></i> Cambiar grupo
+                                        Aplicar
                                     </button>
                                 </div>
+                            </section>
+
+                            <section class="bulk-action-card">
+                                <h3 class="bulk-action-label">
+                                    <i class="bi bi-calendar-event"></i> Vigencia del contrato
+                                </h3>
+                                <div class="input-group input-group-sm">
+                                    <input
+                                        v-model="bulkFechaFinContrato"
+                                        type="date"
+                                        class="form-control"
+                                        :disabled="loadingBulk"
+                                        title="Nueva fecha de finalización de contrato"
+                                        @keyup.enter="aplicarAccionMasivaFechaFinContrato"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="btn btn-primary"
+                                        :disabled="loadingBulk || !String(bulkFechaFinContrato || '').trim()"
+                                        @click="aplicarAccionMasivaFechaFinContrato"
+                                        title="Aplicar fecha de vigencia a los seleccionados"
+                                    >
+                                        Aplicar
+                                    </button>
+                                </div>
+                            </section>
+                        </div>
+
+                        <div v-if="loadingBulk" class="bulk-actions-progress mt-3">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span>Procesando cambios masivos...</span>
+                                <span>{{ bulkProgresoActual }} / {{ bulkProgresoTotal }}</span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div
+                                    class="progress-bar progress-bar-striped progress-bar-animated"
+                                    role="progressbar"
+                                    :style="{ width: bulkProgresoPorcentaje + '%' }"
+                                    :aria-valuenow="bulkProgresoPorcentaje"
+                                    aria-valuemin="0"
+                                    aria-valuemax="100"
+                                ></div>
                             </div>
                         </div>
-                        <small class="text-muted d-block mt-2" v-if="loadingBulk">
-                            Procesando {{ bulkProgresoActual }} de {{ bulkProgresoTotal }}...
-                        </small>
                     </div>
 
                     <div class="usuarios-container">
@@ -180,7 +245,7 @@
                             <div v-else-if="Object.keys(gruposConvenioActivo).length === 0" class="alert alert-info">
                                 No se encontraron usuarios en
                                 <strong>{{ etiquetaConvenioTab(convenioSeleccionado) }}</strong>
-                                con el correo o documento ingresado.
+                                con el nombre, correo o documento ingresado.
                             </div>
                             <template v-else>
                             <div class="convenio-section mb-4">
@@ -198,7 +263,21 @@
                                     <div v-for="grupo in ordenarGruposConvenio(gruposConvenioActivo)"
                                         :key="`${convenioSeleccionado}-${grupo}`"
                                         class="accordion-item">
-                                        <h2 class="accordion-header">
+                                        <h2 class="accordion-header grupo-accordion-header">
+                                            <div
+                                                class="grupo-select-wrap"
+                                                @click.stop
+                                                title="Seleccionar todo el grupo"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    class="form-check-input grupo-select-checkbox"
+                                                    :checked="grupoEstaSeleccionadoCompleto(gruposConvenioActivo[grupo])"
+                                                    :indeterminate.prop="grupoEstaParcialmenteSeleccionado(gruposConvenioActivo[grupo])"
+                                                    @change="toggleSeleccionGrupo(gruposConvenioActivo[grupo], $event.target.checked)"
+                                                    :aria-label="'Seleccionar grupo ' + etiquetaGrupoListado(grupo)"
+                                                />
+                                            </div>
                                             <button
                                                 class="accordion-button collapsed"
                                                 type="button"
@@ -1109,6 +1188,7 @@ export default {
             /* Selección múltiple / acciones masivas */
             usuariosSeleccionadosIds: [],
             bulkGrupoValor: "",
+            bulkFechaFinContrato: "",
             loadingBulk: false,
             bulkProgresoActual: 0,
             bulkProgresoTotal: 0,
@@ -1118,6 +1198,12 @@ export default {
         usuariosSeleccionados() {
             const ids = new Set(this.usuariosSeleccionadosIds);
             return (this.users || []).filter((user) => ids.has(this.obtenerIdUsuario(user)));
+        },
+        bulkProgresoPorcentaje() {
+            const total = Number(this.bulkProgresoTotal) || 0;
+            const actual = Number(this.bulkProgresoActual) || 0;
+            if (!total) return 0;
+            return Math.min(100, Math.round((actual / total) * 100));
         },
         convenioFormClass() {
             return CONVENIO_FORM_CLASS[this.convenio] || "";
@@ -1237,9 +1323,14 @@ export default {
                 if (!busqueda) return true;
 
                 const email = (user.email || '').toLowerCase();
-                const documento = (user.numDocumento || '').toString().toLowerCase();
+                const documento = (user.numDocumento || user.num_documento || '').toString().toLowerCase();
+                const nombre = (user.nombre || '').toLowerCase();
 
-                return email.includes(busqueda) || documento.includes(busqueda);
+                return (
+                    nombre.includes(busqueda) ||
+                    email.includes(busqueda) ||
+                    documento.includes(busqueda)
+                );
             });
 
             const resultado = {};
@@ -1806,6 +1897,7 @@ export default {
         limpiarSeleccionUsuarios() {
             this.usuariosSeleccionadosIds = [];
             this.bulkGrupoValor = "";
+            this.bulkFechaFinContrato = "";
         },
 
         async aplicarAccionMasivaActivo(activo) {
@@ -1907,6 +1999,55 @@ export default {
                 this.message = fail
                     ? `Cambio de grupo: ${ok} ok, ${fail} con error.`
                     : `Grupo actualizado en ${ok} usuario(s).`;
+                this.messageType = fail ? 'error' : 'success';
+                this.limpiarSeleccionUsuarios();
+            } finally {
+                this.loadingBulk = false;
+                this.bulkProgresoActual = 0;
+                this.bulkProgresoTotal = 0;
+            }
+        },
+
+        async aplicarAccionMasivaFechaFinContrato() {
+            const seleccionados = this.usuariosSeleccionados;
+            if (!seleccionados.length) return;
+
+            const fechaIngresada = this.normalizarFechaInput(this.bulkFechaFinContrato);
+            if (!fechaIngresada) {
+                this.message = 'Seleccione una fecha de vigencia válida.';
+                this.messageType = 'error';
+                return;
+            }
+
+            const fechaVisible = this.formatearFechaFinContrato(fechaIngresada);
+            if (!confirm(`¿Desea cambiar la fecha de vigencia de ${seleccionados.length} usuario(s) a "${fechaVisible}"?`)) {
+                return;
+            }
+
+            this.loadingBulk = true;
+            this.bulkProgresoActual = 0;
+            this.bulkProgresoTotal = seleccionados.length;
+            let ok = 0;
+            let fail = 0;
+
+            try {
+                for (const user of seleccionados) {
+                    this.bulkProgresoActual += 1;
+                    try {
+                        await updateUser(this.obtenerIdUsuario(user), {
+                            fechaFinContrato: fechaIngresada,
+                        });
+                        ok += 1;
+                    } catch (error) {
+                        fail += 1;
+                        console.error(`Error al cambiar vigencia de ${user?.email || user?.nombre}:`, error);
+                    }
+                }
+
+                await this.fetchUsers();
+                this.message = fail
+                    ? `Cambio de vigencia: ${ok} ok, ${fail} con error.`
+                    : `Vigencia actualizada en ${ok} usuario(s).`;
                 this.messageType = fail ? 'error' : 'success';
                 this.limpiarSeleccionUsuarios();
             } finally {
@@ -2927,13 +3068,116 @@ Esta acción eliminará el usuario de la base de datos.`)) {
 }
 
 .bulk-actions-bar {
-    background: #f8fbff;
-    border-color: #bcd0f7 !important;
-    box-shadow: 0 1px 4px rgba(13, 110, 253, 0.08);
+    background: #f4f8ff;
+    border: 1px solid #9ec0f5;
+    border-left: 4px solid #0d6efd;
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.08);
 }
 
-.bulk-grupo-input {
-    width: min(320px, 100%);
+.bulk-actions-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #c5d8f7;
+}
+
+.bulk-actions-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.bulk-actions-title > i {
+    color: #0d6efd;
+    font-size: 1.25rem;
+    margin-top: 2px;
+}
+
+.bulk-actions-title strong {
+    font-size: 1rem;
+    color: #0b3d91;
+}
+
+.bulk-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.bulk-action-card {
+    background: #fff;
+    border: 1px solid #d7e4fb;
+    border-radius: 8px;
+    padding: 10px 12px;
+    min-width: 0;
+}
+
+.bulk-action-label {
+    margin: 0 0 8px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #4b6ea8;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.bulk-action-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.bulk-actions-progress .progress {
+    background: #dbe8ff;
+}
+
+@media (max-width: 992px) {
+    .bulk-actions-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.grupo-accordion-header {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+}
+
+.grupo-select-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px 0 12px;
+    border-right: 1px solid rgba(0, 0, 0, 0.08);
+    z-index: 2;
+}
+
+.accordion-item:nth-child(odd) .grupo-select-wrap {
+    background: linear-gradient(135deg, #4facfe 0%, #fcffff 100%);
+}
+
+.accordion-item:nth-child(even) .grupo-select-wrap {
+    background: linear-gradient(135deg, #d7e51a 0%, #f6f7f6 100%);
+}
+
+.grupo-select-checkbox {
+    width: 1.1rem;
+    height: 1.1rem;
+    cursor: pointer;
+    margin: 0;
+}
+
+.grupo-accordion-header .accordion-button {
+    flex: 1 1 auto;
 }
 
 .tabla-usuarios thead {

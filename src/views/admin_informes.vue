@@ -518,6 +518,7 @@ import {
     mapActions
 } from "vuex";
 import { CONVENIOS_PROGRAMA } from "@/constants/convenios";
+import { informesApi } from "@/api/informesApi";
 
 /** Caché corta de dumps de catálogo compartidos entre tipos de informe. */
 const informesCatalogCache = {
@@ -533,7 +534,7 @@ function invalidateInformesCatalogCache() {
   informesCatalogCache.inflight = null;
 }
 
-async function loadInformesCatalogSnapshot({ includeActividades = false, includeCups = false, force = false } = {}) {
+async function loadInformesCatalogSnapshot({ includeAsignaciones = true, includeActividades = false, includeCups = false, force = false } = {}) {
   if (force) {
     invalidateInformesCatalogCache();
   }
@@ -543,6 +544,7 @@ async function loadInformesCatalogSnapshot({ includeActividades = false, include
   const cacheHit =
     cached &&
     now - informesCatalogCache.at < informesCatalogCache.ttlMs &&
+    (!includeAsignaciones || cached.asignaciones) &&
     (!includeActividades || cached.actividades) &&
     (!includeCups || cached.cups);
 
@@ -554,6 +556,7 @@ async function loadInformesCatalogSnapshot({ includeActividades = false, include
     const shared = await informesCatalogCache.inflight;
     if (
       shared &&
+      (!includeAsignaciones || shared.asignaciones) &&
       (!includeActividades || shared.actividades) &&
       (!includeCups || shared.cups)
     ) {
@@ -562,25 +565,35 @@ async function loadInformesCatalogSnapshot({ includeActividades = false, include
   }
 
   const loadPromise = (async () => {
-    const requests = [
-      realtime_api.get("/Asignaciones.json"),
-      realtime_api.get("/actividadesExtra.json"),
-    ];
-    if (includeActividades) requests.push(realtime_api.get("/Actividades.json"));
-    if (includeCups) requests.push(realtime_api.get("/cups.json"));
+    const requests = [];
+    const requestKeys = [];
+
+    if (includeAsignaciones) {
+      requests.push(realtime_api.get("/Asignaciones.json"));
+      requestKeys.push("asignaciones");
+    }
+    requests.push(realtime_api.get("/actividadesExtra.json"));
+    requestKeys.push("actividadesExtra");
+    if (includeActividades) {
+      requests.push(realtime_api.get("/Actividades.json"));
+      requestKeys.push("actividades");
+    }
+    if (includeCups) {
+      requests.push(realtime_api.get("/cups.json"));
+      requestKeys.push("cups");
+    }
 
     const responses = await Promise.all(requests);
-    let idx = 0;
-    const asignaciones = responses[idx++]?.data || {};
-    const actividadesExtra = responses[idx++]?.data || {};
-    const actividades = includeActividades ? (responses[idx++]?.data || {}) : (cached?.actividades || null);
-    const cups = includeCups ? (responses[idx++]?.data || {}) : (cached?.cups || null);
+    const byKey = {};
+    requestKeys.forEach((key, idx) => {
+      byKey[key] = responses[idx]?.data || {};
+    });
 
     const next = {
-      asignaciones,
-      actividadesExtra,
-      actividades,
-      cups,
+      asignaciones: includeAsignaciones ? (byKey.asignaciones || {}) : (cached?.asignaciones || null),
+      actividadesExtra: byKey.actividadesExtra || {},
+      actividades: includeActividades ? (byKey.actividades || {}) : (cached?.actividades || null),
+      cups: includeCups ? (byKey.cups || {}) : (cached?.cups || null),
     };
     informesCatalogCache.at = Date.now();
     informesCatalogCache.data = next;
@@ -1292,7 +1305,7 @@ export default {
 
             const [respEncuestas, catalog] = await Promise.all([
                 realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
-                loadInformesCatalogSnapshot({ includeActividades: true, force: true }),
+                loadInformesCatalogSnapshot({ includeActividades: true }),
             ]);
 
             const encuestasObj = respEncuestas?.data || {};
@@ -1637,7 +1650,7 @@ export default {
 
             const [respEncuestas, catalog] = await Promise.all([
                 realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
-                loadInformesCatalogSnapshot({ force: true }),
+                loadInformesCatalogSnapshot({}),
             ]);
 
             const encuestasObj = respEncuestas?.data || {};
@@ -2081,14 +2094,21 @@ export default {
             }
 
             try {
-                const catalog = await loadInformesCatalogSnapshot({
-                    includeActividades: true,
-                    includeCups: true,
-                    force: true,
-                });
+                const encuestaIds = encuestas
+                    .map((paciente) => String(paciente.id || paciente.idEncuesta || "").trim())
+                    .filter(Boolean);
+
+                const [catalog, bulkAsignaciones] = await Promise.all([
+                    loadInformesCatalogSnapshot({
+                        includeAsignaciones: false,
+                        includeActividades: true,
+                        includeCups: true,
+                    }),
+                    informesApi.getAsignacionesCupsBulk(encuestaIds),
+                ]);
 
                 const actividadesGlobal = catalog.actividades || {};
-                const asignacionesGlobal = catalog.asignaciones || {};
+                const asignacionesGlobal = bulkAsignaciones?.asignaciones || {};
                 const actividadesExtraGlobal = catalog.actividadesExtra || {};
                 const cupsGlobal = catalog.cups || {};
 
@@ -2149,7 +2169,6 @@ export default {
 
         async generarInforme() {
             this.cargandoInforme = true;
-            invalidateInformesCatalogCache();
             this.actualizarProgreso(5, "Preparando parámetros del informe...");
             this.$store.commit('setEncuestasAdmin', []);
             let consultaUsada = null;
@@ -2914,9 +2933,6 @@ export default {
             () => this.EncuestasAdmin,
             (nuevo) => {
                 this.detallesVisibles = Array.isArray(nuevo) ? Array(nuevo.length).fill(false) : [];
-                if (this.tipoinforme === "1" || this.tipoinforme === "2") {
-                    this.actualizarDatosSeguimientoInforme();
-                }
                 this.actualizarAnchoTabla();
             }, {
             immediate: true,

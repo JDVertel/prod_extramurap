@@ -756,6 +756,88 @@ export default createStore({
     },
 
     /**
+     * Actualiza una encuesta existente (datos paciente + profesionales).
+     * Conserva estados de gestión y no recrea actividades.
+     */
+    updateRegister: async ({ commit }, { idEncuesta, entradasE }) => {
+      try {
+        const encuestaId = String(idEncuesta || "").trim();
+        if (!encuestaId) {
+          throw new Error("ID de encuesta inválido para actualizar.");
+        }
+
+        const {
+          idMedicoAtiende,
+          idEnfermeroAtiende,
+          idPsicologoAtiende,
+          idTsocialAtiende,
+          idNutricionistaAtiende,
+          idHigienistaOralAtiende,
+          eps,
+          regimen,
+          nombre1,
+          nombre2,
+          apellido1,
+          apellido2,
+          tipodoc,
+          numdoc,
+          sexo,
+          fechaNac,
+          departamentoNacimiento,
+          municipioNacimiento,
+          identidadGenero,
+          ocupacion,
+          nivelOcupacion,
+          direccion,
+          telefono,
+          barrioVeredacomuna,
+          desplazamiento,
+          poblacionRiesgo,
+          requiereRemision,
+        } = entradasE || {};
+
+        const poblacionRiesgoNormalizada = Array.isArray(poblacionRiesgo)
+          ? poblacionRiesgo.map((item) => String(item || "").trim()).filter(Boolean)
+          : [];
+
+        const DataToUpdate = {
+          idMedicoAtiende: idMedicoAtiende || null,
+          idEnfermeroAtiende: idEnfermeroAtiende || null,
+          idPsicologoAtiende: idPsicologoAtiende || null,
+          idTsocialAtiende: idTsocialAtiende || null,
+          idNutricionistaAtiende: idNutricionistaAtiende || null,
+          idHigienistaOralAtiende: idHigienistaOralAtiende || null,
+          eps,
+          regimen,
+          nombre1,
+          nombre2,
+          apellido1,
+          apellido2,
+          tipodoc,
+          numdoc,
+          sexo,
+          fechaNac,
+          departamentoNacimiento,
+          municipioNacimiento,
+          identidadGenero,
+          ocupacion,
+          nivelOcupacion,
+          direccion,
+          telefono,
+          barrioVeredacomuna,
+          desplazamiento,
+          poblacionRiesgo: poblacionRiesgoNormalizada,
+          requiereRemision,
+        };
+
+        return await encuestasApi.update(encuestaId, DataToUpdate);
+      } catch (error) {
+        console.error("Error en Action_updateRegister:", error);
+        throw error;
+      }
+    },
+
+    /**
      * Elimina un paciente/encuesta por ID
      */
     deletePaciente: async ({ commit }, id) => {
@@ -1489,7 +1571,22 @@ export default createStore({
 
         const cargoNormalizado = String(cargo || "").trim().toLowerCase();
         const documentoEmpleado = String(idempleado || "").trim();
-        const params = {};
+        const params = {
+          fechaInicio,
+          fechaFin,
+        };
+
+        if (cargoNormalizado === "psicologo" || cargoNormalizado === "psicólogo") {
+          params.fechaCampo = "fechagestPsicologo";
+        } else if (cargoNormalizado === "tsocial" || cargoNormalizado === "trabajador social") {
+          params.fechaCampo = "fechagestTsocial";
+        } else if (cargoNormalizado === "nutricionista") {
+          params.fechaCampo = "fechagestNutricionista";
+        } else if (cargoNormalizado === "higienistaoral") {
+          params.fechaCampo = "fechagestHigienistaOral";
+        } else {
+          params.fechaCampo = "fechagestAuxiliar";
+        }
 
         if (documentoEmpleado && cargoNormalizado === "auxiliar de enfermeria") {
           params.idEncuestador = documentoEmpleado;
@@ -1529,6 +1626,12 @@ export default createStore({
             }
             if (cargoNormalizado === "tsocial" || cargoNormalizado === "trabajador social") {
               return normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestTsocial"));
+            }
+            if (cargoNormalizado === "nutricionista") {
+              return normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestNutricionista"));
+            }
+            if (cargoNormalizado === "higienistaoral") {
+              return normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestHigienistaOral"));
             }
             return normalizarFechaSoloDia(getEncuestaDateFieldValue(encuesta, "fechagestAuxiliar"));
           })();
@@ -1623,7 +1726,11 @@ export default createStore({
           throw new Error("Debes proporcionar ambas fechas para el filtro.");
         }
 
-        const params = {};
+        const params = {
+          fechaInicio,
+          fechaFin,
+          fechaCampo: "fechagestMedica",
+        };
         if (String(idempleado || "").trim()) {
           params.idMedicoAtiende = String(idempleado || "").trim();
         }
@@ -1681,6 +1788,11 @@ export default createStore({
         if (String(idempleado || "").trim()) {
           params.idMedicoAtiende = String(idempleado || "").trim();
         }
+        if (String(fechaInicio || "").trim() && String(fechaFin || "").trim()) {
+          params.fechaInicio = fechaInicio;
+          params.fechaFin = fechaFin;
+          params.fechaCampo = "fechagestMedica";
+        }
 
         const { data } = await realtime_api.get("/Encuesta.json", buildNoCacheRequestConfig(params));
         if (!data) {
@@ -1710,7 +1822,11 @@ export default createStore({
           throw new Error("Debes proporcionar ambas fechas para el filtro.");
         }
 
-        const params = {};
+        const params = {
+          fechaInicio,
+          fechaFin,
+          fechaCampo: "fechagestEnfermera",
+        };
         if (String(idempleado || "").trim()) {
           params.idEnfermeroAtiende = String(idempleado || "").trim();
         }
@@ -3904,7 +4020,12 @@ export default createStore({
      */
     GetRegistersbyRangeGeneral: async ({ commit }, parametros) => {
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", buildReadRequestConfig());
+        const params = {
+          fechaInicio: parametros.finicial,
+          fechaFin: parametros.ffinal,
+          fechaCampo: "fecha",
+        };
+        const { data } = await realtime_api.get("/Encuesta.json", buildReadRequestConfig(params));
         const encuestas = Object.entries(data || {}).map(([key, value]) => ({
           id: key,
           ...value,
@@ -3927,7 +4048,12 @@ export default createStore({
      */
     GetRegistersbyRangeCerrados: async ({ commit }, parametros) => {
       try {
-        const { data } = await realtime_api.get("/Encuesta.json", buildReadRequestConfig());
+        const params = {
+          fechaInicio: parametros.finicial,
+          fechaFin: parametros.ffinal,
+          fechaCampo: "fechagestEnfermera",
+        };
+        const { data } = await realtime_api.get("/Encuesta.json", buildReadRequestConfig(params));
         const encuestas = Object.entries(data || {}).map(([key, value]) => ({
           id: key,
           ...value,

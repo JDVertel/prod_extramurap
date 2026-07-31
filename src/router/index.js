@@ -241,6 +241,12 @@ const routes = [
     component: () => import("../views/info.vue"),
     meta: { requiresAuth: true },
   },
+  {
+    path: "/tutorial",
+    name: "tutorial",
+    component: () => import("../views/tutorial.vue"),
+    meta: { requiresAuth: true },
+  },
 
   {
     path: "/logout",

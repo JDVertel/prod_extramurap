@@ -30,15 +30,29 @@
             </div>
         </div>
 
-        <div v-if="activacion" class="informe-actions d-flex flex-column flex-sm-row flex-wrap gap-2 align-items-stretch align-items-sm-center mt-3 mb-2">
-            <button class="btn btn-primary" @click="copiarTabla">
-                <i class="bi bi-clipboard"></i> Copiar tabla
-            </button>
-            <button class="btn btn-danger" @click="exportarPdfInforme">
-                <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
-            </button>
+        <div v-if="activacion" class="informe-toolbar d-flex flex-column flex-lg-row justify-content-between align-items-stretch align-items-lg-center gap-2 mt-3 mb-2">
+            <div class="informe-actions d-flex flex-column flex-sm-row flex-wrap gap-2 align-items-stretch align-items-sm-center">
+                <button class="btn btn-primary" @click="copiarTabla">
+                    <i class="bi bi-clipboard"></i> Copiar tabla
+                </button>
+                <button class="btn btn-danger" @click="exportarPdfInforme">
+                    <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                </button>
+                <span class="text-muted informe-count">
+                    Mostrando {{ registroInicio }} - {{ registroFin }} de {{ totalRegistros }} registros
+                </span>
+            </div>
+            <div class="informe-page-size d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2">
+                <label class="me-2 mb-0">Registros por página:</label>
+                <select v-model.number="itemsPorPagina" class="form-select form-select-sm" style="width: auto;">
+                    <option :value="10">10</option>
+                    <option :value="25">25</option>
+                    <option :value="50">50</option>
+                    <option :value="100">100</option>
+                    <option :value="totalRegistros">Todos</option>
+                </select>
+            </div>
         </div>
-        <br />
         <div v-if="activacion" class="alert alert-light border mb-3">
             <h5 class="mb-1">{{ tipoInformeLabel }}</h5>
             <div><strong>Tipo:</strong> {{ tipoInformeLabel }}</div>
@@ -90,7 +104,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="usuario in encuestasFiltradas" :key="usuario.id">
+                    <tr v-for="usuario in encuestasPaginadas" :key="usuario.id">
                         <td>{{ dataips.dpto }}</td>
                         <td>{{ dataips.municipio }}</td>
                         <td>{{ dataips.nombre }}</td>
@@ -187,7 +201,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="row in encuestasFiltradas" :key="row.asignacionCupId || `${row.encuestaId}-${row.cupsId}-${row.numeroFactura}`">
+                        <tr v-for="row in encuestasPaginadas" :key="row.asignacionCupId || `${row.encuestaId}-${row.cupsId}-${row.numeroFactura}`">
                             <td>{{ formatearFechaYYYYMMDD(row.fechaCierreFacturacion) }}</td>
                             <td>{{ row.tipodoc }}</td>
                             <td>{{ row.numdoc }}</td>
@@ -207,6 +221,34 @@
                 </table>
             </div>
         </div>
+        <nav v-if="activacion && ['1', '3'].includes(tipoInforme) && totalPaginas > 1" aria-label="Paginación" class="mt-3">
+            <ul class="pagination justify-content-center flex-wrap gap-1">
+                <li class="page-item" :class="{ disabled: paginaActual === 1 }">
+                    <a class="page-link" href="#" @click.prevent="cambiarPagina(1)">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                <li class="page-item" :class="{ disabled: paginaActual === 1 }">
+                    <a class="page-link" href="#" @click.prevent="cambiarPagina(paginaActual - 1)">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                <li v-for="pagina in paginasVisibles" :key="pagina" class="page-item"
+                    :class="{ active: pagina === paginaActual }">
+                    <a class="page-link" href="#" @click.prevent="cambiarPagina(pagina)">{{ pagina }}</a>
+                </li>
+                <li class="page-item" :class="{ disabled: paginaActual === totalPaginas }">
+                    <a class="page-link" href="#" @click.prevent="cambiarPagina(paginaActual + 1)">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                <li class="page-item" :class="{ disabled: paginaActual === totalPaginas }">
+                    <a class="page-link" href="#" @click.prevent="cambiarPagina(totalPaginas)">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
     </div>
 </template>
 
@@ -261,11 +303,15 @@ import {
     mapState,
     mapActions
 } from "vuex";
-import realtime_api from "@/api/realtimeApi";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 import appLogoUrl from "@/assets/images/logo_extramurapp.png";
 import esebLogoUrl from "@/assets/images/logo_eseb.png";
+import {
+    cargarCupsPorEncuestaIds,
+    filtrarCupsDelProfesional,
+    mapearActividadesDesdeCups,
+} from "@/utils/informesAsignaciones";
 
 pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 export default {
@@ -276,6 +322,8 @@ export default {
             tipoInforme: "1",
             idips: null,
             activacion: false,
+            paginaActual: 1,
+            itemsPorPagina: 25,
             actividadesPorEncuesta: {},
             cupsPorEncuesta: {},
             columnasTipoActividad: [
@@ -674,61 +722,41 @@ export default {
                 await this.getAllActividadesExtra();
                 await this.cargarActividadesPorEncuesta();
             }
+            this.paginaActual = 1;
             this.activacion = true;
+        },
+        cambiarPagina(pagina) {
+            if (pagina >= 1 && pagina <= this.totalPaginas) {
+                this.paginaActual = pagina;
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            }
         },
         async cargarActividadesPorEncuesta() {
             const mapa = {};
             const cupsMap = {};
             const encuestas = this.encuestasFiltradas || [];
-            const cargoActual = this.normalizarTexto(this.userData?.cargo || "");
-            const nombreActual = this.normalizarTexto(this.userData?.nombre || "");
-            const documentoActual = String(this.userData?.numDocumento || "").trim();
+            const ids = encuestas.map((encuesta) => encuesta.id).filter(Boolean);
 
-            await Promise.all(
-                encuestas.map(async (encuesta) => {
-                    try {
-                        const { data } = await realtime_api.get(`/Asignaciones/${encuesta.id}.json`, {
-                            params: { _ts: Date.now() },
-                            headers: {
-                                "Cache-Control": "no-cache, no-store, must-revalidate",
-                                Pragma: "no-cache",
-                                Expires: "0",
-                            },
-                        });
-                        const cups = data?.cups && typeof data.cups === "object"
-                            ? Object.values(data.cups).filter(Boolean)
-                            : [];
-
-                        const cupsDelProfesional = cups.filter((cup) => {
-                            const cargoCup = this.normalizarTexto(cup?.key || "");
-                            if (!cargoActual || cargoCup !== cargoActual) return false;
-
-                            const documentoCup = String(cup?.idProf ?? cup?.idProfesional ?? "").trim();
-                            if (documentoActual && documentoCup) return documentoCup === documentoActual;
-
-                            const nombreCup = this.normalizarTexto(cup?.nombreProf || "");
-                            if (nombreActual && nombreCup) return nombreCup === nombreActual;
-
-                            return false;
-                        });
-
-                        cupsMap[encuesta.id] = cupsDelProfesional;
-
-                        const actividadIds = cupsDelProfesional
-                            .map((cup) => cup?.actividadId ?? cup?.idActividad)
-                            .filter(Boolean);
-
-                        const nombresActividades = Array.from(new Set(actividadIds))
-                            .map((idActividad) => this.obtenerNombreActividadExtra(idActividad))
-                            .filter(Boolean);
-
-                        mapa[encuesta.id] = nombresActividades;
-                    } catch (error) {
-                        mapa[encuesta.id] = [];
-                        cupsMap[encuesta.id] = [];
-                    }
-                })
-            );
+            try {
+                const cupsPorId = await cargarCupsPorEncuestaIds(ids);
+                encuestas.forEach((encuesta) => {
+                    const cupsDelProfesional = filtrarCupsDelProfesional(
+                        cupsPorId[encuesta.id] || [],
+                        this.userData
+                    );
+                    cupsMap[encuesta.id] = cupsDelProfesional;
+                    mapa[encuesta.id] = mapearActividadesDesdeCups(
+                        cupsDelProfesional,
+                        (idActividad) => this.obtenerNombreActividadExtra(idActividad)
+                    );
+                });
+            } catch (error) {
+                console.error("Error cargando asignaciones del informe enfermero:", error);
+                encuestas.forEach((encuesta) => {
+                    mapa[encuesta.id] = [];
+                    cupsMap[encuesta.id] = [];
+                });
+            }
 
             this.actividadesPorEncuesta = mapa;
             this.cupsPorEncuesta = cupsMap;
@@ -800,6 +828,41 @@ export default {
             };
             return labels[this.tipoInforme] || "Pacientes cerrados";
         },
+        totalRegistros() {
+            return this.encuestasFiltradas?.length || 0;
+        },
+        totalPaginas() {
+            return Math.max(1, Math.ceil(this.totalRegistros / this.itemsPorPagina) || 1);
+        },
+        encuestasPaginadas() {
+            const inicio = (this.paginaActual - 1) * this.itemsPorPagina;
+            const fin = inicio + this.itemsPorPagina;
+            return this.encuestasFiltradas?.slice(inicio, fin) || [];
+        },
+        registroInicio() {
+            if (this.totalRegistros === 0) return 0;
+            return (this.paginaActual - 1) * this.itemsPorPagina + 1;
+        },
+        registroFin() {
+            const fin = this.paginaActual * this.itemsPorPagina;
+            return fin > this.totalRegistros ? this.totalRegistros : fin;
+        },
+        paginasVisibles() {
+            const paginas = [];
+            const rango = 2;
+            let inicio = Math.max(1, this.paginaActual - rango);
+            let fin = Math.min(this.totalPaginas, this.paginaActual + rango);
+            if (this.paginaActual <= rango) {
+                fin = Math.min(this.totalPaginas, rango * 2 + 1);
+            }
+            if (this.paginaActual > this.totalPaginas - rango) {
+                inicio = Math.max(1, this.totalPaginas - rango * 2);
+            }
+            for (let i = inicio; i <= fin; i++) {
+                paginas.push(i);
+            }
+            return paginas;
+        },
         resumenActividades() {
             const actividadCounter = new Map();
             const cupsCounter = new Map();
@@ -854,6 +917,12 @@ export default {
     async mounted() {
         this.$store.commit("setEncuestasfiltradas", []);
         await this.cargarDatosIps();
+    },
+
+    watch: {
+        itemsPorPagina() {
+            this.paginaActual = 1;
+        },
     },
 
 };
