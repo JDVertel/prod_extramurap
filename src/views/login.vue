@@ -309,22 +309,22 @@ body {
     border-radius: 18px;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(0, 0, 0, 0.1);
-    padding: 2rem !important;
+    padding: 1.1rem 2rem 2rem !important;
 }
 
 .login-card h2 {
-    font-size: 2.1rem;
+    font-size: 1.75rem;
     font-weight: 600;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .login-card .form-label {
-    font-size: 1.2rem;
+    font-size: 1.05rem;
     font-weight: 500;
 }
 
 .login-card .form-control {
-    font-size: 1.1rem;
+    font-size: 1rem;
     padding: 0.9rem;
     height: auto;
 }
@@ -341,10 +341,12 @@ body {
 
 .login-logo-bg {
     display: block;
-    margin: 0 auto 28px auto;
+    margin: 0 auto 18px auto;
     max-width: 320px;
     width: 100%;
     height: auto;
+    object-fit: contain;
+    object-position: center top;
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
 }
 
@@ -395,7 +397,7 @@ body {
         width: 95%;
         max-width: 440px;
         margin: 0 16px 20px 16px;
-        padding: 1.5rem !important;
+        padding: 0.9rem 1.35rem 1.5rem !important;
     }
 
     .login-footer-version {

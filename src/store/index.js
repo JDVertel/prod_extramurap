@@ -182,16 +182,47 @@ async function mapPool(items, concurrency, mapper) {
 
 const factAprovInflight = new Map();
 
-function userBelongsToGroup(userGroupValue, targetGroup) {
-  const target = String(targetGroup || "").trim();
-  if (!target) return false;
-
-  const groups = String(userGroupValue || "")
+function parseGroupTokens(value) {
+  return String(value || "")
     .split(",")
-    .map((item) => item.trim())
+    .map((item) =>
+      String(item || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+    )
     .filter(Boolean);
+}
 
-  return groups.includes(target);
+/**
+ * Cruza grupos del profesional con grupos del auxiliar/encuesta.
+ * Soporta múltiples grupos en ambos lados (ej. "1,2" vs "1").
+ * Sin grupo objetivo no hay coincidencia (evita listar todo el convenio).
+ */
+function userBelongsToGroup(userGroupValue, targetGroup) {
+  const targetGroups = parseGroupTokens(targetGroup);
+  if (!targetGroups.length) return false;
+
+  const userGroups = parseGroupTokens(userGroupValue);
+  if (!userGroups.length) return false;
+  return targetGroups.some((grupo) => userGroups.includes(grupo));
+}
+
+function normalizeComparableLabel(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function sameConvenio(a, b) {
+  return normalizeComparableLabel(a) === normalizeComparableLabel(b);
+}
+
+function sameCargoExact(userCargo, expectedCargo) {
+  return normalizeComparableLabel(userCargo) === normalizeComparableLabel(expectedCargo);
 }
 
 function normalizeComparableDocument(value) {
@@ -2809,8 +2840,8 @@ export default createStore({
         const usuarios = await getAllUsers();
         const encuestasFiltradas = usuarios.filter(
           (u) => userBelongsToGroup(u.grupo, grupo) &&
-            String(u.convenio || "") === String(convenio || "") &&
-            String(u.cargo || "") === "Medico"
+            sameConvenio(u.convenio, convenio) &&
+            sameCargoExact(u.cargo, "Medico")
         );
 
         commit("setMedicosByGrupo", encuestasFiltradas);
@@ -2830,8 +2861,8 @@ export default createStore({
         const usuarios = await getAllUsers();
         const encuestasFiltradas = usuarios.filter(
           (u) => userBelongsToGroup(u.grupo, grupo) &&
-            String(u.convenio || "") === String(convenio || "") &&
-            String(u.cargo || "") === "Enfermero"
+            sameConvenio(u.convenio, convenio) &&
+            sameCargoExact(u.cargo, "Enfermero")
         );
 
         commit("setEnfermerosByGrupo", encuestasFiltradas);
@@ -2851,8 +2882,8 @@ export default createStore({
         const usuarios = await getAllUsers();
         const psicologosFiltrados = usuarios.filter(
           (u) => userBelongsToGroup(u.grupo, grupo) &&
-            String(u.convenio || "") === String(convenio || "") &&
-            String(u.cargo || "") === "Psicologo"
+            sameConvenio(u.convenio, convenio) &&
+            sameCargoExact(u.cargo, "Psicologo")
         );
 
         commit("setPsicologosByGrupo", psicologosFiltrados);
@@ -2872,8 +2903,8 @@ export default createStore({
         const usuarios = await getAllUsers();
         const tsocialesFiltrados = usuarios.filter(
           (u) => userBelongsToGroup(u.grupo, grupo) &&
-            String(u.convenio || "") === String(convenio || "") &&
-            String(u.cargo || "") === "Tsocial"
+            sameConvenio(u.convenio, convenio) &&
+            sameCargoExact(u.cargo, "Tsocial")
         );
 
         commit("setTsocialesByGrupo", tsocialesFiltrados);
@@ -2893,8 +2924,8 @@ export default createStore({
         const usuarios = await getAllUsers();
         const nutricionistasFiltrados = usuarios.filter(
           (u) => userBelongsToGroup(u.grupo, grupo) &&
-            String(u.convenio || "") === String(convenio || "") &&
-            String(u.cargo || "") === "Nutricionista"
+            sameConvenio(u.convenio, convenio) &&
+            sameCargoExact(u.cargo, "Nutricionista")
         );
 
         commit("setNutricionistasByGrupo", nutricionistasFiltrados);
@@ -2914,8 +2945,8 @@ export default createStore({
         const usuarios = await getAllUsers();
         const higienistasFiltrados = usuarios.filter(
           (u) => userBelongsToGroup(u.grupo, grupo) &&
-            String(u.convenio || "") === String(convenio || "") &&
-            String(u.cargo || "") === "Higienista oral"
+            sameConvenio(u.convenio, convenio) &&
+            sameCargoExact(u.cargo, "Higienista oral")
         );
 
         commit("setHigienistasOralByGrupo", higienistasFiltrados);

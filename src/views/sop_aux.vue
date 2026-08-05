@@ -19,12 +19,12 @@
     </div>
     <div v-else>
       <h1 class="display-6 center">{{ cargoMostrado }}</h1>
-      <ProfesionalGrupoInfo :es-estado-view="esEstadoView" />
+      <ProfesionalGrupoInfo :es-estado-view="esEstadoView" :grupo-override="grupoObjetivo" />
       <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
         Visualizando como admin: {{ nombreProfesionalSeleccionado }}
       </p>
       <div class="alert alert-warning shadow-sm d-flex justify-content-between align-items-center" role="alert">
-        Realizar nueva encuesta <RouterLink class="btn btn-warning" to="/sop_encuesta">
+        Realizar nueva encuesta <RouterLink class="btn btn-warning" :to="rutaNuevaEncuesta">
           <i class="bi bi-file-earmark-plus-fill"></i>
         </RouterLink>
       </div>
@@ -45,7 +45,14 @@
           </button>
         </li>
         <li class="nav-item" role="presentation">
-          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#aux-devueltos" type="button" role="tab">
+          <button
+            class="nav-link"
+            :class="{ 'tab-devueltos-alerta': cantEncuestasDevueltas > 0 }"
+            data-bs-toggle="tab"
+            data-bs-target="#aux-devueltos"
+            type="button"
+            role="tab"
+          >
             Devueltos ({{ cantEncuestasDevueltas }})
           </button>
         </li>
@@ -203,6 +210,11 @@ import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 import AssignedProfessionalsBadge from "@/components/AssignedProfessionalsBadge.vue";
 import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
 import GestionarEncuestaModal from "@/components/GestionarEncuestaModal.vue";
+import {
+  buildEstadoViewQuery,
+  getEstadoViewContext,
+  isEstadoViewRoute,
+} from "@/utils/estadoViewContext";
 
 export default {
   components: {
@@ -248,6 +260,7 @@ export default {
       this.$router.push({
         name: "sop_agendamiento",
         params: { idEncuesta: id, tipo },
+        query: buildEstadoViewQuery(this.$route),
       });
     },
 
@@ -255,6 +268,7 @@ export default {
       this.$router.push({
         name: "sop_caracterizacion",
         params: { idEncuesta: id },
+        query: buildEstadoViewQuery(this.$route),
       });
     },
 
@@ -272,20 +286,10 @@ export default {
 
     cupsGestion(id) {
       sessionStorage.setItem("rutaAnterior", "/sop_aux");
-      const query = this.esEstadoView
-        ? {
-            estadoView: "1",
-            profesionalDoc: this.documentoObjetivo,
-            profesionalCargo: this.cargoMostrado,
-            profesionalConvenio: this.convenioObjetivo,
-            profesionalNombre: this.nombreProfesionalSeleccionado || this.userData?.nombre || "",
-          }
-        : {};
-
       this.$router.push({
         name: "sop_cups",
         params: { idEncuesta: id },
-        query,
+        query: buildEstadoViewQuery(this.$route),
       });
     },
     getStatusKeyBandeja() {
@@ -393,26 +397,14 @@ export default {
 
   computed: {
     ...mapState(["encuestas", "userData", "cantEncuestas"]),
+    contextoDelegado() {
+      return getEstadoViewContext(this.$route, this.userData);
+    },
     esEstadoView() {
-      if (String(this.$route?.query?.estadoView || "") !== "1") return false;
-      const docSeleccionado = String(this.$route?.query?.profesionalDoc || "").trim();
-      if (!docSeleccionado) return false;
-
-      const cargoActual = String(this.userData?.cargo || "").trim().toLowerCase();
-      const esAdmin = cargoActual === "admin" || cargoActual === "administrador" || cargoActual === "superusuario";
-      if (esAdmin) return true;
-
-      const accesos = Array.isArray(this.userData?.accesosProfesionales)
-        ? this.userData.accesosProfesionales
-        : [];
-      return accesos.map((item) => String(item || "").trim()).includes(docSeleccionado);
+      return isEstadoViewRoute(this.$route, this.userData);
     },
     cargoMostrado() {
-      if (this.esEstadoView) {
-        const cargo = String(this.$route?.query?.profesionalCargo || "").trim();
-        return cargo || "Auxiliar de enfermeria";
-      }
-      return this.userData?.cargo || "";
+      return this.contextoDelegado.cargo || "Auxiliar de enfermeria";
     },
     esAuxiliarMostrado() {
       return String(this.cargoMostrado || "").trim() === "Auxiliar de enfermeria";
@@ -421,21 +413,21 @@ export default {
       return String(this.cargoMostrado || "").trim() === "Medico";
     },
     nombreProfesionalSeleccionado() {
-      return String(this.$route?.query?.profesionalNombre || "").trim();
+      return this.esEstadoView ? this.contextoDelegado.nombre : "";
     },
     documentoObjetivo() {
-      if (this.esEstadoView) {
-        const doc = String(this.$route?.query?.profesionalDoc || "").trim();
-        if (doc) return doc;
-      }
-      return String(this.userData?.numDocumento || "").trim();
+      return this.contextoDelegado.documento;
     },
     convenioObjetivo() {
-      if (this.esEstadoView) {
-        const convenio = String(this.$route?.query?.profesionalConvenio || "").trim();
-        if (convenio) return convenio;
-      }
-      return String(this.userData?.convenio || "").trim();
+      return this.contextoDelegado.convenio;
+    },
+    grupoObjetivo() {
+      return this.contextoDelegado.grupo;
+    },
+    rutaNuevaEncuesta() {
+      const query = buildEstadoViewQuery(this.$route);
+      if (!Object.keys(query).length) return "/sop_encuesta";
+      return { path: "/sop_encuesta", query };
     },
     encuestasFiltradasPorConvenio() {
       if (!this.encuestas || this.encuestas.length === 0) return [];
@@ -632,6 +624,15 @@ export default {
 .row.paciente strong {
   color: #ffffff;
   font-size: 0.9rem;
+}
+
+.nav-link.tab-devueltos-alerta {
+  color: #dc2626 !important;
+  font-weight: 700;
+}
+
+.nav-link.tab-devueltos-alerta.active {
+  color: #b91c1c !important;
 }
 
 .row.paciente.paciente-devuelto {

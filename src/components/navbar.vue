@@ -8,9 +8,13 @@
           <span class="navbar-toggler-icon"></span>
         </button>
         <div class="navbar-company-brand">
-          <img v-if="ipsLogoUrl && !logoLoadFailed" :src="ipsLogoUrl" alt="Logo empresa" class="navbar-company-logo"
-            @error="onIpsLogoError" />
-          <i v-else class="bi bi-building navbar-company-logo-fallback" aria-hidden="true"></i>
+          <img
+            v-if="ipsLogoUrl && !logoLoadFailed"
+            :src="ipsLogoUrl"
+            alt="Logo empresa"
+            class="navbar-company-logo"
+            @error="onIpsLogoError"
+          />
           <span class="navbar-company-name">{{ ipsNombreMostrado || "Empresa" }}</span>
         </div>
         <div class="user-info-badge">
@@ -551,9 +555,12 @@ export default {
   max-width: 100%;
   height: auto;
   object-fit: contain;
+  object-position: center top;
   border-radius: 0;
   background: transparent;
   padding: 0;
+  margin: 0;
+  display: block;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.42));
 }
 
@@ -646,9 +653,10 @@ export default {
 
 .offcanvas-logo-footer {
   margin-top: auto;
-  padding: 0.65rem 0.2rem 0.35rem;
+  padding: 0 0.2rem 0.25rem;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
 }
 
 .navbar-nav .nav-link.router-link-exact-active {
@@ -732,7 +740,6 @@ export default {
   text-align: center;
   text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.45);
   overflow: hidden;
-  white-space: nowrap;
 }
 
 .navbar-company-logo {
@@ -745,27 +752,16 @@ export default {
   flex-shrink: 0;
 }
 
-.navbar-company-logo-fallback {
-  width: 42px;
-  height: 42px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.35rem;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #0f172a;
-  flex-shrink: 0;
-}
-
 .navbar-company-name {
   min-width: 0;
   max-width: min(58vw, 720px);
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 1.08rem;
+  white-space: nowrap;
+  font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  line-height: 1.15;
 }
 
 .user-info-badge {
@@ -873,16 +869,24 @@ export default {
     gap: 7px;
   }
 
-  .navbar-company-logo,
-  .navbar-company-logo-fallback {
+  .navbar-company-logo {
     width: 36px;
     height: 36px;
     border-radius: 7px;
   }
 
   .navbar-company-name {
-    max-width: 46vw;
-    font-size: 0.86rem;
+    max-width: 52vw;
+    font-size: 0.74rem;
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+    line-height: 1.15;
+    word-break: break-word;
   }
 
   .user-info-badge {
@@ -952,15 +956,23 @@ export default {
     font-size: 1.05rem;
   }
 
-  .navbar-company-logo,
-  .navbar-company-logo-fallback {
+  .navbar-company-logo {
     width: 32px;
     height: 32px;
   }
 
   .navbar-company-name {
-    max-width: 42vw;
-    font-size: 0.72rem;
+    max-width: 48vw;
+    font-size: 0.66rem;
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
+    line-height: 1.12;
+    word-break: break-word;
   }
 
   .user-info-badge {

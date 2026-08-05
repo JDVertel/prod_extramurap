@@ -46,7 +46,14 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#hig-devueltos" type="button" role="tab">
+                    <button
+                        class="nav-link"
+                        :class="{ 'tab-devueltos-alerta': cantEncuestasDevueltas > 0 }"
+                        data-bs-toggle="tab"
+                        data-bs-target="#hig-devueltos"
+                        type="button"
+                        role="tab"
+                    >
                         Devueltos ({{ cantEncuestasDevueltas }})
                     </button>
                 </li>
@@ -201,6 +208,7 @@ import { formatBandejaShortDate, groupBandejaItemsByDay } from "@/utils/bandejaP
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 import AssignedProfessionalsBadge from "@/components/AssignedProfessionalsBadge.vue";
 import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
+import { buildEstadoViewQuery } from "@/utils/estadoViewContext";
 
 export default {
     components: {
@@ -258,19 +266,10 @@ export default {
 
         cupsGestion(id) {
             sessionStorage.setItem("rutaAnterior", "/sop_higienista_oral");
-            const query = String(this.$route?.query?.estadoView || "") === "1"
-                ? {
-                    estadoView: "1",
-                    profesionalDoc: String(this.$route?.query?.profesionalDoc || this.getDocumentoObjetivo() || "").trim(),
-                    profesionalCargo: String(this.$route?.query?.profesionalCargo || this.cargoMostrado || this.userData?.cargo || "").trim(),
-                    profesionalConvenio: String(this.$route?.query?.profesionalConvenio || this.getConvenioObjetivo() || "").trim(),
-                    profesionalNombre: String(this.$route?.query?.profesionalNombre || this.userData?.nombre || "").trim(),
-                }
-                : {};
             this.$router.push({
                 name: "sop_cups",
                 params: { idEncuesta: id },
-                query,
+                query: buildEstadoViewQuery(this.$route),
             });
         },
 
@@ -685,6 +684,15 @@ export default {
 .row.paciente strong {
     color: #ffffff;
     font-size: 0.9rem;
+}
+
+.nav-link.tab-devueltos-alerta {
+    color: #dc2626 !important;
+    font-weight: 700;
+}
+
+.nav-link.tab-devueltos-alerta.active {
+    color: #b91c1c !important;
 }
 
 .row.paciente.paciente-devuelto {

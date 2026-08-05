@@ -16,7 +16,7 @@
             <h4 class="center mt-2">
                 <i class="bi bi-journal-medical"></i> Registro de Demanda Inducida
             </h4>
-            <ProfesionalGrupoInfo />
+            <ProfesionalGrupoInfo :es-estado-view="esEstadoView" :grupo-override="grupoOperativo" />
             <br />
             <!-- FORMULARIO -->
 
@@ -228,13 +228,13 @@
 
                         <div class="col-6 col-md-3 mb-3">
                             <label for="barrioVeredacomuna" class="form-label campo-obligatorio">Barrio-vereda/comuna</label>
-                            <div class="position-relative">
+                            <div class="position-relative barrio-autocomplete">
                                 <input id="barrioVeredacomuna" v-model="barrioVeredacomunaSearch" type="text"
-                                    class="form-control" placeholder="Escribe barrio o comuna" autocomplete="off"
+                                    class="form-control" placeholder="Clic para ver listado o escribe para filtrar"
+                                    autocomplete="off"
                                     required @input="onBarrioInput" @focus="openBarrioDropdown = true"
                                     @blur="onBarrioInputBlur" />
-                                <div v-if="openBarrioDropdown && barrioVeredacomunaSearch.trim()"
-                                    class="barrio-dropdown-list">
+                                <div v-if="openBarrioDropdown" class="barrio-dropdown-list">
                                     <button type="button" class="barrio-dropdown-item"
                                         v-for="(option, index) in filteredComunasBarrios" :key="`barrio-${index}`"
                                         @mousedown.prevent="selectBarrioOption(option)">
@@ -242,6 +242,9 @@
                                     </button>
                                     <div v-if="filteredComunasBarrios.length === 0" class="barrio-dropdown-empty">
                                         Sin coincidencias
+                                    </div>
+                                    <div v-else-if="!barrioVeredacomunaSearch.trim()" class="barrio-dropdown-hint">
+                                        Mostrando listado. Escribe para filtrar.
                                     </div>
                                 </div>
                             </div>
@@ -405,6 +408,11 @@ import {
 import moment from "moment";
 import { getAllUsers } from "@/api/usersApi";
 import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
+import {
+    buildEstadoViewQuery,
+    getEstadoViewContext,
+    isEstadoViewRoute,
+} from "@/utils/estadoViewContext";
 
 export default {
     components: {
@@ -604,7 +612,7 @@ export default {
                 { label: "Tipo de Actividad (Proyectada)", value: this.ListtipoActividad },
                 { label: "Desplazamiento efectivo", value: this.desplazamiento, id: "desplazamiento" },
                 { label: "Requiere remisión a procedimiento", value: this.requiereRemision, id: "requiereRemision" },
-                { label: "Documento del encuestador", value: this.userData?.numDocumento },
+                { label: "Documento del encuestador", value: this.documentoOperativo },
                 { label: "Médico", value: this.medico, id: "medico" },
                 { label: "Enfermero Jefe", value: this.enfermero, id: "enfermero" },
             ];
@@ -706,7 +714,7 @@ export default {
             }
 
             const registro = {
-                tipoRegistro: this.userData?.convenio || "Extramural",
+                tipoRegistro: this.convenioOperativo || "Extramural",
                 fechavisita: "",
                 idMedicoAtiende: this.medico,
                 idEnfermeroAtiende: this.enfermero,
@@ -732,9 +740,9 @@ export default {
                 status_caracterizacion: false,
                 status_visita: false,
                 idEncuesta: 1,
-                grupo: this.userData.grupo,
-                convenio: this.userData.convenio,
-                idEncuestador: this.userData.numDocumento,
+                grupo: this.grupoOperativo,
+                convenio: this.convenioOperativo,
+                idEncuestador: this.documentoOperativo,
                 bd: "Encuesta",
                 fecha: moment().format("YYYY-MM-DD"),
                 fechaNac: this.fechaNac,
@@ -770,7 +778,10 @@ export default {
                     top: 0,
                     behavior: "smooth",
                 });
-                this.$router.push("/sop_aux");
+                this.$router.push({
+                    path: "/sop_aux",
+                    query: buildEstadoViewQuery(this.$route),
+                });
             } catch (error) {
                 console.error("Error al crear el registro:", error);
                 const detail = error?.response?.data?.detail || error?.response?.data?.message || error?.message;
@@ -828,7 +839,7 @@ export default {
                 return;
             }
 
-            const convenioUsuario = String(this.userData?.convenio ?? "").trim();
+            const convenioUsuario = String(this.convenioOperativo || "").trim();
             const esConvenioEBasicos = convenioUsuario === "E Basicos";
 
             try {
@@ -1309,19 +1320,32 @@ export default {
             "contratos",
             "actividadesExtra",
         ]),
+        contextoDelegado() {
+            return getEstadoViewContext(this.$route, this.userData);
+        },
+        esEstadoView() {
+            return isEstadoViewRoute(this.$route, this.userData);
+        },
+        grupoOperativo() {
+            return this.contextoDelegado.grupo;
+        },
+        convenioOperativo() {
+            return this.contextoDelegado.convenio;
+        },
+        documentoOperativo() {
+            return this.contextoDelegado.documento;
+        },
         esConvenioEBasicos() {
-            const convenioUsuario = String(this.userData?.convenio ?? "").trim();
-            return convenioUsuario === "E Basicos";
+            return String(this.convenioOperativo || "").trim() === "E Basicos";
         },
         mostrarFormularioEncuesta() {
             return this.estadoConsulta === "disponible" || this.estadoConsulta === "seguimiento";
         },
         esConvenioPIC() {
-            const convenioUsuario = String(this.userData?.convenio ?? "").trim();
-            return convenioUsuario === "PIC";
+            return String(this.convenioOperativo || "").trim() === "PIC";
         },
         esConvenioUnidesa() {
-            const convenioUsuario = String(this.userData?.convenio ?? "").trim().toLowerCase();
+            const convenioUsuario = String(this.convenioOperativo || "").trim().toLowerCase();
             return convenioUsuario === "unidesa" || convenioUsuario === "unides";
         },
         mostrarPsicoTs() {
@@ -1357,16 +1381,21 @@ export default {
             );
         },
         filteredComunasBarrios() {
+            const lista = Array.isArray(this.comunasBarrios) ? this.comunasBarrios : [];
             const texto = String(this.barrioVeredacomunaSearch || "").trim().toLowerCase();
-            if (!texto) return [];
 
-            return (this.comunasBarrios || [])
+            // Sin texto: mostrar listado completo (desplazable hacia abajo).
+            if (!texto) {
+                return lista.slice(0, 200);
+            }
+
+            return lista
                 .filter((option) => {
                     const barrio = String(option?.barrio || "").toLowerCase();
                     const comuna = String(option?.comuna || "").toLowerCase();
                     return barrio.includes(texto) || comuna.includes(texto);
                 })
-                .slice(0, 30);
+                .slice(0, 80);
         },
     },
     watch: {
@@ -1437,35 +1466,19 @@ export default {
         await this.getAllEps();
         await this.getAllContratos();
         await this.getAllActividadesExtra();
-        await this.getAllMedicosbyGrupo({
-            grupo: this.userData.grupo,
-            convenio: this.userData.convenio,
-        });
-        await this.getAllEnfermerosbyGrupo({
-            grupo: this.userData.grupo,
-            convenio: this.userData.convenio,
-        });
+        const grupo = this.grupoOperativo;
+        const convenio = this.convenioOperativo;
+        await this.getAllMedicosbyGrupo({ grupo, convenio });
+        await this.getAllEnfermerosbyGrupo({ grupo, convenio });
         if (this.mostrarPsicoTs) {
-            await this.getAllPsicologosbyGrupo({
-                grupo: this.userData.grupo,
-                convenio: this.userData.convenio,
-            });
-            await this.getAllTsocialesbyGrupo({
-                grupo: this.userData.grupo,
-                convenio: this.userData.convenio,
-            });
+            await this.getAllPsicologosbyGrupo({ grupo, convenio });
+            await this.getAllTsocialesbyGrupo({ grupo, convenio });
         }
         if (this.requiereNutricionista) {
-            await this.getAllNutricionistasbyGrupo({
-                grupo: this.userData.grupo,
-                convenio: this.userData.convenio,
-            });
+            await this.getAllNutricionistasbyGrupo({ grupo, convenio });
         }
         if (this.requiereHigienistaOral) {
-            await this.getAllHigienistasOralbyGrupo({
-                grupo: this.userData.grupo,
-                convenio: this.userData.convenio,
-            });
+            await this.getAllHigienistasOralbyGrupo({ grupo, convenio });
         }
 
         this.aplicarProfesionalesPorDefecto();
@@ -1676,6 +1689,10 @@ html {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+.barrio-autocomplete {
+    z-index: 5;
+}
+
 .barrio-dropdown-list {
     position: absolute;
     top: calc(100% + 4px);
@@ -1685,9 +1702,9 @@ html {
     border: 1px solid #dee2e6;
     border-radius: 8px;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-    max-height: 240px;
+    max-height: 280px;
     overflow-y: auto;
-    z-index: 20;
+    z-index: 30;
 }
 
 .barrio-dropdown-item {
@@ -1708,6 +1725,14 @@ html {
     padding: 10px 12px;
     color: #6c757d;
     font-size: 0.92rem;
+}
+
+.barrio-dropdown-hint {
+    padding: 8px 12px;
+    color: #6c757d;
+    font-size: 0.8rem;
+    border-top: 1px solid #f1f3f5;
+    background: #fafafa;
 }
 
 .actividad-lista-item {

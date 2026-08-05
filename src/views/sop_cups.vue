@@ -374,6 +374,7 @@ import { getCargoBadgeClass as getSharedCargoBadgeClass } from "@/utils/cargoBad
 import { asignacionesApi, caracterizacionApi, encuestaActividadesApi, encuestasApi } from "@/api/modulesApi";
 import realtime_api from "@/api/realtimeApi.js";
 import { workflowApi } from "@/api/workflowApi";
+import { buildEstadoViewQuery } from "@/utils/estadoViewContext";
 
 /* ----------------------------------------------------------------------------------------------- */
 export default {
@@ -2149,11 +2150,12 @@ export default {
 
             const queryDestino = this.esEstadoView
                 ? {
-                    estadoView: "1",
-                    profesionalDoc: this.documentoObjetivo,
-                    profesionalCargo: this.cargoMostrado,
-                    profesionalConvenio: this.convenioObjetivo,
-                    profesionalNombre: this.nombreProfesionalObjetivo,
+                    ...buildEstadoViewQuery(this.$route, {
+                      profesionalDoc: this.documentoObjetivo,
+                      profesionalCargo: this.cargoMostrado,
+                      profesionalConvenio: this.convenioObjetivo,
+                      profesionalNombre: this.nombreProfesionalObjetivo,
+                    }),
                     refresh: refreshToken,
                 }
                 : {

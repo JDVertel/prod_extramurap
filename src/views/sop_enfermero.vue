@@ -232,6 +232,7 @@ import { formatBandejaShortDate, groupBandejaItemsByDay, sortBandejaItems } from
 import HoverInfoBadge from "@/components/HoverInfoBadge.vue";
 import AssignedProfessionalsBadge from "@/components/AssignedProfessionalsBadge.vue";
 import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
+import { buildEstadoViewQuery } from "@/utils/estadoViewContext";
 export default {
     components: {
         HoverInfoBadge,
@@ -396,21 +397,12 @@ export default {
 
         cupsGestion(id) {
             sessionStorage.setItem("rutaAnterior", "/sop_enfermero");
-            const query = String(this.$route?.query?.estadoView || "") === "1"
-                ? {
-                    estadoView: "1",
-                    profesionalDoc: String(this.$route?.query?.profesionalDoc || this.getDocumentoObjetivo?.() || "").trim(),
-                    profesionalCargo: String(this.$route?.query?.profesionalCargo || this.cargoMostrado || this.userData?.cargo || "").trim(),
-                    profesionalConvenio: String(this.$route?.query?.profesionalConvenio || this.getConvenioObjetivo?.() || this.userData?.convenio || "").trim(),
-                    profesionalNombre: String(this.$route?.query?.profesionalNombre || this.userData?.nombre || "").trim(),
-                }
-                : {};
             this.$router.push({
                 name: "sop_cups",
                 params: {
                     idEncuesta: id,
                 },
-                query,
+                query: buildEstadoViewQuery(this.$route),
             });
         },
 

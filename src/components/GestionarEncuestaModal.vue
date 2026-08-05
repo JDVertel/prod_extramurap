@@ -77,10 +77,15 @@
           </div>
           <div class="col-6 col-md-3">
             <label class="form-label">EPS</label>
-            <select v-model="form.epsId" class="form-select form-select-sm" required>
-              <option value="">Seleccione</option>
-              <option v-for="ep in epssConContrato" :key="ep.id" :value="ep.id">{{ ep.eps }}</option>
-            </select>
+            <input
+              type="text"
+              class="form-control form-control-sm"
+              :value="epsNombreMostrada"
+              disabled
+              readonly
+              title="La EPS no se puede modificar desde esta gestión"
+            />
+            <small class="text-muted">La EPS no se puede cambiar</small>
           </div>
           <div class="col-6 col-md-3">
             <label class="form-label">Régimen</label>
@@ -229,60 +234,109 @@
 
           <div class="col-12 mt-2">
             <h6 class="seccion-titulo">Profesionales asignados</h6>
+            <p class="small text-muted mb-2">
+              Puede completar vacantes y cambiar solo a quienes aún no hayan gestionado ni registrado CUPS.
+              Las opciones se limitan a profesionales del <strong>mismo grupo y convenio</strong> del paciente.
+              Si el profesional ya actuó, queda bloqueado para conservar el historial.
+            </p>
           </div>
           <div class="col-6 col-md-3">
             <label class="form-label">Médico</label>
-            <select v-model="form.medico" class="form-select form-select-sm" required>
+            <select
+              v-model="form.medico"
+              class="form-select form-select-sm"
+              required
+              :disabled="bloqueosAsignacion.medico?.bloqueado"
+            >
               <option value="">Seleccione</option>
-              <option v-for="item in medicosByGrupo" :key="item.numDocumento" :value="item.numDocumento">
+              <option v-for="item in opcionesMedico" :key="item.numDocumento" :value="item.numDocumento">
                 {{ item.nombre }}
               </option>
             </select>
+            <small class="d-block mt-1" :class="claseAyudaAsignacion('medico')">
+              {{ bloqueosAsignacion.medico?.motivo || "" }}
+            </small>
           </div>
           <div class="col-6 col-md-3">
             <label class="form-label">Enfermero jefe</label>
-            <select v-model="form.enfermero" class="form-select form-select-sm" required>
+            <select
+              v-model="form.enfermero"
+              class="form-select form-select-sm"
+              required
+              :disabled="bloqueosAsignacion.enfermero?.bloqueado"
+            >
               <option value="">Seleccione</option>
-              <option v-for="item in enfermerosByGrupo" :key="item.numDocumento" :value="item.numDocumento">
+              <option v-for="item in opcionesEnfermero" :key="item.numDocumento" :value="item.numDocumento">
                 {{ item.nombre }}
               </option>
             </select>
+            <small class="d-block mt-1" :class="claseAyudaAsignacion('enfermero')">
+              {{ bloqueosAsignacion.enfermero?.motivo || "" }}
+            </small>
           </div>
           <div v-if="mostrarPsicoTs" class="col-6 col-md-3">
             <label class="form-label">Psicólogo</label>
-            <select v-model="form.psicologo" class="form-select form-select-sm">
+            <select
+              v-model="form.psicologo"
+              class="form-select form-select-sm"
+              :disabled="bloqueosAsignacion.psicologo?.bloqueado"
+            >
               <option value="">Seleccione</option>
-              <option v-for="item in psicologosByGrupo" :key="item.numDocumento" :value="item.numDocumento">
+              <option v-for="item in opcionesPsicologo" :key="item.numDocumento" :value="item.numDocumento">
                 {{ item.nombre }}
               </option>
             </select>
+            <small class="d-block mt-1" :class="claseAyudaAsignacion('psicologo')">
+              {{ bloqueosAsignacion.psicologo?.motivo || "" }}
+            </small>
           </div>
           <div v-if="mostrarPsicoTs" class="col-6 col-md-3">
             <label class="form-label">Trabajador social</label>
-            <select v-model="form.trabajadorSocial" class="form-select form-select-sm">
+            <select
+              v-model="form.trabajadorSocial"
+              class="form-select form-select-sm"
+              :disabled="bloqueosAsignacion.trabajadorSocial?.bloqueado"
+            >
               <option value="">Seleccione</option>
-              <option v-for="item in tsocialesByGrupo" :key="item.numDocumento" :value="item.numDocumento">
+              <option v-for="item in opcionesTsocial" :key="item.numDocumento" :value="item.numDocumento">
                 {{ item.nombre }}
               </option>
             </select>
+            <small class="d-block mt-1" :class="claseAyudaAsignacion('trabajadorSocial')">
+              {{ bloqueosAsignacion.trabajadorSocial?.motivo || "" }}
+            </small>
           </div>
           <div v-if="requiereNutricionista" class="col-6 col-md-3">
             <label class="form-label">Nutricionista</label>
-            <select v-model="form.nutricionista" class="form-select form-select-sm">
+            <select
+              v-model="form.nutricionista"
+              class="form-select form-select-sm"
+              :disabled="bloqueosAsignacion.nutricionista?.bloqueado"
+            >
               <option value="">Seleccione</option>
-              <option v-for="item in nutricionistasByGrupo" :key="item.numDocumento" :value="item.numDocumento">
+              <option v-for="item in opcionesNutricionista" :key="item.numDocumento" :value="item.numDocumento">
                 {{ item.nombre }}
               </option>
             </select>
+            <small class="d-block mt-1" :class="claseAyudaAsignacion('nutricionista')">
+              {{ bloqueosAsignacion.nutricionista?.motivo || "" }}
+            </small>
           </div>
           <div v-if="requiereHigienistaOral" class="col-6 col-md-3">
             <label class="form-label">Higienista oral</label>
-            <select v-model="form.higienistaOral" class="form-select form-select-sm">
+            <select
+              v-model="form.higienistaOral"
+              class="form-select form-select-sm"
+              :disabled="bloqueosAsignacion.higienistaOral?.bloqueado"
+            >
               <option value="">Seleccione</option>
-              <option v-for="item in higienistasOralByGrupo" :key="item.numDocumento" :value="item.numDocumento">
+              <option v-for="item in opcionesHigienista" :key="item.numDocumento" :value="item.numDocumento">
                 {{ item.nombre }}
               </option>
             </select>
+            <small class="d-block mt-1" :class="claseAyudaAsignacion('higienistaOral')">
+              {{ bloqueosAsignacion.higienistaOral?.motivo || "" }}
+            </small>
           </div>
         </form>
       </div>
@@ -301,7 +355,13 @@
 <script>
 import { mapActions, mapState } from "vuex";
 import { encuestasApi } from "@/api/modulesApi";
+import { informesApi } from "@/api/informesApi";
+import { getAllUsers } from "@/api/usersApi";
 import { esConvenioUnidesa } from "@/constants/convenios";
+import {
+  construirBloqueosAsignacion,
+  mergeOpcionesProfesional,
+} from "@/utils/asignacionProfesionales";
 
 const FORM_VACIO = () => ({
   tipodoc: "",
@@ -354,6 +414,17 @@ export default {
       openBarrioDropdown: false,
       riesgoSeleccionado: "",
       convenioEncuesta: "",
+      encuestaSnapshot: null,
+      cupsAsignados: [],
+      asignacionesOriginales: {
+        medico: "",
+        enfermero: "",
+        psicologo: "",
+        trabajadorSocial: "",
+        nutricionista: "",
+        higienistaOral: "",
+      },
+      nombresProfesionales: {},
       regimenOptions: ["Contributivo", "Subsidiado", "Especial", "PPNA"],
       riesgosOptions: [
         "Gestante",
@@ -448,6 +519,12 @@ export default {
     epsSeleccionada() {
       return (this.epssConContrato || []).find((ep) => String(ep.id) === String(this.form.epsId)) || null;
     },
+    epsNombreMostrada() {
+      if (this.epsSeleccionada?.eps) return this.epsSeleccionada.eps;
+      const desdeEncuesta = String(this.encuestaSnapshot?.eps || "").trim();
+      if (desdeEncuesta) return desdeEncuesta;
+      return "Sin EPS";
+    },
     documentoModificado() {
       const tipodoc = String(this.form.tipodoc || "").trim().toUpperCase();
       const numdoc = this.sanitizarDocumento(this.form.numdoc);
@@ -457,6 +534,55 @@ export default {
     },
     esConvenioEBasicos() {
       return this.convenioActual === "E Basicos";
+    },
+    bloqueosAsignacion() {
+      return construirBloqueosAsignacion(
+        this.encuestaSnapshot || {},
+        this.cupsAsignados || [],
+        this.asignacionesOriginales
+      );
+    },
+    opcionesMedico() {
+      return mergeOpcionesProfesional(
+        this.medicosByGrupo,
+        this.form.medico,
+        this.nombresProfesionales[String(this.form.medico || "").trim()]
+      );
+    },
+    opcionesEnfermero() {
+      return mergeOpcionesProfesional(
+        this.enfermerosByGrupo,
+        this.form.enfermero,
+        this.nombresProfesionales[String(this.form.enfermero || "").trim()]
+      );
+    },
+    opcionesPsicologo() {
+      return mergeOpcionesProfesional(
+        this.psicologosByGrupo,
+        this.form.psicologo,
+        this.nombresProfesionales[String(this.form.psicologo || "").trim()]
+      );
+    },
+    opcionesTsocial() {
+      return mergeOpcionesProfesional(
+        this.tsocialesByGrupo,
+        this.form.trabajadorSocial,
+        this.nombresProfesionales[String(this.form.trabajadorSocial || "").trim()]
+      );
+    },
+    opcionesNutricionista() {
+      return mergeOpcionesProfesional(
+        this.nutricionistasByGrupo,
+        this.form.nutricionista,
+        this.nombresProfesionales[String(this.form.nutricionista || "").trim()]
+      );
+    },
+    opcionesHigienista() {
+      return mergeOpcionesProfesional(
+        this.higienistasOralByGrupo,
+        this.form.higienistaOral,
+        this.nombresProfesionales[String(this.form.higienistaOral || "").trim()]
+      );
     },
   },
   watch: {
@@ -648,8 +774,40 @@ export default {
       this.$emit("close");
     },
 
+    claseAyudaAsignacion(rol) {
+      const bloqueo = this.bloqueosAsignacion?.[rol];
+      if (!bloqueo) return "text-muted";
+      if (bloqueo.bloqueado) return "text-danger";
+      if (bloqueo.puedeAsignar) return "text-success";
+      return "text-primary";
+    },
+
+    nombreProfesionalPorDocumento(documento) {
+      const doc = String(documento || "").trim();
+      if (!doc) return "";
+      return this.nombresProfesionales[doc] || "";
+    },
+
+    valorAsignacionParaGuardar(rol, visible = true) {
+      const original = String(this.asignacionesOriginales?.[rol] || "").trim() || null;
+      if (!visible) return original;
+      if (this.bloqueosAsignacion?.[rol]?.bloqueado) return original;
+      const actual = String(this.form?.[rol] || "").trim();
+      return actual || null;
+    },
+
     async cargarProfesionales(grupo, convenio) {
-      const params = { grupo, convenio };
+      const grupoFiltro = String(grupo || "").trim();
+      const convenioFiltro = String(convenio || "").trim();
+      if (!grupoFiltro || !convenioFiltro) {
+        console.warn("[GestionarEncuestaModal] Falta grupo o convenio para filtrar profesionales.", {
+          grupo: grupoFiltro,
+          convenio: convenioFiltro,
+        });
+      }
+
+      // Solo profesionales del mismo grupo y convenio del paciente/auxiliar.
+      const params = { grupo: grupoFiltro, convenio: convenioFiltro };
       await Promise.all([
         this.getAllMedicosbyGrupo(params),
         this.getAllEnfermerosbyGrupo(params),
@@ -677,6 +835,17 @@ export default {
       this.pacienteDocumentoEncontrado = null;
       this.barrioSearch = "";
       this.riesgoSeleccionado = "";
+      this.encuestaSnapshot = null;
+      this.cupsAsignados = [];
+      this.asignacionesOriginales = {
+        medico: "",
+        enfermero: "",
+        psicologo: "",
+        trabajadorSocial: "",
+        nutricionista: "",
+        higienistaOral: "",
+      };
+      this.nombresProfesionales = {};
 
       try {
         await Promise.all([
@@ -691,8 +860,30 @@ export default {
         }
 
         this.convenioEncuesta = String(encuesta.convenio || this.userData?.convenio || "").trim();
-        const grupo = encuesta.grupo || this.userData?.grupo;
-        await this.cargarProfesionales(grupo, this.convenioEncuesta);
+        const grupoEncuesta = String(
+          encuesta.grupo ||
+          this.$route?.query?.profesionalGrupo ||
+          this.userData?.grupo ||
+          ""
+        ).trim();
+        await this.cargarProfesionales(grupoEncuesta, this.convenioEncuesta);
+
+        const [bulkCups, usuarios] = await Promise.all([
+          informesApi.getAsignacionesCupsBulk([this.encuestaId]),
+          getAllUsers().catch(() => []),
+        ]);
+
+        const cupsObj = bulkCups?.asignaciones?.[String(this.encuestaId)]?.cups;
+        this.cupsAsignados =
+          cupsObj && typeof cupsObj === "object"
+            ? Object.values(cupsObj).filter(Boolean)
+            : [];
+
+        this.nombresProfesionales = (Array.isArray(usuarios) ? usuarios : []).reduce((acc, user) => {
+          const doc = String(user?.numDocumento || "").trim();
+          if (doc) acc[doc] = String(user?.nombre || "").trim();
+          return acc;
+        }, {});
 
         let barrio = encuesta.barrioVeredacomuna ?? encuesta.barrio_vereda_comuna ?? "";
         if (typeof barrio === "string" && barrio.trim().startsWith("{")) {
@@ -722,6 +913,18 @@ export default {
           epsId = match?.id || "";
         }
 
+        const asignaciones = {
+          medico: String(encuesta.idMedicoAtiende || encuesta.id_medico_atiende || "").trim(),
+          enfermero: String(encuesta.idEnfermeroAtiende || encuesta.id_enfermero_atiende || "").trim(),
+          psicologo: String(encuesta.idPsicologoAtiende || encuesta.id_psicologo_atiende || "").trim(),
+          trabajadorSocial: String(encuesta.idTsocialAtiende || encuesta.id_tsocial_atiende || "").trim(),
+          nutricionista: String(encuesta.idNutricionistaAtiende || encuesta.id_nutricionista_atiende || "").trim(),
+          higienistaOral: String(encuesta.idHigienistaOralAtiende || encuesta.id_higienista_oral_atiende || "").trim(),
+        };
+
+        this.encuestaSnapshot = { ...encuesta };
+        this.asignacionesOriginales = { ...asignaciones };
+
         this.form = {
           tipodoc: encuesta.tipodoc || "",
           numdoc: this.sanitizarDocumento(encuesta.numdoc),
@@ -744,12 +947,12 @@ export default {
           desplazamiento: encuesta.desplazamiento || "",
           requiereRemision: encuesta.requiereRemision || encuesta.requiere_remision || "",
           poblacionRiesgo: [...riesgos],
-          medico: encuesta.idMedicoAtiende || encuesta.id_medico_atiende || "",
-          enfermero: encuesta.idEnfermeroAtiende || encuesta.id_enfermero_atiende || "",
-          psicologo: encuesta.idPsicologoAtiende || encuesta.id_psicologo_atiende || "",
-          trabajadorSocial: encuesta.idTsocialAtiende || encuesta.id_tsocial_atiende || "",
-          nutricionista: encuesta.idNutricionistaAtiende || encuesta.id_nutricionista_atiende || "",
-          higienistaOral: encuesta.idHigienistaOralAtiende || encuesta.id_higienista_oral_atiende || "",
+          medico: asignaciones.medico,
+          enfermero: asignaciones.enfermero,
+          psicologo: asignaciones.psicologo,
+          trabajadorSocial: asignaciones.trabajadorSocial,
+          nutricionista: asignaciones.nutricionista,
+          higienistaOral: asignaciones.higienistaOral,
         };
 
         this.documentoOriginal = {
@@ -774,13 +977,38 @@ export default {
         alert("Tipo y número de documento son obligatorios.");
         return;
       }
-      if (!this.form.medico || !this.form.enfermero) {
+
+      const medicoFinal = this.valorAsignacionParaGuardar("medico", true);
+      const enfermeroFinal = this.valorAsignacionParaGuardar("enfermero", true);
+      if (!medicoFinal || !enfermeroFinal) {
         alert("Médico y enfermero jefe son obligatorios.");
         return;
       }
       if (!this.form.barrioVeredacomuna) {
         alert("Seleccione un barrio/vereda-comuna válido de la lista.");
         return;
+      }
+
+      // Evitar cambios sobre profesionales ya gestionados.
+      const rolesVisibles = [
+        ["medico", true],
+        ["enfermero", true],
+        ["psicologo", this.mostrarPsicoTs],
+        ["trabajadorSocial", this.mostrarPsicoTs],
+        ["nutricionista", this.requiereNutricionista],
+        ["higienistaOral", this.requiereHigienistaOral],
+      ];
+      for (const [rol, visible] of rolesVisibles) {
+        if (!visible) continue;
+        const bloqueo = this.bloqueosAsignacion?.[rol];
+        if (!bloqueo?.bloqueado) continue;
+        const original = String(this.asignacionesOriginales?.[rol] || "").trim();
+        const actual = String(this.form?.[rol] || "").trim();
+        if (actual !== original) {
+          alert(`No se puede cambiar ${rol}: ${bloqueo.motivo}`);
+          this.form[rol] = original;
+          return;
+        }
       }
 
       if (this.documentoModificado) {
@@ -811,7 +1039,7 @@ export default {
           entradasE: {
             tipodoc: this.form.tipodoc,
             numdoc: this.sanitizarDocumento(this.form.numdoc),
-            eps: this.epsSeleccionada?.eps || "",
+            eps: String(this.encuestaSnapshot?.eps || this.epsSeleccionada?.eps || "").trim(),
             regimen: this.form.regimen,
             nombre1: this.form.nombre1,
             nombre2: this.form.nombre2,
@@ -830,12 +1058,12 @@ export default {
             desplazamiento: this.form.desplazamiento,
             requiereRemision: this.form.requiereRemision,
             poblacionRiesgo: this.form.poblacionRiesgo,
-            idMedicoAtiende: this.form.medico,
-            idEnfermeroAtiende: this.form.enfermero,
-            idPsicologoAtiende: this.mostrarPsicoTs ? this.form.psicologo : null,
-            idTsocialAtiende: this.mostrarPsicoTs ? this.form.trabajadorSocial : null,
-            idNutricionistaAtiende: this.requiereNutricionista ? this.form.nutricionista : null,
-            idHigienistaOralAtiende: this.requiereHigienistaOral ? this.form.higienistaOral : null,
+            idMedicoAtiende: medicoFinal,
+            idEnfermeroAtiende: enfermeroFinal,
+            idPsicologoAtiende: this.valorAsignacionParaGuardar("psicologo", this.mostrarPsicoTs),
+            idTsocialAtiende: this.valorAsignacionParaGuardar("trabajadorSocial", this.mostrarPsicoTs),
+            idNutricionistaAtiende: this.valorAsignacionParaGuardar("nutricionista", this.requiereNutricionista),
+            idHigienistaOralAtiende: this.valorAsignacionParaGuardar("higienistaOral", this.requiereHigienistaOral),
           },
         });
 
