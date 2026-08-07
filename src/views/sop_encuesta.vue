@@ -840,7 +840,7 @@ export default {
             }
 
             const convenioUsuario = String(this.convenioOperativo || "").trim();
-            const esConvenioEBasicos = convenioUsuario === "E Basicos";
+            const esConvenioEBasicos = this.esConvenioEBasicos;
 
             try {
                 // Si el usuario es E Basicos, consultar por tipo + número + convenio
@@ -868,6 +868,8 @@ export default {
                             this.estadoConsulta = "seguimiento";
                             this.pacienteEncontrado = pacienteMismoConvenio;
                             this.precargarDatosPaciente(pacienteMismoConvenio);
+                            // Profesionales según convenio del auxiliar (no del paciente previo)
+                            await this.cargarProfesionalesDelGrupo({ resetSeleccion: true });
                             await this.obtenerNombreEncuestador(this.pacienteEncontrado.idEncuestador);
                         } else {
                             this.estadoConsulta = "encuestado";
@@ -883,12 +885,14 @@ export default {
                             convenioDiferente: true
                         };
                         this.precargarDatosPaciente(otroConvenio);
+                        await this.cargarProfesionalesDelGrupo({ resetSeleccion: true });
                         await this.obtenerNombreEncuestador(otroConvenio.idEncuestador);
                     }
                 } else {
                     this.estadoConsulta = "disponible";
                     this.pacienteEncontrado = null;
                     this.nombreEncuestador = "";
+                    await this.cargarProfesionalesDelGrupo({ resetSeleccion: true });
                 }
             } catch (error) {
                 console.error("Error al consultar paciente:", error);
@@ -1190,15 +1194,14 @@ export default {
             const primero = lista.find((item) => item && item.numDocumento);
             return primero ? String(primero.numDocumento) : "";
         },
+        /** Preselecciona el primer profesional disponible por rol (según convenio). */
         aplicarProfesionalesPorDefecto() {
             if (!this.medico) {
                 this.medico = this.primerDocumentoDisponible(this.medicosByGrupo);
             }
-
             if (!this.enfermero) {
                 this.enfermero = this.primerDocumentoDisponible(this.enfermerosByGrupo);
             }
-
             if (this.mostrarPsicoTs) {
                 if (!this.psicologo) {
                     this.psicologo = this.primerDocumentoDisponible(this.psicologosByGrupo);
@@ -1206,19 +1209,56 @@ export default {
                 if (!this.trabajadorSocial) {
                     this.trabajadorSocial = this.primerDocumentoDisponible(this.tsocialesByGrupo);
                 }
+            } else {
+                this.psicologo = "";
+                this.trabajadorSocial = "";
             }
-
             if (this.requiereNutricionista) {
                 if (!this.nutricionista) {
                     this.nutricionista = this.primerDocumentoDisponible(this.nutricionistasByGrupo);
                 }
+            } else {
+                this.nutricionista = "";
             }
-
             if (this.requiereHigienistaOral) {
                 if (!this.higienistaOral) {
                     this.higienistaOral = this.primerDocumentoDisponible(this.higienistasOralByGrupo);
                 }
+            } else {
+                this.higienistaOral = "";
             }
+        },
+        /**
+         * Carga listas por grupo/convenio operativo y preselecciona.
+         * No usa el convenio del paciente repetido: solo el del auxiliar/sesión.
+         */
+        async cargarProfesionalesDelGrupo({ resetSeleccion = false } = {}) {
+            const grupo = this.grupoOperativo;
+            const convenio = this.convenioOperativo;
+            if (!grupo || !convenio) return;
+
+            if (resetSeleccion) {
+                this.medico = "";
+                this.enfermero = "";
+                this.psicologo = "";
+                this.trabajadorSocial = "";
+                this.nutricionista = "";
+                this.higienistaOral = "";
+            }
+
+            await this.getAllMedicosbyGrupo({ grupo, convenio });
+            await this.getAllEnfermerosbyGrupo({ grupo, convenio });
+            if (this.mostrarPsicoTs) {
+                await this.getAllPsicologosbyGrupo({ grupo, convenio });
+                await this.getAllTsocialesbyGrupo({ grupo, convenio });
+            }
+            if (this.requiereNutricionista) {
+                await this.getAllNutricionistasbyGrupo({ grupo, convenio });
+            }
+            if (this.requiereHigienistaOral) {
+                await this.getAllHigienistasOralbyGrupo({ grupo, convenio });
+            }
+            this.aplicarProfesionalesPorDefecto();
         },
         cargarActividadesPorDefecto() {
             if (!Array.isArray(this.actividadesExtra) || this.actividadesExtra.length === 0) {
@@ -1335,20 +1375,29 @@ export default {
         documentoOperativo() {
             return this.contextoDelegado.documento;
         },
+        convenioNormalizado() {
+            return String(this.convenioOperativo || "")
+                .trim()
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "");
+        },
         esConvenioEBasicos() {
-            return String(this.convenioOperativo || "").trim() === "E Basicos";
+            const c = this.convenioNormalizado;
+            return c === "e basicos" || c === "ebasicos" || c === "equipos basicos";
         },
         mostrarFormularioEncuesta() {
             return this.estadoConsulta === "disponible" || this.estadoConsulta === "seguimiento";
         },
         esConvenioPIC() {
-            return String(this.convenioOperativo || "").trim() === "PIC";
+            return this.convenioNormalizado === "pic";
         },
         esConvenioUnidesa() {
-            const convenioUsuario = String(this.convenioOperativo || "").trim().toLowerCase();
-            return convenioUsuario === "unidesa" || convenioUsuario === "unides";
+            const c = this.convenioNormalizado;
+            return c === "unidesa" || c === "unides";
         },
         mostrarPsicoTs() {
+            // Visibilidad por convenio del auxiliar/sesión, nunca por el del paciente repetido
             return this.esConvenioEBasicos || this.esConvenioPIC;
         },
         requiereNutricionista() {
@@ -1414,30 +1463,27 @@ export default {
             this.pacienteEncontrado = null;
             this.nombreEncuestador = "";
         },
-        mostrarPsicoTs(valor) {
+        async mostrarPsicoTs(valor) {
             if (!valor) {
                 this.psicologo = "";
                 this.trabajadorSocial = "";
                 return;
             }
-
-            this.aplicarProfesionalesPorDefecto();
+            await this.cargarProfesionalesDelGrupo();
         },
-        requiereNutricionista(valor) {
+        async requiereNutricionista(valor) {
             if (!valor) {
                 this.nutricionista = "";
                 return;
             }
-
-            this.aplicarProfesionalesPorDefecto();
+            await this.cargarProfesionalesDelGrupo();
         },
-        requiereHigienistaOral(valor) {
+        async requiereHigienistaOral(valor) {
             if (!valor) {
                 this.higienistaOral = "";
                 return;
             }
-
-            this.aplicarProfesionalesPorDefecto();
+            await this.cargarProfesionalesDelGrupo();
         },
         medicosByGrupo() {
             this.aplicarProfesionalesPorDefecto();
@@ -1457,6 +1503,12 @@ export default {
         higienistasOralByGrupo() {
             this.aplicarProfesionalesPorDefecto();
         },
+        grupoOperativo() {
+            this.cargarProfesionalesDelGrupo();
+        },
+        convenioOperativo() {
+            this.cargarProfesionalesDelGrupo();
+        },
         actividadesExtra() {
             this.cargarActividadesPorDefecto();
         },
@@ -1466,22 +1518,7 @@ export default {
         await this.getAllEps();
         await this.getAllContratos();
         await this.getAllActividadesExtra();
-        const grupo = this.grupoOperativo;
-        const convenio = this.convenioOperativo;
-        await this.getAllMedicosbyGrupo({ grupo, convenio });
-        await this.getAllEnfermerosbyGrupo({ grupo, convenio });
-        if (this.mostrarPsicoTs) {
-            await this.getAllPsicologosbyGrupo({ grupo, convenio });
-            await this.getAllTsocialesbyGrupo({ grupo, convenio });
-        }
-        if (this.requiereNutricionista) {
-            await this.getAllNutricionistasbyGrupo({ grupo, convenio });
-        }
-        if (this.requiereHigienistaOral) {
-            await this.getAllHigienistasOralbyGrupo({ grupo, convenio });
-        }
-
-        this.aplicarProfesionalesPorDefecto();
+        await this.cargarProfesionalesDelGrupo();
         this.cargarActividadesPorDefecto();
         // Asegurar que la página sea desplazable al montar el componente
         this.ensureScrollability();
