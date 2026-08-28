@@ -50,6 +50,11 @@
                   <i class="bi bi-person-circle"></i> <span class="nav-label">Facturador</span>
                 </router-link>
               </li>
+              <li class="nav-item" v-if="userData && userData.cargo === 'Fact'">
+                <router-link class="nav-link" to="/facturador_informes" @click="onNavLinkClick">
+                  <i class="bi bi-bar-chart-fill"></i> <span class="nav-label">Informes</span>
+                </router-link>
+              </li>
 
               <li class="nav-item" v-if="userData && userData.cargo === 'Auxiliar de enfermeria'">
                 <router-link class="nav-link" to="/sop_aux" @click="onNavLinkClick">

@@ -451,6 +451,8 @@ export default {
       ],
       ocupacionOptions: [
         "Estudiante",
+        "Lactante",
+        "Preescolar",
         "Hogar / Labores de cuidado no remunerado",
         "Empleado / Trabajador dependiente (sector formal)",
         "Trabajador independiente / Cuenta propia",

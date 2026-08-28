@@ -23,6 +23,16 @@ export default {
         enSesionDelegada() {
             return String(this.$route?.query?.estadoView || "") === "1";
         },
+        esPaginaAnchoCompleto() {
+            const name = String(this.$route?.name || "");
+            const path = String(this.$route?.path || "");
+            return name === "sop_facturacion"
+                || path.includes("/sop_facturacion")
+                || name === "sop_enfermero"
+                || path.includes("/sop_enfermero")
+                || name === "admin_informes"
+                || path.includes("/admin_informes");
+        },
         profesionalDelegadoNombre() {
             return String(this.$route?.query?.profesionalNombre || "").trim();
         }
@@ -118,7 +128,7 @@ export default {
 </script>
 
 <template>
-    <div id="app" :class="[themeClass, { 'is-delegated-session': enSesionDelegada }]">
+    <div id="app" :class="[themeClass, { 'is-delegated-session': enSesionDelegada, 'app-ancho-completo': esPaginaAnchoCompleto }]">
         <Navbar v-if="!$route.meta.hideNavbar" />
         <router-view :key="$route.path">
         </router-view>
@@ -272,5 +282,10 @@ body {
     width: 100% !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
+}
+
+#app.app-ancho-completo {
+    max-width: none !important;
+    width: 100% !important;
 }
 </style>

@@ -62,6 +62,8 @@
               <table class="table table-sm table-hover mb-0 consulta-resultados-table">
                 <thead class="table-light">
                   <tr>
+                    <th>Fecha intervención</th>
+                    <th>Convenio</th>
                     <th>Tipo de documento</th>
                     <th>Número de documento</th>
                     <th>Nombres</th>
@@ -72,7 +74,13 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="paciente in datosPaciente" :key="`resumen-${paciente.id}`">
+                  <tr v-for="paciente in datosPacienteOrdenados" :key="`resumen-${paciente.id}`">
+                    <td>
+                      <span class="consulta-fecha-intervencion">
+                        {{ formatearFechaIntervencion(paciente) || 'N/A' }}
+                      </span>
+                    </td>
+                    <td>{{ paciente.convenio || 'N/A' }}</td>
                     <td><span class="badge bg-secondary-subtle text-dark border">{{ paciente.tipodoc || '-' }}</span></td>
                     <td><strong>{{ paciente.numdoc || '-' }}</strong></td>
                     <td>{{ nombresPaciente(paciente) || '-' }}</td>
@@ -97,7 +105,7 @@
         </div>
 
         <!-- VISTA DETALLADA DE PACIENTES -->
-        <template v-for="(paciente, index) in datosPaciente" :key="`detalle-${paciente.id}`">
+        <template v-for="(paciente, index) in datosPacienteOrdenados" :key="`detalle-${paciente.id}`">
         <div v-if="pacienteDetalleAbiertoId === paciente.id" class="card consulta-detalle-card mb-4">
           <div class="card-header consulta-detalle-header">
             <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
@@ -292,8 +300,8 @@
                         <td>{{ paciente.convenio || 'N/A' }}</td>
                       </tr>
                       <tr>
-                        <th>Fecha Encuesta</th>
-                        <td>{{ formatearFechaSoloDia(paciente.fecha) || 'N/A' }}</td>
+                        <th>Fecha intervención</th>
+                        <td>{{ formatearFechaIntervencion(paciente) || 'N/A' }}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -498,7 +506,24 @@ export default {
       });
 
       return Array.from(opciones);
-    }
+    },
+    datosPacienteOrdenados() {
+      const lista = Array.isArray(this.datosPaciente) ? [...this.datosPaciente] : [];
+
+      return lista.sort((a, b) => {
+        const fechaB = this.timestampFechaIntervencion(b);
+        const fechaA = this.timestampFechaIntervencion(a);
+
+        if (fechaB !== fechaA) {
+          return fechaB - fechaA;
+        }
+
+        return String(b?.id || "").localeCompare(String(a?.id || ""), "es", {
+          numeric: true,
+          sensitivity: "base",
+        });
+      });
+    },
   },
   methods: {
     ...mapMutations(["setDatosPaciente"]),
@@ -551,6 +576,22 @@ export default {
         .map((item) => String(item || "").trim())
         .filter(Boolean)
         .join(" ");
+    },
+
+    obtenerValorFechaIntervencion(paciente = {}) {
+      return paciente.fecha ?? paciente.Fecha ?? paciente.fecha_encuesta ?? paciente.fechaEncuesta ?? "";
+    },
+
+    formatearFechaIntervencion(paciente = {}) {
+      return this.formatearFechaSoloDia(this.obtenerValorFechaIntervencion(paciente));
+    },
+
+    timestampFechaIntervencion(paciente = {}) {
+      const ymd = this.formatearFechaIntervencion(paciente);
+      if (!ymd) return 0;
+
+      const timestamp = Date.parse(`${ymd}T00:00:00`);
+      return Number.isNaN(timestamp) ? 0 : timestamp;
     },
 
     abrirPanelPaciente(pacienteId) {
@@ -1052,6 +1093,13 @@ Esta acción NO se puede deshacer.`;
   background: #e0f2fe;
   color: #075985;
   font-weight: 600;
+}
+
+.consulta-fecha-intervencion {
+  display: inline-block;
+  font-weight: 700;
+  color: #0f5132;
+  white-space: nowrap;
 }
 
 .consulta-detalle-card {

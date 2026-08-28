@@ -10,6 +10,7 @@ import { informesApi } from "@/api/informesApi";
 import {
   getDisponiblesFacturacionPorDocumento,
   getDisponiblesFacturacionPorRango,
+  getHistorialFacturacion,
   getPendientesFacturacion,
 } from "@/api/facturacionApi";
 import { caracterizacionApi, encuestasApi, encuestaActividadesApi } from "@/api/modulesApi";
@@ -508,6 +509,7 @@ export default createStore({
     EncuestasProf: [],
     EncuestasFact: [],
     EncuestasFactAprov: [],
+    EncuestasFactHistorial: [],
 
     // Usuarios y personal
     usuarios: [],
@@ -3867,7 +3869,7 @@ export default createStore({
         ...(cup && typeof cup === "object" ? cup : {}),
         FactNum: numFactura,
         FactProf: idFacturador,
-        facturado: facturado || true,
+        facturado: facturado === false ? false : true,
         fechaFacturacion: fechaFacturacion,
         fechaAsignacionFactura: fechaFacturacion,
       };
@@ -4040,6 +4042,50 @@ export default createStore({
 
       factAprovInflight.set(cacheKey, loadPromise);
       return loadPromise;
+    },
+
+    /**
+     * Obtiene pacientes cerrados en facturación para el historial del facturador.
+     */
+    GetHistorialFacturacion: async ({ commit }, payload = {}) => {
+      const iduser = payload?.iduser;
+      const gruposFacturador = payload?.gruposFacturador || "";
+      const convenioFacturador = payload?.convenio || "";
+      const fechaInicio = payload?.fechaInicio || payload?.finicial || "";
+      const fechaFin = payload?.fechaFin || payload?.ffinal || "";
+
+      try {
+        if (!String(iduser || "").trim() || !fechaInicio || !fechaFin) {
+          commit("setEncuestasFactHistorial", []);
+          return [];
+        }
+
+        const baseParams = {
+          idFacturador: iduser,
+          fechaInicio,
+          fechaFin,
+          gruposFacturador: gruposFacturador || "",
+        };
+
+        let resultados = await getHistorialFacturacion({
+          ...baseParams,
+          convenio: convenioFacturador || "",
+          _ts: payload?.force ? Date.now() : undefined,
+        });
+
+        if (!resultados.length && String(convenioFacturador || "").trim()) {
+          resultados = await getHistorialFacturacion({
+            ...baseParams,
+            _ts: payload?.force ? Date.now() : undefined,
+          });
+        }
+
+        commit("setEncuestasFactHistorial", resultados);
+        return resultados;
+      } catch (error) {
+        console.error("Error en Action_GetHistorialFacturacion:", error);
+        throw error;
+      }
     },
 
     // ====================================================================
@@ -4288,6 +4334,9 @@ export default createStore({
     },
     setEncuestasFactAprov(state, encuestas) {
       state.EncuestasFactAprov = encuestas;
+    },
+    setEncuestasFactHistorial(state, encuestas) {
+      state.EncuestasFactHistorial = encuestas;
     },
 
     // Parámetros

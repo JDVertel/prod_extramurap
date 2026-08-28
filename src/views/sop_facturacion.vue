@@ -1,5 +1,5 @@
 <template>
-    <div class="container-fluid">
+    <div class="facturacion-page px-2 px-md-3 py-2">
         <h1> Facturación</h1>
         <ProfesionalGrupoInfo />
         <div v-if="cargando" class="spinner-overlay">
@@ -25,6 +25,10 @@
                     <button class="nav-link" :class="{ active: activeTab === 'aprovisionar' }"
                         @click="activeTab = 'aprovisionar'" type="button" :aria-selected="activeTab === 'aprovisionar'">
                         Aprovisionar
+                    </button>
+                    <button class="nav-link" :class="{ active: activeTab === 'historial' }"
+                        @click="activeTab = 'historial'" type="button" :aria-selected="activeTab === 'historial'">
+                        Historial
                     </button>
                 </div>
             </nav>
@@ -73,6 +77,9 @@
                                         indicadorOrdenPendientes('fecha') }}</th>
                                     <th @click="ordenarPendientes('fechagestEnfermera')" role="button">Fecha cierre {{
                                         indicadorOrdenPendientes('fechagestEnfermera') }}</th>
+                                    <th @click="ordenarPendientes('estado')" role="button" class="text-center">
+                                        Estado {{ indicadorOrdenPendientes('estado') }}
+                                    </th>
                                     <th>Acciones</th>
                                 </tr>
                                 <tr>
@@ -83,7 +90,14 @@
                                                 :key="`pend-grupo-${item}`" :value="item">{{ item }}</option>
                                         </select>
                                     </th>
-                                    <th></th>
+                                    <th>
+                                        <input
+                                            v-model="filtrosPendientes.paciente"
+                                            type="text"
+                                            class="form-control form-control-sm"
+                                            placeholder="Buscar paciente"
+                                        />
+                                    </th>
                                     <th>
                                         <select v-model="filtrosPendientes.sexo" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -91,7 +105,14 @@
                                                 :key="`pend-sexo-${item}`" :value="item">{{ item }}</option>
                                         </select>
                                     </th>
-                                    <th></th>
+                                    <th>
+                                        <input
+                                            v-model="filtrosPendientes.numdoc"
+                                            type="text"
+                                            class="form-control form-control-sm"
+                                            placeholder="N° documento"
+                                        />
+                                    </th>
                                     <th>
                                         <input v-model="filtrosPendientes.fechaNac" type="date"
                                             class="form-control form-control-sm" />
@@ -142,10 +163,14 @@
                                             class="form-control form-control-sm" />
                                     </th>
                                     <th></th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="paciente in encuestasPendientesProcesadas" :key="paciente.id">
+                                <tr
+                                    v-for="paciente in encuestasPendientesProcesadas"
+                                    :key="paciente.id"
+                                    :class="{ 'pendiente-gestion-incompleta': esPacienteFacturacionIncompleta(paciente) }">
                                     <td>{{ paciente.grupo }}</td>
                                     <td>
                                         {{ paciente.nombre1 }} {{ paciente.apellido1 }}
@@ -163,22 +188,42 @@
                                     <td>{{ paciente.barrioVeredacomuna?.comuna }}</td>
                                     <td>{{ formatearFechaYYYYMMDD(paciente.fecha) }}</td>
                                     <td>{{ formatearFechaYYYYMMDD(paciente.fechagestEnfermera) }}</td>
+                                    <td class="text-center">
+                                        <span
+                                            v-if="esPacienteFacturacionIncompleta(paciente)"
+                                            class="estado-facturacion-incompleta"
+                                            :title="textoEstadoFacturacionPendiente(paciente)">
+                                            <i class="bi bi-exclamation-triangle-fill"></i>
+                                            <span class="small d-block">Incompleto</span>
+                                        </span>
+                                        <span v-else class="text-muted small">Sin gestión</span>
+                                    </td>
                                     <td>
                                         <div class="d-flex gap-2">
                                             <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                                                 data-bs-target="#staticBackdrop" @click="setPacienteId(paciente.id)">
                                                 <i class="bi bi-bookmark-check-fill"></i>
                                             </button>
-                                            <button v-if="paciente.allFacturasVacias" type="button"
-                                                class="btn btn-outline-danger" :disabled="devolverDisabled[paciente.id]"
-                                                @click="devolverARegistroInicial(paciente.id)">
+                                            <button
+                                                v-if="paciente.allFacturasVacias"
+                                                type="button"
+                                                class="btn btn-outline-danger"
+                                                :disabled="devolverDisabled[paciente.id]"
+                                                @click="devolverARegistroInicial(paciente.id)"
+                                                title="Devolver a registro inicial">
                                                 <i class="bi bi-arrow-counterclockwise"></i>
                                             </button>
+                                            <span
+                                                v-else-if="esPacienteFacturacionIncompleta(paciente)"
+                                                class="btn btn-warning btn-sm disabled opacity-100"
+                                                :title="textoEstadoFacturacionPendiente(paciente)">
+                                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                            </span>
                                         </div>
                                     </td>
                                 </tr>
                                 <tr v-if="encuestasPendientesProcesadas.length === 0">
-                                    <td colspan="15" class="text-center text-muted py-4">
+                                    <td colspan="16" class="text-center text-muted py-4">
                                         No hay pacientes visibles en la bandeja.
                                         <span v-if="totalPendientesCargados > 0">Hay registros cargados, pero quedaron ocultos por filtros o por la pestaña actual.</span>
                                         <span v-else>No se cargaron pendientes para este facturador.</span>
@@ -190,7 +235,7 @@
                 </div>
                 <div v-if="activeTab === 'aprovisionar'" class="tab-pane show active" id="nav-profile"
                     role="tabpanel" tabindex="0">
-                    <div class="container mt-3">
+                    <div class="container-fluid px-0 mt-3">
 
                         <ul class="nav nav-tabs" id="myTab" role="tablist">
                             <li class="nav-item" role="presentation">
@@ -270,15 +315,50 @@
                     </div>
                     <br />
                     <p>Registro</p>
-                    <div class="d-flex justify-content-end mb-2">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" @click="limpiarFiltrosRegistro">
-                            Limpiar filtros
-                        </button>
+                    <div v-if="mensajeAprovisionamientoLote" class="alert py-2"
+                        :class="mensajeAprovisionamientoLote.includes('Fallidos') ? 'alert-warning' : 'alert-success'">
+                        {{ mensajeAprovisionamientoLote }}
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                        <div class="small text-muted">
+                            {{ encuestasFactProcesadas.length }} visible(s) ·
+                            {{ totalSeleccionadosAprovisionamiento }} seleccionado(s)
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button
+                                type="button"
+                                class="btn btn-warning btn-sm"
+                                :disabled="totalSeleccionadosAprovisionamiento === 0 || aprovisionandoLote || cargando"
+                                @click="aprovisionarSeleccionados">
+                                <i class="bi bi-people-fill"></i>
+                                {{ aprovisionandoLote ? 'Aprovisionando...' : `Aprovisionar seleccionados (${totalSeleccionadosAprovisionamiento})` }}
+                            </button>
+                            <button
+                                v-if="totalSeleccionadosAprovisionamiento > 0"
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm"
+                                :disabled="aprovisionandoLote || cargando"
+                                @click="limpiarSeleccionAprovision">
+                                Quitar selección
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" @click="limpiarFiltrosRegistro">
+                                Limpiar filtros
+                            </button>
+                        </div>
                     </div>
                     <div class="table-responsive tabla-scroll" ref="tablaHtml">
                         <table class="table table-bordered table-striped table-sm align-middle table-success">
                             <thead class="table-light">
                                 <tr>
+                                    <th style="width: 42px;" class="text-center">
+                                        <input
+                                            type="checkbox"
+                                            class="form-check-input m-0"
+                                            :checked="todosSeleccionadosAprovisionamiento"
+                                            :disabled="idsSeleccionablesAprovisionamiento.length === 0 || aprovisionandoLote || cargando"
+                                            @change="toggleSeleccionarTodosAprovision"
+                                            title="Seleccionar todos los visibles">
+                                    </th>
                                     <!--  <th>id</th> -->
                                     <th @click="ordenarRegistro('grupo')" role="button">Grupo {{ indicadorOrden('grupo')
                                         }}</th>
@@ -311,6 +391,7 @@
                                     <th>Opciones</th>
                                 </tr>
                                 <tr>
+                                    <th></th>
                                     <th>
                                         <select v-model="filtrosRegistro.grupo" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -328,6 +409,14 @@
                                         </select>
                                     </th>
                                     <th></th>
+                                    <th>
+                                        <input
+                                            v-model="filtrosRegistro.numdoc"
+                                            type="text"
+                                            class="form-control form-control-sm"
+                                            placeholder="N° documento"
+                                        />
+                                    </th>
                                     <th>
                                         <input v-model="filtrosRegistro.fechaNac" type="date"
                                             class="form-control form-control-sm" />
@@ -381,6 +470,14 @@
                             </thead>
                             <tbody>
                                 <tr v-for="paciente in encuestasFactProcesadas" :key="paciente.id">
+                                    <td class="text-center">
+                                        <input
+                                            type="checkbox"
+                                            class="form-check-input m-0"
+                                            :checked="estaSeleccionadoAprovision(paciente.id)"
+                                            :disabled="aprovDisabled[paciente.id] || aprovisionandoLote || cargando"
+                                            @change="toggleSeleccionAprovision(paciente.id)">
+                                    </td>
                                     <!-- <td>{{paciente.id }}</td> -->
                                     <td>{{ paciente.grupo }}</td>
                                     <td>{{ obtenerProfesionalAprovisionamiento(paciente) }}</td>
@@ -401,14 +498,84 @@
                                     <td>{{ paciente.requiereRemision }}</td>
                                     <td>
                                         <button type="button" class="btn btn-warning"
-                                            :disabled="aprovDisabled[paciente.id]" @click="
-                                                AprovisionarPaciente(
-                                                    (idEncuesta = paciente.id),
-                                                    (idProf = userData.numDocumento)
-                                                )
-                                                ">
+                                            :disabled="aprovDisabled[paciente.id] || aprovisionandoLote"
+                                            @click="AprovisionarPaciente(paciente.id)">
                                             <i class="bi bi-person-plus"></i>
                                         </button>
+                                    </td>
+                                </tr>
+                                <tr v-if="encuestasFactProcesadas.length === 0">
+                                    <td colspan="16" class="text-center text-muted py-4">
+                                        No hay registros visibles. Realice una búsqueda o ajuste los filtros.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div v-if="activeTab === 'historial'" class="tab-pane show active" id="nav-historial" role="tabpanel"
+                    tabindex="0">
+                    <div class="d-flex justify-content-between align-items-center mb-2 mt-2 gap-2 flex-wrap">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Periodo historial">
+                            <button type="button" class="btn"
+                                :class="periodoHistorial === 'hoy' ? 'btn-primary' : 'btn-outline-primary'"
+                                @click="cambiarPeriodoHistorial('hoy')">
+                                Hoy
+                            </button>
+                            <button type="button" class="btn"
+                                :class="periodoHistorial === 'ayer' ? 'btn-primary' : 'btn-outline-primary'"
+                                @click="cambiarPeriodoHistorial('ayer')">
+                                Ayer
+                            </button>
+                            <button type="button" class="btn"
+                                :class="periodoHistorial === 'semana' ? 'btn-primary' : 'btn-outline-primary'"
+                                @click="cambiarPeriodoHistorial('semana')">
+                                Última semana
+                            </button>
+                        </div>
+                        <div class="small text-muted">
+                            {{ etiquetaResumenHistorial }}
+                        </div>
+                    </div>
+                    <div class="table-responsive tabla-scroll">
+                        <table class="table table-bordered table-striped table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th @click="ordenarHistorial('grupo')" role="button">Grupo {{
+                                        indicadorOrdenHistorial('grupo') }}</th>
+                                    <th @click="ordenarHistorial('paciente')" role="button">Paciente {{
+                                        indicadorOrdenHistorial('paciente') }}</th>
+                                    <th @click="ordenarHistorial('documento')" role="button">Documento {{
+                                        indicadorOrdenHistorial('documento') }}</th>
+                                    <th @click="ordenarHistorial('eps')" role="button">EPS {{
+                                        indicadorOrdenHistorial('eps') }}</th>
+                                    <th @click="ordenarHistorial('convenio')" role="button">Convenio {{
+                                        indicadorOrdenHistorial('convenio') }}</th>
+                                    <th @click="ordenarHistorial('fecha')" role="button">Fecha Demanda {{
+                                        indicadorOrdenHistorial('fecha') }}</th>
+                                    <th @click="ordenarHistorial('fechagestEnfermera')" role="button">Fecha cierre clínico {{
+                                        indicadorOrdenHistorial('fechagestEnfermera') }}</th>
+                                    <th @click="ordenarHistorial('fechaFacturacion')" role="button">Fecha cierre facturación {{
+                                        indicadorOrdenHistorial('fechaFacturacion') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="paciente in encuestasHistorialProcesadas" :key="`hist-${paciente.id}`">
+                                    <td>{{ paciente.grupo }}</td>
+                                    <td>
+                                        {{ paciente.nombre1 }} {{ paciente.apellido1 }}
+                                        {{ paciente.apellido2 }}
+                                    </td>
+                                    <td>{{ paciente.tipodoc }}-{{ paciente.numdoc }}</td>
+                                    <td>{{ paciente.eps }}</td>
+                                    <td>{{ paciente.convenio }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(paciente.fecha) }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechagestEnfermera) }}</td>
+                                    <td>{{ formatearFechaHora(paciente.fechaFacturacion || paciente.FechaFacturacion) }}</td>
+                                </tr>
+                                <tr v-if="encuestasHistorialProcesadas.length === 0">
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        No hay pacientes cerrados en facturación para {{ etiquetaPeriodoHistorial }}.
                                     </td>
                                 </tr>
                             </tbody>
@@ -511,127 +678,171 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="modal-body">
-
-                        <!--    <div class="alert alert-info">
-                        ID Paciente seleccionado: <strong>{{ pacienteIdModal }}</strong>
-                    </div> -->
-
-                        <div class="table-responsive" ref="tablaHtml">
-
-                            <!-- *************************************************************************************************************** -->
-
-                            <table class="table table-bordered table-striped table-sm align-middle">
-                                <!--  {{ conteoCupsFactNum }} -->
-                                <thead class="table-light table-bordered">
-                                    <tr>
-                                        <th>
-                                            <h3>Procedimientos y Actividades</h3>
-                                        </th>
-                                    </tr>
-
-                                </thead>
-                                <tbody>
-                                    <tr v-for="paciente in InfoEncuestasById" :key="paciente.id">
-                                        <td>
-                                            <table class="table table-bordered table-striped table-sm align-middle">
-                                                <thead>
-                                                    <tr>
-
-                                                        <th @click="ordenarCups('actividad')" role="button">
-                                                            Actividad {{ indicadorOrdenCups('actividad') }}</th>
-                                                        <th @click="ordenarCups('rol')" role="button">Rol {{
-                                                            indicadorOrdenCups('rol') }}</th>
-                                                        <th @click="ordenarCups('profesional')" role="button">
-                                                            Profesional {{ indicadorOrdenCups('profesional') }}</th>
-                                                        <th @click="ordenarCups('cantidad')" role="button">Cantidad
-                                                            {{ indicadorOrdenCups('cantidad') }}</th>
-                                                        <th @click="ordenarCups('codigo')" role="button">Homolog {{
-                                                            indicadorOrdenCups('codigo') }}</th>
-                                                        <th @click="ordenarCups('descripcion')" role="button">
-                                                            Descripción CUP {{ indicadorOrdenCups('descripcion') }}
-                                                        </th>
-                                                        <th @click="ordenarCups('detalle')" role="button">Detalle {{
-                                                            indicadorOrdenCups('detalle') }}</th>
-                                                        <th @click="ordenarCups('grupo')" role="button">Grupo {{
-                                                            indicadorOrdenCups('grupo') }}</th>
-                                                        <th>Factura</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <tr v-for="([cupId, cup]) in getCupsOrdenados(paciente)"
-                                                        :key="cupId">
-                                                        <td>{{ obtenerNombreActividad(cup.actividadId) }}</td>
-                                                        <td>{{ cup.nombreProf || '-' }}</td>
-                                                        <td>{{ formatearProfesionales(cup.key) || '-' }}</td>
-                                                        <td>{{ cup.cantidad || '-' }}</td>
-                                                        <td>{{ cup.codigo || '-' }}</td>
-                                                        <td>{{ cup.DescripcionCUP || cup.cupsNombre || '-' }}</td>
-                                                        <td>{{ cup.detalle || '-' }}</td>
-                                                        <td>{{ cup.Grupo || '-' }}</td>
-                                                        <td>
-                                                            <template v-if="cup.facturado && !modoEdicion">
-                                                                {{ cup.FactNum }}
-                                                            </template>
-                                                            <template v-if="cup.facturado && modoEdicion">
-                                                                <div class="input-group mb-3">
-                                                                    <input type="text" :id="`editar-factura-${cupId}`"
-                                                                        class="form-control"
-                                                                        v-model="facturaEditables[cupId]"
-                                                                        placeholder="#factura">
-                                                                </div>
-                                                            </template>
-                                                            <template v-if="!cup.facturado">
-                                                                <div class="input-group mb-3">
-                                                                    <input type="text" :id="`factura-${cupId}`"
-                                                                        class="form-control"
-                                                                        :disabled="facturaDisabled[cupId]"
-                                                                        v-model="facturaInputs[cupId]"
-                                                                        placeholder="#factura">
-                                                                    <button
-                                                                        :class="['btn', (facturaInputs[cupId] && facturaInputs[cupId].length >= 5) || facturaDisabled[cupId] ? 'btn-success' : 'btn-outline-secondary']"
-                                                                        type="button"
-                                                                        :disabled="!facturaInputs[cupId] || facturaInputs[cupId].length < 5 || facturaDisabled[cupId]"
-                                                                        @click="regFactCup(cupId, facturaInputs[cupId], cup)">
-                                                                        <i class="bi bi-bookmark-check-fill"></i>
-                                                                    </button>
-                                                                </div>
-                                                            </template>
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-
+                    <div class="modal-body position-relative">
+                        <div v-if="cargandoModal" class="modal-loading-overlay">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Cargando...</span>
+                            </div>
+                            <div class="small text-muted mt-2">Cargando procedimientos...</div>
                         </div>
-                        <!--  -->
+
+                        <div v-if="errorModalFacturacion" class="alert alert-danger py-2">
+                            {{ errorModalFacturacion }}
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                            <div>
+                                <h3 class="mb-0">Procedimientos y Actividades</h3>
+                                <div v-if="modoEdicion" class="small text-muted">
+                                    Mínimo {{ minFacturaChars }} caracteres. Válido en verde, inválido en rojo.
+                                </div>
+                            </div>
+                            <button
+                                v-if="!modoEdicion && pacienteIdModal && hayCupsEnModal"
+                                type="button"
+                                class="btn btn-info btn-sm"
+                                :disabled="guardandoFactura || cargandoModal"
+                                @click="iniciarEdicionCodigos">
+                                <i class="bi bi-pencil-square"></i> Editar facturas
+                            </button>
+                        </div>
+
+                        <div
+                            v-if="modoEdicion && mensajeEdicionFacturas"
+                            class="alert py-2 mb-3"
+                            :class="claseAlertaEdicionFacturas">
+                            {{ mensajeEdicionFacturas }}
+                        </div>
+
+                        <div v-if="!hayCupsEnModal && !cargandoModal" class="alert alert-warning mb-0">
+                            No hay procedimientos CUPS asignados para este paciente.
+                        </div>
+
+                        <template v-else-if="pacienteModalActual">
+                            <ul class="nav nav-tabs mb-3" role="tablist">
+                                <li v-for="rol in rolesFacturacionModal" :key="`rol-tab-${rol}`" class="nav-item" role="presentation">
+                                    <button
+                                        type="button"
+                                        class="nav-link"
+                                        :class="{ active: rolFacturacionActivo === rol }"
+                                        @click="rolActivoFacturacion = rol">
+                                        {{ etiquetaRolFacturacion(rol) }}
+                                        <span class="badge bg-secondary ms-1">{{ contarCupsPorRol(pacienteModalActual, rol) }}</span>
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <div class="table-responsive" ref="tablaHtml">
+                                <table class="table table-bordered table-striped table-sm align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th @click="ordenarCups('actividad')" role="button">
+                                                Actividad {{ indicadorOrdenCups('actividad') }}
+                                            </th>
+                                            <th @click="ordenarCups('rol')" role="button">
+                                                Rol {{ indicadorOrdenCups('rol') }}
+                                            </th>
+                                            <th @click="ordenarCups('profesional')" role="button">
+                                                Profesional {{ indicadorOrdenCups('profesional') }}
+                                            </th>
+                                            <th @click="ordenarCups('cantidad')" role="button">
+                                                Cantidad {{ indicadorOrdenCups('cantidad') }}
+                                            </th>
+                                            <th @click="ordenarCups('codigo')" role="button">
+                                                Homolog {{ indicadorOrdenCups('codigo') }}
+                                            </th>
+                                            <th @click="ordenarCups('descripcion')" role="button">
+                                                Descripción CUP {{ indicadorOrdenCups('descripcion') }}
+                                            </th>
+                                            <th @click="ordenarCups('detalle')" role="button">
+                                                Detalle {{ indicadorOrdenCups('detalle') }}
+                                            </th>
+                                            <th @click="ordenarCups('grupo')" role="button">
+                                                Grupo {{ indicadorOrdenCups('grupo') }}
+                                            </th>
+                                            <th>Factura</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr
+                                            v-for="([cupId, cup]) in getCupsPorRol(pacienteModalActual, rolFacturacionActivo)"
+                                            :key="cupId">
+                                            <td>{{ obtenerNombreActividad(cup.actividadId) }}</td>
+                                            <td>{{ etiquetaRolFacturacion(cup.key) || '-' }}</td>
+                                            <td>{{ cup.nombreProf || '-' }}</td>
+                                            <td>{{ cup.cantidad || '-' }}</td>
+                                            <td>{{ cup.codigo || '-' }}</td>
+                                            <td>{{ cup.DescripcionCUP || cup.cupsNombre || '-' }}</td>
+                                            <td>{{ cup.detalle || '-' }}</td>
+                                            <td>{{ cup.Grupo || '-' }}</td>
+                                            <td style="min-width: 220px;">
+                                                <template v-if="modoEdicion">
+                                                    <input
+                                                        type="text"
+                                                        :id="`editar-factura-${cupId}`"
+                                                        class="form-control form-control-sm"
+                                                        :class="claseValidacionFacturaEdicion(cupId, cup)"
+                                                        v-model="facturaEditables[cupId]"
+                                                        :placeholder="`#factura (mín. ${minFacturaChars} caracteres)`"
+                                                        autocomplete="off">
+                                                </template>
+                                                <template v-else-if="cup.facturado">
+                                                    <span class="badge bg-success">{{ cup.FactNum || 'Facturado' }}</span>
+                                                </template>
+                                                <template v-else>
+                                                    <div class="input-group input-group-sm">
+                                                        <input
+                                                            type="text"
+                                                            :id="`factura-${cupId}`"
+                                                            class="form-control"
+                                                            :class="claseValidacionFactura(facturaInputs[cupId])"
+                                                            :disabled="facturaDisabled[cupId] || guardandoFactura"
+                                                            v-model="facturaInputs[cupId]"
+                                                            :placeholder="`#factura (mín. ${minFacturaChars} caracteres)`"
+                                                            autocomplete="off">
+                                                        <button
+                                                            :class="['btn', facturaCumpleMinimo(facturaInputs[cupId]) || facturaDisabled[cupId] ? 'btn-success' : 'btn-outline-secondary']"
+                                                            type="button"
+                                                            :disabled="!facturaCumpleMinimo(facturaInputs[cupId]) || facturaDisabled[cupId] || guardandoFactura"
+                                                            @click="regFactCup(cupId, facturaInputs[cupId], cup)">
+                                                            <i class="bi bi-bookmark-check-fill"></i>
+                                                        </button>
+                                                    </div>
+                                                </template>
+                                            </td>
+                                        </tr>
+                                        <tr v-if="getCupsPorRol(pacienteModalActual, rolFacturacionActivo).length === 0">
+                                            <td colspan="9" class="text-center text-muted py-3">
+                                                No hay procedimientos para {{ etiquetaRolFacturacion(rolFacturacionActivo) }}.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </template>
 
                         <hr />
-
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
-                            @click="modoEdicion = false">
+                            @click="cerrarModalFacturacion">
                             Cerrar
                         </button>
 
-                        <button v-if="!modoEdicion && (allCupsWithFactura)" class="btn btn-info"
-                            @click="iniciarEdicionCodigos">
-                            <i class="bi bi-pencil-square"></i> Editar Código
+                        <button v-if="modoEdicion" class="btn btn-warning" :disabled="guardandoFactura"
+                            @click="cancelarEdicion">
+                            <i class="bi bi-x-circle"></i> Cancelar edición
                         </button>
 
-                        <button v-if="modoEdicion" class="btn btn-warning" @click="cancelarEdicion">
-                            <i class="bi bi-x-circle"></i> Cancelar
-                        </button>
-
-                        <button v-if="modoEdicion" class="btn btn-success" @click="guardarEdicionCodigos">
-                            <i class="bi bi-check-circle"></i> Guardar Cambios
+                        <button v-if="modoEdicion" class="btn btn-success"
+                            :disabled="guardandoFactura || !puedeGuardarEdicionFacturas"
+                            @click="guardarEdicionCodigos">
+                            <i class="bi bi-check-circle"></i>
+                            {{ guardandoFactura ? 'Guardando...' : 'Guardar cambios' }}
                         </button>
 
                         <button v-if="!modoEdicion && (allCupsWithFactura || noCupsRenderizados)" class="btn btn-danger"
+                            :disabled="guardandoFactura || cargandoModal"
                             @click="cerrarfact(pacienteIdModal)" data-bs-dismiss="modal">
                             <i class="bi bi-check2-circle"></i> Cerrar Paciente
                         </button>
@@ -665,6 +876,9 @@ export default {
             cargando: false,
             activeTab: "pendientes", // Control de pestaña activa
             aprovDisabled: {}, // Estado de desactivación por paciente
+            seleccionAprovisionamiento: {},
+            aprovisionandoLote: false,
+            mensajeAprovisionamientoLote: "",
             devolverDisabled: {}, // Estado de desactivación para devolver en pendientes
             pacienteIdModal: null,
             facturaDisabled: {}, // Estado de desactivación por cupId
@@ -674,9 +888,33 @@ export default {
             numdoc: "",
             modoEdicion: false, // Control para modo edición de códigos
             facturaEditables: {}, // Almacena valores editables de facturas
+            minFacturaChars: 5,
+            cargandoModal: false,
+            guardandoFactura: false,
+            errorModalFacturacion: "",
+            rolActivoFacturacion: "",
+            ordenRolesFacturacion: [
+                "Medico",
+                "Enfermero",
+                "Psicologo",
+                "Tsocial",
+                "Nutricionista",
+                "Higienista oral",
+                "Auxiliar de enfermeria",
+            ],
+            etiquetasRolFacturacion: {
+                Medico: "Médico",
+                Enfermero: "Enfermero jefe",
+                Psicologo: "Psicólogo",
+                Tsocial: "T. social",
+                Nutricionista: "Nutricionista",
+                "Higienista oral": "Higienista oral",
+                "Auxiliar de enfermeria": "Auxiliar",
+            },
             filtrosRegistro: {
                 grupo: "",
                 sexo: "",
+                numdoc: "",
                 fechaNac: "",
                 eps: "",
                 regimen: "",
@@ -692,7 +930,9 @@ export default {
             },
             filtrosPendientes: {
                 grupo: "",
+                paciente: "",
                 sexo: "",
+                numdoc: "",
                 fechaNac: "",
                 eps: "",
                 convenio: "",
@@ -706,6 +946,11 @@ export default {
                 campo: "",
                 direccion: "asc",
             },
+            periodoHistorial: "hoy",
+            ordenHistorial: {
+                campo: "fechaFacturacion",
+                direccion: "desc",
+            },
             ordenCups: {
                 campo: "profesional",
                 direccion: "asc",
@@ -717,6 +962,7 @@ export default {
             "EncuestasFact",
             "userData",
             "EncuestasFactAprov",
+            "EncuestasFactHistorial",
             "InfoEncuestasById",
             "actividadesExtra",
         ]),
@@ -775,6 +1021,66 @@ export default {
             });
 
             return !anyCup;
+        },
+        pacienteModalActual() {
+            if (!Array.isArray(this.InfoEncuestasById) || !this.InfoEncuestasById.length) {
+                return null;
+            }
+            return this.InfoEncuestasById[0];
+        },
+        rolesFacturacionModal() {
+            const paciente = this.pacienteModalActual;
+            if (!paciente?.cups || typeof paciente.cups !== "object") {
+                return [];
+            }
+
+            const roles = new Set();
+            Object.values(paciente.cups).forEach((cup) => {
+                roles.add(String(cup?.key || "Sin rol").trim() || "Sin rol");
+            });
+
+            const ordenados = this.ordenRolesFacturacion.filter((rol) => roles.has(rol));
+            const restantes = Array.from(roles)
+                .filter((rol) => !this.ordenRolesFacturacion.includes(rol))
+                .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+
+            return [...ordenados, ...restantes];
+        },
+        rolFacturacionActivo() {
+            if (this.rolActivoFacturacion && this.rolesFacturacionModal.includes(this.rolActivoFacturacion)) {
+                return this.rolActivoFacturacion;
+            }
+            return this.rolesFacturacionModal[0] || "";
+        },
+        hayCupsEnModal() {
+            return this.rolesFacturacionModal.length > 0;
+        },
+        puedeGuardarEdicionFacturas() {
+            if (!this.modoEdicion) return false;
+            if (this.contarInvalidasEdicion() > 0) return false;
+            return this.contarCambiosValidosEdicion() > 0;
+        },
+        edicionFacturasTieneInvalidas() {
+            return this.contarInvalidasEdicion() > 0;
+        },
+        mensajeEdicionFacturas() {
+            if (!this.modoEdicion) return "";
+
+            const invalidas = this.contarInvalidasEdicion();
+            const cambios = this.contarCambiosValidosEdicion();
+
+            if (invalidas > 0) {
+                return `Hay ${invalidas} factura(s) con error. Los campos modificados deben tener al menos ${this.minFacturaChars} caracteres.`;
+            }
+            if (cambios === 0) {
+                return "Modifique al menos un número de factura para habilitar Guardar cambios.";
+            }
+            return `${cambios} cambio(s) listo(s) para guardar.`;
+        },
+        claseAlertaEdicionFacturas() {
+            if (this.contarInvalidasEdicion() > 0) return "alert-danger";
+            if (this.contarCambiosValidosEdicion() > 0) return "alert-success";
+            return "alert-warning";
         },
         convenioUsuario() {
             return String(this.userData?.convenio || "").trim();
@@ -837,6 +1143,7 @@ export default {
                       );
                 const cumpleGrupo = !this.filtrosRegistro.grupo || String(paciente.grupo || "").trim() === this.filtrosRegistro.grupo;
                 const cumpleSexo = !this.filtrosRegistro.sexo || String(paciente.sexo || "").trim() === this.filtrosRegistro.sexo;
+                const cumpleNumdoc = this.cumpleFiltroNumdoc(paciente, this.filtrosRegistro.numdoc);
                 const cumpleFechaNac = !this.filtrosRegistro.fechaNac || this.formatearFechaYYYYMMDD(paciente.fechaNac) === this.filtrosRegistro.fechaNac;
                 const cumpleEps = !this.filtrosRegistro.eps || String(paciente.eps || "").trim() === this.filtrosRegistro.eps;
                 const cumpleRegimen = !this.filtrosRegistro.regimen || String(paciente.regimen || "").trim() === this.filtrosRegistro.regimen;
@@ -846,7 +1153,7 @@ export default {
                 const cumpleFechaCierre = !this.filtrosRegistro.fechagestEnfermera || this.formatearFechaYYYYMMDD(paciente.fechagestEnfermera) === this.filtrosRegistro.fechagestEnfermera;
                 const cumpleRemision = !this.filtrosRegistro.remision || String(paciente.requiereRemision || "").trim() === this.filtrosRegistro.remision;
 
-                return cumpleAccesoFacturador && cumpleGrupo && cumpleSexo && cumpleFechaNac && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre && cumpleRemision;
+                return cumpleAccesoFacturador && cumpleGrupo && cumpleSexo && cumpleNumdoc && cumpleFechaNac && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre && cumpleRemision;
             });
 
             if (!this.ordenRegistro.campo) return filtradas;
@@ -857,6 +1164,20 @@ export default {
                 const valorB = this.obtenerValorColumnaRegistro(b, this.ordenRegistro.campo);
                 return valorA.localeCompare(valorB, "es", { numeric: true, sensitivity: "base" }) * direccion;
             });
+        },
+        idsSeleccionablesAprovisionamiento() {
+            return (this.encuestasFactProcesadas || [])
+                .map((paciente) => String(paciente?.id || "").trim())
+                .filter((id) => id && !this.aprovDisabled[id]);
+        },
+        totalSeleccionadosAprovisionamiento() {
+            return this.idsSeleccionablesAprovisionamiento.filter(
+                (id) => this.seleccionAprovisionamiento[id]
+            ).length;
+        },
+        todosSeleccionadosAprovisionamiento() {
+            const ids = this.idsSeleccionablesAprovisionamiento;
+            return ids.length > 0 && ids.every((id) => this.seleccionAprovisionamiento[id]);
         },
         opcionesFiltroPendientes() {
             const filas = Array.isArray(this.EncuestasFactAprov) ? this.EncuestasFactAprov : [];
@@ -899,7 +1220,9 @@ export default {
                     this.convenioUsuario
                 );
                 const cumpleGrupo = !this.filtrosPendientes.grupo || String(paciente.grupo || "").trim() === this.filtrosPendientes.grupo;
+                const cumplePaciente = this.cumpleFiltroPaciente(paciente, this.filtrosPendientes.paciente);
                 const cumpleSexo = !this.filtrosPendientes.sexo || String(paciente.sexo || "").trim() === this.filtrosPendientes.sexo;
+                const cumpleNumdoc = this.cumpleFiltroNumdoc(paciente, this.filtrosPendientes.numdoc);
                 const cumpleFechaNac = !this.filtrosPendientes.fechaNac || this.formatearFechaYYYYMMDD(paciente.fechaNac) === this.filtrosPendientes.fechaNac;
                 const cumpleEps = !this.filtrosPendientes.eps || String(paciente.eps || "").trim() === this.filtrosPendientes.eps;
                 const cumpleConvenio = !this.filtrosPendientes.convenio || String(paciente.convenio || "").trim() === this.filtrosPendientes.convenio;
@@ -909,7 +1232,7 @@ export default {
                 const cumpleFecha = !this.filtrosPendientes.fecha || this.formatearFechaYYYYMMDD(paciente.fecha) === this.filtrosPendientes.fecha;
                 const cumpleFechaCierre = !this.filtrosPendientes.fechagestEnfermera || this.formatearFechaYYYYMMDD(paciente.fechagestEnfermera) === this.filtrosPendientes.fechagestEnfermera;
 
-                return cumpleAccesoFacturador && cumpleGrupo && cumpleSexo && cumpleFechaNac && cumpleEps && cumpleConvenio && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre;
+                return cumpleAccesoFacturador && cumpleGrupo && cumplePaciente && cumpleSexo && cumpleNumdoc && cumpleFechaNac && cumpleEps && cumpleConvenio && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre;
             });
 
             if (!this.ordenPendientes.campo) return filtradas;
@@ -920,16 +1243,48 @@ export default {
                 const valorB = this.obtenerValorColumnaPendientes(b, this.ordenPendientes.campo);
                 return valorA.localeCompare(valorB, "es", { numeric: true, sensitivity: "base" }) * direccion;
             });
+        },
+        rangoHistorialActual() {
+            return this.calcularRangoHistorial(this.periodoHistorial);
+        },
+        etiquetaPeriodoHistorial() {
+            const { inicio, fin } = this.rangoHistorialActual;
+            if (this.periodoHistorial === "hoy") {
+                return `hoy (${this.formatearFechaDisplay(inicio)})`;
+            }
+            if (this.periodoHistorial === "ayer") {
+                return `ayer (${this.formatearFechaDisplay(inicio)})`;
+            }
+            return `la última semana (${this.formatearFechaDisplay(inicio)} - ${this.formatearFechaDisplay(fin)})`;
+        },
+        etiquetaResumenHistorial() {
+            const total = this.encuestasHistorialProcesadas.length;
+            const cargados = Array.isArray(this.EncuestasFactHistorial) ? this.EncuestasFactHistorial.length : 0;
+            return `Mostrando ${total} de ${cargados} pacientes cerrados — ${this.etiquetaPeriodoHistorial}`;
+        },
+        encuestasHistorialProcesadas() {
+            const filas = Array.isArray(this.EncuestasFactHistorial) ? [...this.EncuestasFactHistorial] : [];
+            const direccion = this.ordenHistorial.direccion === "desc" ? -1 : 1;
+            const campo = this.ordenHistorial.campo || "fechaFacturacion";
+
+            return filas.sort((a, b) => {
+                const valorA = this.obtenerValorColumnaHistorial(a, campo);
+                const valorB = this.obtenerValorColumnaHistorial(b, campo);
+                return valorA.localeCompare(valorB, "es", { numeric: true, sensitivity: "base" }) * direccion;
+            });
         }
 
     },
     watch: {
         async activeTab(nuevaTab) {
-            if (nuevaTab !== "pendientes") {
+            if (nuevaTab === "pendientes") {
+                await this.getPendientes();
                 return;
             }
 
-            await this.getPendientes();
+            if (nuevaTab === "historial") {
+                await this.getHistorial();
+            }
         },
         documentoUsuarioActual: {
             immediate: true,
@@ -964,6 +1319,7 @@ export default {
         ...mapActions([
             "GetRegistersbyRangeGeneralFact",
             "GetRegistersbyRangeGeneralFactAprov",
+            "GetHistorialFacturacion",
             "GetRegistersbyRangeGeneralFactByID",
             "aprovicionarP",
             "revertirAprovisionFacturacion",
@@ -1052,8 +1408,66 @@ export default {
                 this.cargando = false;
             }
         },
-        async getdataEncuestas(fechaInicio, fechaFin, convenio) {
+        calcularRangoHistorial(periodo = "hoy") {
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+
+            const formatear = (fecha) => {
+                const y = fecha.getFullYear();
+                const m = String(fecha.getMonth() + 1).padStart(2, "0");
+                const d = String(fecha.getDate()).padStart(2, "0");
+                return `${y}-${m}-${d}`;
+            };
+
+            if (periodo === "ayer") {
+                const ayer = new Date(hoy);
+                ayer.setDate(ayer.getDate() - 1);
+                const valor = formatear(ayer);
+                return { inicio: valor, fin: valor };
+            }
+
+            if (periodo === "semana") {
+                const inicioSemana = new Date(hoy);
+                inicioSemana.setDate(inicioSemana.getDate() - 6);
+                return { inicio: formatear(inicioSemana), fin: formatear(hoy) };
+            }
+
+            const valorHoy = formatear(hoy);
+            return { inicio: valorHoy, fin: valorHoy };
+        },
+        async getHistorial() {
             this.cargando = true;
+            try {
+                const documento = await this.esperarUsuarioDisponible();
+                const { inicio, fin } = this.rangoHistorialActual;
+
+                await this.GetHistorialFacturacion({
+                    force: true,
+                    iduser: documento,
+                    fechaInicio: inicio,
+                    fechaFin: fin,
+                    gruposFacturador: this.gruposFacturadorUsuario,
+                    convenio: this.convenioUsuario,
+                });
+            } finally {
+                this.cargando = false;
+            }
+        },
+        async cambiarPeriodoHistorial(periodo) {
+            if (this.periodoHistorial === periodo) {
+                await this.getHistorial();
+                return;
+            }
+
+            this.periodoHistorial = periodo;
+            await this.getHistorial();
+        },
+        async getdataEncuestas(fechaInicio, fechaFin, convenio, { limpiarSeleccion = true } = {}) {
+            this.cargando = true;
+            if (limpiarSeleccion) {
+                this.limpiarSeleccionAprovision();
+                this.mensajeAprovisionamientoLote = "";
+            }
             try {
                 if (!fechaInicio || !fechaFin) {
                     alert("Debe seleccionar fecha inicial y fecha final.");
@@ -1074,8 +1488,12 @@ export default {
             }
         },
 
-        async getdataEncuestasById(tipodoc, numdoc) {
+        async getdataEncuestasById(tipodoc, numdoc, { limpiarSeleccion = true } = {}) {
             this.cargando = true;
+            if (limpiarSeleccion) {
+                this.limpiarSeleccionAprovision();
+                this.mensajeAprovisionamientoLote = "";
+            }
             try {
                 let parametros = {
                     tipodoc: tipodoc,
@@ -1090,31 +1508,134 @@ export default {
                 this.cargando = false;
             }
         },
-        AprovisionarPaciente(id) {
-            return this.ejecutarAprovisionamiento(id);
+        limpiarSeleccionAprovision() {
+            this.seleccionAprovisionamiento = {};
         },
-        async ejecutarAprovisionamiento(id) {
-            this.aprovDisabled[id] = true;
-            this.cargando = true;
-            const reloadParams = {
+        estaSeleccionadoAprovision(id) {
+            return !!this.seleccionAprovisionamiento[String(id || "").trim()];
+        },
+        toggleSeleccionAprovision(id) {
+            const key = String(id || "").trim();
+            if (!key) return;
+
+            if (this.seleccionAprovisionamiento[key]) {
+                delete this.seleccionAprovisionamiento[key];
+                return;
+            }
+
+            this.seleccionAprovisionamiento[key] = true;
+        },
+        toggleSeleccionarTodosAprovision() {
+            const ids = this.idsSeleccionablesAprovisionamiento;
+            if (!ids.length) return;
+
+            if (this.todosSeleccionadosAprovisionamiento) {
+                ids.forEach((id) => {
+                    delete this.seleccionAprovisionamiento[id];
+                });
+                return;
+            }
+
+            ids.forEach((id) => {
+                this.seleccionAprovisionamiento[id] = true;
+            });
+        },
+        obtenerParametrosRecargaBandejas() {
+            return {
                 force: true,
                 iduser: this.obtenerDocumentoUsuarioActual(),
                 gruposFacturador: this.gruposFacturadorUsuario,
                 convenio: this.convenioUsuario,
             };
+        },
+        async recargarBandejasFacturacion() {
+            await this.GetRegistersbyRangeGeneralFactAprov(this.obtenerParametrosRecargaBandejas());
+
+            if (this.fechaInicio && this.fechaFin) {
+                await this.GetRegistersbyRangeGeneralFact({
+                    finicial: this.fechaInicio,
+                    ffinal: this.fechaFin,
+                    convenio: this.convenioFiltro || this.convenioUsuario,
+                    gruposFacturador: this.gruposFacturadorUsuario,
+                });
+            } else if (this.tipodoc && this.numdoc) {
+                await this.GetRegistersbyRangeGeneralFactByID({
+                    tipodoc: this.tipodoc,
+                    numdoc: this.numdoc,
+                    gruposFacturador: this.gruposFacturadorUsuario,
+                    convenio: this.convenioUsuario,
+                });
+            }
+        },
+        AprovisionarPaciente(id) {
+            return this.ejecutarAprovisionamiento(id);
+        },
+        async aprovisionarSeleccionados() {
+            const ids = this.idsSeleccionablesAprovisionamiento.filter(
+                (id) => this.seleccionAprovisionamiento[id]
+            );
+
+            if (!ids.length) {
+                alert("Seleccione al menos un paciente del listado.");
+                return;
+            }
+
+            const confirmar = confirm(
+                `¿Aprovisionar ${ids.length} paciente(s) seleccionado(s) a su bandeja de pendientes?`
+            );
+            if (!confirmar) return;
+
+            this.aprovisionandoLote = true;
+            this.mensajeAprovisionamientoLote = "";
+            const errores = [];
+            let exitos = 0;
+            const idProf = this.obtenerDocumentoUsuarioActual();
+
+            for (const id of ids) {
+                this.aprovDisabled[id] = true;
+                try {
+                    await this.aprovicionarP({ idEnc: id, idProf });
+                    delete this.seleccionAprovisionamiento[id];
+                    exitos += 1;
+                } catch (error) {
+                    console.error(`Error al aprovisionar paciente ${id}:`, error);
+                    errores.push({
+                        id,
+                        message: error?.response?.data?.message || error?.message || String(error),
+                    });
+                    this.aprovDisabled[id] = false;
+                }
+            }
+
+            try {
+                await this.recargarBandejasFacturacion();
+            } catch (error) {
+                console.error("Error al recargar bandejas tras aprovisionamiento:", error);
+            } finally {
+                this.aprovisionandoLote = false;
+            }
+
+            if (errores.length) {
+                this.mensajeAprovisionamientoLote =
+                    `Aprovisionados: ${exitos}. Fallidos: ${errores.length}. Revise los registros no marcados.`;
+                alert(this.mensajeAprovisionamientoLote);
+                return;
+            }
+
+            this.mensajeAprovisionamientoLote = `${exitos} paciente(s) aprovisionado(s) correctamente.`;
+        },
+        async ejecutarAprovisionamiento(id) {
+            this.aprovDisabled[id] = true;
+            this.cargando = true;
             try {
                 await this.aprovicionarP({
                     idEnc: id,
                     idProf: this.obtenerDocumentoUsuarioActual(),
                 });
 
-                await this.GetRegistersbyRangeGeneralFactAprov(reloadParams);
-
-                if (this.fechaInicio && this.fechaFin) {
-                    await this.getdataEncuestas(this.fechaInicio, this.fechaFin, this.convenioFiltro);
-                } else if (this.tipodoc && this.numdoc) {
-                    await this.getdataEncuestasById(this.tipodoc, this.numdoc);
-                }
+                delete this.seleccionAprovisionamiento[id];
+                await this.recargarBandejasFacturacion();
+                this.mensajeAprovisionamientoLote = "Paciente aprovisionado correctamente.";
             } catch (error) {
                 console.error("Error al aprovisionar paciente:", error);
                 alert("No se pudo aprovisionar el paciente: " + (error?.message || error));
@@ -1191,6 +1712,7 @@ export default {
             this.filtrosRegistro = {
                 grupo: "",
                 sexo: "",
+                numdoc: "",
                 fechaNac: "",
                 eps: "",
                 regimen: "",
@@ -1222,6 +1744,7 @@ export default {
                 comuna: paciente.barrioVeredacomuna?.comuna,
                 fecha: paciente.fecha,
                 fechagestEnfermera: paciente.fechagestEnfermera,
+                estado: this.esPacienteFacturacionIncompleta(paciente) ? "Incompleto" : "Sin gestión",
             };
 
             return String(mapaValores[campo] || "").trim();
@@ -1242,7 +1765,9 @@ export default {
         limpiarFiltrosPendientes() {
             this.filtrosPendientes = {
                 grupo: "",
+                paciente: "",
                 sexo: "",
+                numdoc: "",
                 fechaNac: "",
                 eps: "",
                 convenio: "",
@@ -1257,6 +1782,60 @@ export default {
                 direccion: "asc",
             };
         },
+        obtenerValorColumnaHistorial(paciente, campo) {
+            const mapaValores = {
+                grupo: paciente.grupo,
+                paciente: `${paciente.nombre1 || ""} ${paciente.apellido1 || ""} ${paciente.apellido2 || ""}`,
+                documento: `${paciente.tipodoc || ""}-${paciente.numdoc || ""}`,
+                eps: paciente.eps,
+                convenio: paciente.convenio,
+                fecha: paciente.fecha,
+                fechagestEnfermera: paciente.fechagestEnfermera,
+                fechaFacturacion: paciente.fechaFacturacion || paciente.FechaFacturacion,
+            };
+
+            return String(mapaValores[campo] || "").trim();
+        },
+        ordenarHistorial(campo) {
+            if (this.ordenHistorial.campo === campo) {
+                this.ordenHistorial.direccion = this.ordenHistorial.direccion === "asc" ? "desc" : "asc";
+                return;
+            }
+
+            this.ordenHistorial.campo = campo;
+            this.ordenHistorial.direccion = campo === "fechaFacturacion" ? "desc" : "asc";
+        },
+        indicadorOrdenHistorial(campo) {
+            if (this.ordenHistorial.campo !== campo) return "";
+            return this.ordenHistorial.direccion === "asc" ? "▲" : "▼";
+        },
+        normalizarTextoBusqueda(valor) {
+            return String(valor || "")
+                .trim()
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "");
+        },
+        normalizarDocumentoBusqueda(valor) {
+            return this.normalizarTextoBusqueda(valor).replace(/[^a-z0-9]/g, "");
+        },
+        obtenerNombrePaciente(paciente = {}) {
+            return `${paciente.nombre1 || ""} ${paciente.nombre2 || ""} ${paciente.apellido1 || ""} ${paciente.apellido2 || ""}`
+                .replace(/\s+/g, " ")
+                .trim();
+        },
+        cumpleFiltroPaciente(paciente, filtro) {
+            if (!String(filtro || "").trim()) return true;
+            const nombre = this.obtenerNombrePaciente(paciente);
+            return this.normalizarTextoBusqueda(nombre).includes(this.normalizarTextoBusqueda(filtro));
+        },
+        cumpleFiltroNumdoc(paciente, filtro) {
+            if (!String(filtro || "").trim()) return true;
+            const busqueda = this.normalizarDocumentoBusqueda(filtro);
+            const numdoc = this.normalizarDocumentoBusqueda(paciente?.numdoc);
+            const documentoCompleto = this.normalizarDocumentoBusqueda(`${paciente?.tipodoc || ""}-${paciente?.numdoc || ""}`);
+            return numdoc.includes(busqueda) || documentoCompleto.includes(busqueda);
+        },
         normalizarProfesionales(profesionales) {
             return Array.from(new Set(
                 (Array.isArray(profesionales) ? profesionales : [profesionales])
@@ -1267,11 +1846,147 @@ export default {
         formatearProfesionales(profesionales) {
             return this.normalizarProfesionales(profesionales).join(", ");
         },
+        facturaCumpleMinimo(valor) {
+            return this.normalizarFactura(valor).length >= this.minFacturaChars;
+        },
+        normalizarFactura(valor) {
+            return String(valor ?? "").trim();
+        },
+        obtenerValorOriginalFactura(cupId, cup = {}) {
+            if (cup?.facturado) {
+                return this.normalizarFactura(cup.FactNum);
+            }
+            return this.normalizarFactura(this.facturaInputs[cupId]);
+        },
+        campoEdicionFacturaModificado(cupId, cup = {}) {
+            if (!Object.prototype.hasOwnProperty.call(this.facturaEditables, cupId)) {
+                return false;
+            }
+            const actual = this.normalizarFactura(this.facturaEditables[cupId]);
+            const original = this.obtenerValorOriginalFactura(cupId, cup);
+            return actual !== original;
+        },
+        campoEdicionFacturaInvalido(cupId, cup = {}) {
+            if (!Object.prototype.hasOwnProperty.call(this.facturaEditables, cupId)) {
+                return false;
+            }
+
+            const actual = this.normalizarFactura(this.facturaEditables[cupId]);
+            const original = this.obtenerValorOriginalFactura(cupId, cup);
+            const modificado = actual !== original;
+
+            if (!modificado) {
+                return false;
+            }
+
+            if (!actual) {
+                return cup?.facturado === true;
+            }
+
+            return !this.facturaCumpleMinimo(actual);
+        },
+        claseValidacionFactura(valor) {
+            const normalizado = this.normalizarFactura(valor);
+            if (!normalizado) return "";
+            return this.facturaCumpleMinimo(normalizado) ? "factura-input-valid" : "factura-input-invalid";
+        },
+        claseValidacionFacturaEdicion(cupId, cup = {}) {
+            if (!Object.prototype.hasOwnProperty.call(this.facturaEditables, cupId)) {
+                return "";
+            }
+
+            const actual = this.normalizarFactura(this.facturaEditables[cupId]);
+            const original = this.obtenerValorOriginalFactura(cupId, cup);
+
+            if (actual === original) {
+                if (actual && this.facturaCumpleMinimo(actual)) return "factura-input-valid";
+                return "";
+            }
+
+            if (this.campoEdicionFacturaInvalido(cupId, cup)) {
+                return "factura-input-invalid";
+            }
+
+            return "factura-input-valid";
+        },
+        contarInvalidasEdicion() {
+            let invalidas = 0;
+
+            if (!this.InfoEncuestasById || !Array.isArray(this.InfoEncuestasById)) {
+                return invalidas;
+            }
+
+            this.InfoEncuestasById.forEach((paciente) => {
+                if (!paciente.cups || typeof paciente.cups !== "object") return;
+
+                Object.entries(paciente.cups).forEach(([cupId, cup]) => {
+                    if (this.campoEdicionFacturaInvalido(cupId, cup)) {
+                        invalidas += 1;
+                    }
+                });
+            });
+
+            return invalidas;
+        },
+        contarCambiosValidosEdicion() {
+            let cambios = 0;
+
+            if (!this.InfoEncuestasById || !Array.isArray(this.InfoEncuestasById)) {
+                return cambios;
+            }
+
+            this.InfoEncuestasById.forEach((paciente) => {
+                if (!paciente.cups || typeof paciente.cups !== "object") return;
+
+                Object.entries(paciente.cups).forEach(([cupId, cup]) => {
+                    if (!this.campoEdicionFacturaModificado(cupId, cup)) return;
+
+                    const nuevoValor = this.normalizarFactura(this.facturaEditables[cupId]);
+                    if (!this.facturaCumpleMinimo(nuevoValor)) return;
+
+                    cambios += 1;
+                });
+            });
+
+            return cambios;
+        },
+        recorrerCamposEdicionFactura(callback) {
+            if (!this.InfoEncuestasById || !Array.isArray(this.InfoEncuestasById)) {
+                return;
+            }
+
+            this.InfoEncuestasById.forEach((paciente) => {
+                if (!paciente.cups || typeof paciente.cups !== "object") return;
+
+                Object.entries(paciente.cups).forEach(([cupId, cup]) => {
+                    callback(cupId, cup);
+                });
+            });
+        },
+        construirCambiosEdicionFactura() {
+            const cambios = [];
+
+            this.recorrerCamposEdicionFactura((cupId, cup) => {
+                if (!this.campoEdicionFacturaModificado(cupId, cup)) return;
+
+                const nuevoValor = this.normalizarFactura(this.facturaEditables[cupId]);
+                if (!this.facturaCumpleMinimo(nuevoValor)) return;
+
+                cambios.push({
+                    cupId,
+                    cup,
+                    numFactura: nuevoValor,
+                    facturado: true,
+                });
+            });
+
+            return cambios;
+        },
         obtenerValorColumnaCup(cup, campo) {
             const mapaValores = {
                 actividad: this.obtenerNombreActividad(cup?.actividadId),
-                rol: cup?.nombreProf,
-                profesional: this.formatearProfesionales(cup?.key),
+                rol: this.etiquetaRolFacturacion(cup?.key),
+                profesional: cup?.nombreProf,
                 cantidad: cup?.cantidad,
                 codigo: cup?.codigo,
                 descripcion: cup?.DescripcionCUP || cup?.cupsNombre,
@@ -1280,6 +1995,82 @@ export default {
             };
 
             return String(mapaValores[campo] || "").trim();
+        },
+        etiquetaRolFacturacion(rol) {
+            const key = String(rol || "").trim();
+            if (!key) return "Sin rol";
+            return this.etiquetasRolFacturacion[key] || key;
+        },
+        contarCupsPorRol(paciente, rol) {
+            if (!paciente?.cups || typeof paciente.cups !== "object") return 0;
+            const rolBuscado = String(rol || "").trim();
+            return Object.values(paciente.cups).filter((cup) =>
+                String(cup?.key || "Sin rol").trim() === rolBuscado
+            ).length;
+        },
+        getCupsPorRol(paciente, rol) {
+            if (!paciente?.cups || typeof paciente.cups !== "object") return [];
+            const rolBuscado = String(rol || "").trim();
+            const lista = Object.entries(paciente.cups).filter(([, cup]) =>
+                String(cup?.key || "Sin rol").trim() === rolBuscado
+            );
+            const campo = this.ordenCups.campo || "profesional";
+            const direccion = this.ordenCups.direccion === "desc" ? -1 : 1;
+
+            return lista.sort(([, cupA], [, cupB]) => {
+                const valorA = this.obtenerValorColumnaCup(cupA, campo);
+                const valorB = this.obtenerValorColumnaCup(cupB, campo);
+                return valorA.localeCompare(valorB, "es", { numeric: true, sensitivity: "base" }) * direccion;
+            });
+        },
+        sincronizarEstadoFacturasModal() {
+            this.facturaInputs = {};
+            this.facturaDisabled = {};
+
+            if (!this.InfoEncuestasById || !Array.isArray(this.InfoEncuestasById)) {
+                return;
+            }
+
+            this.InfoEncuestasById.forEach((paciente) => {
+                if (!paciente.cups || typeof paciente.cups !== "object") return;
+
+                Object.entries(paciente.cups).forEach(([cupId, cup]) => {
+                    if (cup?.facturado) {
+                        this.facturaInputs[cupId] = cup.FactNum || "";
+                        this.facturaDisabled[cupId] = true;
+                    } else {
+                        this.facturaInputs[cupId] = "";
+                        this.facturaDisabled[cupId] = false;
+                    }
+                });
+            });
+
+            if (!this.rolActivoFacturacion && this.rolesFacturacionModal.length) {
+                this.rolActivoFacturacion = this.rolesFacturacionModal[0];
+            }
+        },
+        cerrarModalFacturacion() {
+            this.modoEdicion = false;
+            this.facturaEditables = {};
+            this.errorModalFacturacion = "";
+            this.rolActivoFacturacion = "";
+        },
+        async cargarPacienteModal(id) {
+            this.cargandoModal = true;
+            this.errorModalFacturacion = "";
+            this.modoEdicion = false;
+            this.facturaEditables = {};
+            this.rolActivoFacturacion = "";
+
+            try {
+                await this.getEncuestaById(id);
+                this.sincronizarEstadoFacturasModal();
+            } catch (error) {
+                console.error("[facturacion:modal] error-carga", error);
+                this.errorModalFacturacion = "No se pudo cargar la información del paciente. Intente nuevamente.";
+            } finally {
+                this.cargandoModal = false;
+            }
         },
         ordenarCups(campo) {
             if (this.ordenCups.campo === campo) {
@@ -1312,97 +2103,43 @@ export default {
         },
         setPacienteId(id) {
             this.pacienteIdModal = id;
-            this.facturaInputs = {};
-            this.facturaDisabled = {};
-            this.cargando = false;
-
-            this.getEncuestaById(id).then(() => {
-                if (this.InfoEncuestasById && Array.isArray(this.InfoEncuestasById)) {
-                    this.InfoEncuestasById.forEach(paciente => {
-                        if (paciente.cups && typeof paciente.cups === 'object') {
-                            Object.entries(paciente.cups).forEach(([cupId, cup]) => {
-                                // Si ya está facturado, inicializar como deshabilitado (verde)
-                                if (cup.facturado) {
-                                    this.facturaInputs[cupId] = cup.FactNum;
-                                    this.facturaDisabled[cupId] = true;
-                                } else {
-                                    this.facturaInputs[cupId] = '';
-                                    this.facturaDisabled[cupId] = false;
-                                }
-                            });
-                        }
-                    });
-                }
-            });
+            this.cargarPacienteModal(id);
         },
         async regFactCup(cupId, numfact, cupActual = {}) {
-            this.cargando = true;
-            let timeoutDisparado = false;
-            let spinnerTimeout = setTimeout(() => {
-                if (this.cargando) {
-                    timeoutDisparado = true;
-                    this.cargando = false;
-                    this.facturaDisabled[cupId] = false;
-                    alert('Error: El proceso de guardado está tardando demasiado. Intente nuevamente.');
-                    console.warn('[regFactCup] Timeout: spinner forzado a false');
-                }
-            }, 10000);
+            const numFactura = String(numfact || "").trim();
+            if (!this.facturaCumpleMinimo(numFactura)) {
+                alert(`El número de factura debe tener al menos ${this.minFacturaChars} caracteres.`);
+                return;
+            }
 
-            console.log('[regFactCup] INICIO', {
-                cupId,
-                numfact
-            });
+            this.guardandoFactura = true;
+            this.errorModalFacturacion = "";
 
-            let guardadoExitoso = false;
             try {
-                // Asegurar reactividad antes de guardar
                 if (!(cupId in this.facturaInputs)) {
-                    this.facturaInputs[cupId] = numfact;
-                }
-                if (!(cupId in this.facturaDisabled)) {
-                    this.facturaDisabled[cupId] = false;
+                    this.facturaInputs[cupId] = numFactura;
                 }
 
                 const datafact = {
-                    cupId: cupId,
-                    numFactura: numfact,
+                    cupId,
+                    numFactura,
                     facturado: true,
                     idFacturador: this.obtenerDocumentoUsuarioActual(),
                     idEncuesta: this.pacienteIdModal,
                     cup: cupActual,
                 };
 
-                console.log('[regFactCup] Antes de asigFacturacion', datafact);
-                const res = await this.asigFacturacion(datafact);
-
-                if (res && res.success === false) {
-                    throw new Error(res.message || 'No se pudo guardar el registro.');
-                }
-
-                guardadoExitoso = true;
-                console.log('[regFactCup] Guardado exitoso en asigFacturacion');
-
+                await this.asigFacturacion(datafact);
                 await this.getEncuestaById(this.pacienteIdModal);
-                console.log('[regFactCup] Datos recargados con getEncuestaById');
-
-                // Solo bloquear el campo tras guardar
+                this.sincronizarEstadoFacturasModal();
                 this.facturaDisabled[cupId] = true;
-                console.log('[regFactCup] Campo bloqueado tras guardar');
             } catch (error) {
-                console.error('[regFactCup] ERROR:', error);
+                console.error("[regFactCup] ERROR:", error);
                 this.facturaDisabled[cupId] = false;
-                this.cargando = false;
-                if (!timeoutDisparado) {
-                    alert('Error al guardar: ' + (error?.message || error));
-                }
+                this.errorModalFacturacion = "Error al guardar la factura: " + (error?.response?.data?.message || error?.message || error);
+                alert(this.errorModalFacturacion);
             } finally {
-                this.cargando = false;
-                clearTimeout(spinnerTimeout);
-                if (!guardadoExitoso && !timeoutDisparado) {
-                    this.facturaDisabled[cupId] = false;
-                    alert('No se pudo guardar el registro. Intente nuevamente.');
-                }
-                console.log('[regFactCup] FIN, cargando:', this.cargando);
+                this.guardandoFactura = false;
             }
         },
 
@@ -1422,6 +2159,9 @@ export default {
                         gruposFacturador: this.gruposFacturadorUsuario,
                         convenio: this.convenioUsuario,
                     });
+                }
+                if (this.activeTab === "historial") {
+                    await this.getHistorial();
                 }
                 // Forzar reflow / re-evaluación del DOM y restaurar desplazamiento si aplica
                 await this.$nextTick();
@@ -1482,6 +2222,53 @@ export default {
 
             return texto;
         },
+        formatearFechaDisplay(valorFecha) {
+            const ymd = this.formatearFechaYYYYMMDD(valorFecha);
+            if (!ymd) return "";
+            const partes = ymd.split("-");
+            if (partes.length !== 3) return ymd;
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        },
+        formatearFechaHora(valorFecha) {
+            if (!valorFecha) return "";
+
+            const texto = String(valorFecha).trim();
+            const fecha = new Date(texto);
+            if (Number.isNaN(fecha.getTime())) {
+                return this.formatearFechaYYYYMMDD(texto);
+            }
+
+            const y = fecha.getFullYear();
+            const m = String(fecha.getMonth() + 1).padStart(2, "0");
+            const d = String(fecha.getDate()).padStart(2, "0");
+            const hora = fecha.toLocaleTimeString("es-CO", {
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+            return `${d}/${m}/${y} ${hora}`;
+        },
+        esPacienteFacturacionIncompleta(paciente = {}) {
+            if (paciente?.facturacionIncompleta === true) return true;
+
+            const cupsTotal = Number(paciente?.cupsTotal ?? paciente?.cups_total ?? 0);
+            const cupsConFactura = Number(paciente?.cupsConFactura ?? paciente?.cups_con_factura ?? 0);
+
+            if (cupsTotal > 0) {
+                return cupsConFactura > 0;
+            }
+
+            return paciente?.allFacturasVacias === false;
+        },
+        textoEstadoFacturacionPendiente(paciente = {}) {
+            const cupsTotal = Number(paciente?.cupsTotal ?? paciente?.cups_total ?? 0);
+            const cupsConFactura = Number(paciente?.cupsConFactura ?? paciente?.cups_con_factura ?? 0);
+
+            if (cupsTotal > 0) {
+                return `Facturación incompleta: ${cupsConFactura} de ${cupsTotal} procedimiento(s) con número de factura.`;
+            }
+
+            return "Facturación incompleta: ya tiene al menos un número de factura registrado.";
+        },
         obtenerProfesionalAprovisionamiento(paciente = {}) {
             const candidatos = [
                 { rol: "Jefe/Enf", documento: paciente.idEnfermeroAtiende },
@@ -1505,74 +2292,75 @@ export default {
         },
 
         iniciarEdicionCodigos() {
-            // Copiar los valores actuales de FactNum a facturaEditables
             this.facturaEditables = {};
+            this.errorModalFacturacion = "";
+
             if (this.InfoEncuestasById && Array.isArray(this.InfoEncuestasById)) {
-                this.InfoEncuestasById.forEach(paciente => {
-                    if (paciente.cups && typeof paciente.cups === 'object') {
-                        Object.entries(paciente.cups).forEach(([cupId, cup]) => {
-                            if (cup && cup.facturado && cup.FactNum) {
-                                this.facturaEditables[cupId] = cup.FactNum;
-                            }
-                        });
-                    }
+                this.InfoEncuestasById.forEach((paciente) => {
+                    if (!paciente.cups || typeof paciente.cups !== "object") return;
+
+                    Object.entries(paciente.cups).forEach(([cupId, cup]) => {
+                        this.facturaEditables[cupId] = this.obtenerValorOriginalFactura(cupId, cup);
+                    });
                 });
             }
+
             this.modoEdicion = true;
         },
 
         cancelarEdicion() {
             this.facturaEditables = {};
             this.modoEdicion = false;
+            this.errorModalFacturacion = "";
         },
 
         async guardarEdicionCodigos() {
-            try {
-                this.cargando = true;
-                const idEncuesta = this.pacienteIdModal;
-                const documentoFacturador = this.obtenerDocumentoUsuarioActual();
-                const tareas = [];
+            if (this.contarInvalidasEdicion() > 0) {
+                this.errorModalFacturacion = this.mensajeEdicionFacturas;
+                return;
+            }
 
-                if (this.InfoEncuestasById && Array.isArray(this.InfoEncuestasById)) {
-                    this.InfoEncuestasById.forEach((paciente) => {
-                        if (!paciente.cups || typeof paciente.cups !== "object") {
-                            return;
-                        }
-                        Object.entries(paciente.cups).forEach(([cupId, cup]) => {
-                            if (!Object.prototype.hasOwnProperty.call(this.facturaEditables, cupId)) {
-                                return;
-                            }
-                            tareas.push(
-                                this.asigFacturacion({
-                                    cupId,
-                                    numFactura: this.facturaEditables[cupId],
-                                    idFacturador: documentoFacturador,
-                                    idEncuesta,
-                                    cup,
-                                    facturado: cup?.facturado === true,
-                                })
-                            );
-                        });
+            const cambios = this.construirCambiosEdicionFactura();
+
+            if (!cambios.length) {
+                this.errorModalFacturacion = this.mensajeEdicionFacturas;
+                return;
+            }
+
+            const idEncuesta = this.pacienteIdModal;
+            const documentoFacturador = this.obtenerDocumentoUsuarioActual();
+
+            this.guardandoFactura = true;
+            this.errorModalFacturacion = "";
+
+            try {
+                for (const cambio of cambios) {
+                    await this.asigFacturacion({
+                        cupId: cambio.cupId,
+                        numFactura: cambio.numFactura,
+                        idFacturador: documentoFacturador,
+                        idEncuesta,
+                        cup: cambio.cup,
+                        facturado: cambio.facturado,
                     });
                 }
 
-                if (!tareas.length) {
-                    alert("No hay cambios para guardar.");
-                    return;
-                }
-
-                await Promise.all(tareas);
                 await this.getEncuestaById(idEncuesta);
+                this.sincronizarEstadoFacturasModal();
                 alert("Códigos de factura actualizados correctamente");
                 this.facturaEditables = {};
                 this.modoEdicion = false;
             } catch (error) {
-                console.error('Error al guardar cambios:', error);
-                alert('Error al guardar cambios: ' + (error?.message || error));
+                console.error("Error al guardar cambios:", error);
+                this.errorModalFacturacion = "Error al guardar cambios: " + (error?.response?.data?.message || error?.message || error);
+                await this.cargarPacienteModal(idEncuesta);
             } finally {
-                this.cargando = false;
+                this.guardandoFactura = false;
             }
         }
+    },
+    created() {
+        document.body.classList.add("pagina-facturacion");
     },
     async mounted() {
         this.cargando = true
@@ -1591,11 +2379,32 @@ export default {
         } finally {
             this.cargando = false
         }
-    }
+    },
+    beforeUnmount() {
+        document.body.classList.remove("pagina-facturacion");
+    },
 }
 </script>
 
 <style>
+.facturacion-page {
+    width: 100%;
+    max-width: none;
+    min-height: calc(100vh - 4rem);
+    box-sizing: border-box;
+}
+
+.facturacion-page .table-responsive,
+.facturacion-page .tabla-scroll,
+.facturacion-page .table {
+    width: 100%;
+    max-width: 100%;
+}
+
+.facturacion-page .nav-tabs {
+    flex-wrap: wrap;
+}
+
 /* Spinner overlay universal para evitar problemas en pantalla completa */
 .spinner-overlay {
     position: fixed;
@@ -1625,8 +2434,55 @@ export default {
 }
 
 .tabla-scroll {
-    max-height: 600px;
-    /* Ajusta la altura según tu necesidad */
+    max-height: calc(100vh - 260px);
     overflow-y: auto;
+    overflow-x: auto;
+}
+
+.modal-loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.82);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.factura-input-valid {
+    border-color: #198754 !important;
+    color: #146c43;
+    background-color: #f0fdf4;
+}
+
+.factura-input-valid:focus {
+    border-color: #198754;
+    box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.2);
+}
+
+.factura-input-invalid {
+    border-color: #dc3545 !important;
+    color: #b02a37;
+    background-color: #fff5f5;
+}
+
+.factura-input-invalid:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.2);
+}
+
+.pendiente-gestion-incompleta > td {
+    background-color: #fff3cd !important;
+}
+
+.pendiente-gestion-incompleta:hover > td {
+    background-color: #ffe69c !important;
+}
+
+.estado-facturacion-incompleta {
+    color: #997404;
+    font-weight: 600;
+    line-height: 1.1;
 }
 </style>

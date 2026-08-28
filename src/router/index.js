@@ -188,6 +188,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/facturador_informes",
+    name: "facturador_informes",
+    component: () => import("../views/facturador_informes.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/admin_ips",
     name: "admin_ips",
     component: () => import("../views/admin_ips.vue"),

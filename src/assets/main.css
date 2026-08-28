@@ -52,11 +52,36 @@ table {
 }
 
 #app {
-  margin: 0 auto;
-  padding: 8px;
-  font-weight: normal;
-  padding-top: 3.5rem;
-  max-width: 1400px;
+    margin: 0 auto;
+    padding: 8px;
+    font-weight: normal;
+    padding-top: 3.5rem;
+    max-width: 1400px;
+}
+
+#app.app-ancho-completo {
+    max-width: none !important;
+    width: 100% !important;
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+body.pagina-facturacion #app {
+    max-width: none !important;
+    width: 100% !important;
+}
+
+body.pagina-enfermero #app {
+    max-width: none !important;
+    width: 100% !important;
+}
+
+body.pagina-facturacion {
+    overflow-x: auto;
+}
+
+body.pagina-enfermero {
+    overflow-x: auto;
 }
 
 a,

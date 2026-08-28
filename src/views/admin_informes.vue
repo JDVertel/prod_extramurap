@@ -1,6 +1,6 @@
 <template>
 
-    <div class="mt-2 datos">
+    <div class="container-fluid admin-informes-page px-2 px-md-4 py-3">
         <div v-if="cargandoInforme" class="overlay-spinner">
             <div class="progress-card shadow">
                 <div class="h5 mb-3">Generando informe</div>
@@ -15,8 +15,6 @@
                 <div class="text-muted small">{{ mensajeProgreso }}</div>
             </div>
         </div>
-        <div class="container-fluid px-3 px-xl-4 informe-param-container">
-
 
             <h1 class="admin-informe-title"><i class="bi bi-clipboard2-data h1"></i>Informes Administrativos</h1>
             <div v-if="tieneContenidoInforme" class="mb-3">
@@ -87,9 +85,7 @@
             <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '3'">*Cierres de facturación por paciente y actividades (CUPS) en el rango de fechas, filtrables por convenio y facturador</p>
             <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '4'">*Informe individual por profesional con pacientes cerrados, pacientes abiertos, CUPS diligenciados por actividad y cierres diarios en el rango.</p>
 
-        </div>
-        <br>
-        <div class="container-fluid px-2 px-xl-3 informe-panel">
+        <div class="informe-panel mt-3">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                 <h5 class="mb-0">{{ tituloListado }}</h5>
                 <span v-for="(parametro, idx) in parametrosConsultaEtiquetas" :key="`parametro-consulta-${idx}`"
@@ -106,7 +102,7 @@
             <button v-if="tieneDatosTabla" class="btn btn-outline-success mb-2 admin-informe-action" @click="exportarExcelFiltrado">
                 <i class="bi bi-file-earmark-excel"></i> Exportar Excel
             </button>
-            <div v-if="tipoinforme !== '4' && tieneDatosTabla">
+            <div v-if="tipoinforme !== '4' && tieneDatosTabla" class="container-fluid px-0">
                 <div class="top-scrollbar" ref="topScrollbar" @scroll="onTopScroll">
                     <div class="top-scrollbar-content" :style="{ width: `${anchoTabla}px` }"></div>
                 </div>
@@ -142,7 +138,7 @@
                     </table>
                 </div>
             </div>
-            <div v-if="mostrarResumenProfesionales" class="resumen-profesionales mb-4">
+            <div v-if="mostrarResumenProfesionales" class="container-fluid px-0 resumen-profesionales mb-4">
                 <div class="resumen-head mb-3">
                     <div>
                         <div class="metric-label mb-1">Profesional analizado</div>
@@ -238,11 +234,12 @@
 </template>
 
 <style>
-.datos {
+.admin-informes-page {
     width: 100%;
-    max-width: 100vw;
+    max-width: 100%;
     margin-left: 0;
-    padding: 0 6px;
+    padding-left: 0;
+    padding-right: 0;
     overflow-x: hidden;
 }
 
@@ -340,7 +337,6 @@
     max-width: 100%;
 }
 
-.informe-param-container,
 .informe-form-row {
     background: transparent;
 }
@@ -459,8 +455,9 @@
 }
 
 @media (max-width: 767.98px) {
-    .datos {
-        padding: 0 8px;
+    .admin-informes-page {
+        padding-left: 8px;
+        padding-right: 8px;
     }
 
     .admin-informe-title {

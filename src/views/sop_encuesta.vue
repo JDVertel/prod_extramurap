@@ -169,17 +169,43 @@
                                 </h6>
                                 <div class="row">
                                     <div class="col-6 col-md-3 mb-3 mb-md-0">
-                                        <label for="municipioNacimiento" class="form-label campo-obligatorio">Municipio de nacimiento</label>
-                                        <input type="text" id="municipioNacimiento" v-model="municipioNacimiento" class="form-control" required />
-                                    </div>
-                                    <div class="col-6 col-md-3 mb-3 mb-md-0">
-                                        <label for="departamentoNacimiento" class="form-label campo-obligatorio">Departamento de nacimiento</label>
-                                        <select id="departamentoNacimiento" v-model="departamentoNacimiento" class="form-select" required>
+                                        <label for="nacionalidadNacimiento" class="form-label campo-obligatorio">Nacimiento</label>
+                                        <select
+                                            id="nacionalidadNacimiento"
+                                            v-model="nacionalidadNacimiento"
+                                            class="form-select"
+                                            required
+                                            @change="onNacionalidadNacimientoChange"
+                                        >
                                             <option value="">---Seleccione---</option>
-                                            <option v-for="(depto, index) in departamentosColombia" :key="`depto-${index}`" :value="depto">
-                                                {{ depto }}
-                                            </option>
+                                            <option value="colombiano">Colombiano</option>
+                                            <option value="extranjero">Extranjero</option>
                                         </select>
+                                    </div>
+                                    <template v-if="nacionalidadNacimiento === 'colombiano'">
+                                        <div class="col-6 col-md-3 mb-3 mb-md-0">
+                                            <label for="departamentoNacimiento" class="form-label campo-obligatorio">Departamento de nacimiento</label>
+                                            <select id="departamentoNacimiento" v-model="departamentoNacimiento" class="form-select" required>
+                                                <option value="">---Seleccione---</option>
+                                                <option v-for="(depto, index) in departamentosColombia" :key="`depto-${index}`" :value="depto">
+                                                    {{ depto }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                        <div class="col-6 col-md-3 mb-3 mb-md-0">
+                                            <label for="municipioNacimiento" class="form-label campo-obligatorio">Municipio de nacimiento</label>
+                                            <input
+                                                type="text"
+                                                id="municipioNacimiento"
+                                                v-model="municipioNacimiento"
+                                                class="form-control"
+                                                required
+                                            />
+                                        </div>
+                                    </template>
+                                    <div v-if="nacionalidadNacimiento === 'extranjero'" class="col-6 col-md-3 mb-3 mb-md-0">
+                                        <label class="form-label">Departamento / Municipio</label>
+                                        <input type="text" class="form-control" value="Migrante" readonly disabled />
                                     </div>
                                     <div class="col-6 col-md-3 mb-3 mb-md-0">
                                         <label for="identidadGenero" class="form-label campo-obligatorio">Identidad de género</label>
@@ -431,6 +457,8 @@ export default {
         sexo: "",
         departamentoNacimiento: "",
         municipioNacimiento: "",
+        nacionalidadNacimiento: "",
+        NACIMIENTO_MIGRANTE: "Migrante",
         identidadGenero: "",
         ocupacion: "",
         nivelOcupacion: "",
@@ -533,6 +561,8 @@ export default {
         ],
         ocupacionOptions: [
             "Estudiante",
+            "Lactante",
+            "Preescolar",
             "Hogar / Labores de cuidado no remunerado",
             "Empleado / Trabajador dependiente (sector formal)",
             "Trabajador independiente / Cuenta propia",
@@ -599,8 +629,13 @@ export default {
                 { label: "Primer Apellido", value: this.apellido1, id: "apellido1" },
                 { label: "Fecha de nacimiento", value: this.fechaNac, id: "fechaNac" },
                 { label: "Sexo", value: this.sexo, id: "sexo" },
-                { label: "Municipio de nacimiento", value: this.municipioNacimiento, id: "municipioNacimiento" },
-                { label: "Departamento de nacimiento", value: this.departamentoNacimiento, id: "departamentoNacimiento" },
+                { label: "Nacimiento", value: this.nacionalidadNacimiento, id: "nacionalidadNacimiento" },
+                ...(this.nacionalidadNacimiento === "colombiano"
+                    ? [
+                        { label: "Departamento de nacimiento", value: this.departamentoNacimiento, id: "departamentoNacimiento" },
+                        { label: "Municipio de nacimiento", value: this.municipioNacimiento, id: "municipioNacimiento" },
+                    ]
+                    : []),
                 { label: "Identidad de género", value: this.identidadGenero, id: "identidadGenero" },
                 { label: "Ocupación", value: this.ocupacion, id: "ocupacion" },
                 { label: "Nivel ocupacional / Condición laboral", value: this.nivelOcupacion, id: "nivelOcupacion" },
@@ -756,8 +791,8 @@ export default {
                 tipodoc: this.tipodoc,
                 numdoc: this.sanitizarDocumento(this.numdoc),
                 sexo: this.sexo,
-                departamentoNacimiento: this.departamentoNacimiento,
-                municipioNacimiento: this.municipioNacimiento,
+                departamentoNacimiento: this.obtenerDepartamentoNacimientoParaGuardar(),
+                municipioNacimiento: this.obtenerMunicipioNacimientoParaGuardar(),
                 identidadGenero: this.identidadGenero,
                 ocupacion: this.ocupacion,
                 nivelOcupacion: this.nivelOcupacion,
@@ -970,6 +1005,62 @@ export default {
             return porLabel ? porLabel.value : null;
         },
 
+        onNacionalidadNacimientoChange() {
+            if (this.nacionalidadNacimiento === "extranjero") {
+                this.aplicarNacimientoExtranjeroMigrante();
+                return;
+            }
+
+            this.departamentoNacimiento = "";
+            this.municipioNacimiento = "";
+        },
+
+        aplicarNacimientoExtranjeroMigrante() {
+            this.departamentoNacimiento = this.NACIMIENTO_MIGRANTE;
+            this.municipioNacimiento = this.NACIMIENTO_MIGRANTE;
+        },
+
+        obtenerDepartamentoNacimientoParaGuardar() {
+            if (this.nacionalidadNacimiento === "extranjero") {
+                return this.NACIMIENTO_MIGRANTE;
+            }
+
+            return String(this.departamentoNacimiento || "").trim();
+        },
+
+        obtenerMunicipioNacimientoParaGuardar() {
+            if (this.nacionalidadNacimiento === "extranjero") {
+                return this.NACIMIENTO_MIGRANTE;
+            }
+
+            return String(this.municipioNacimiento || "").trim();
+        },
+
+        aplicarNacimientoPacientePrecargado(municipioRaw, departamentoRaw) {
+            const municipio = String(municipioRaw || "").trim();
+            const departamento = String(departamentoRaw || "").trim();
+
+            if (!municipio && !departamento) {
+                this.nacionalidadNacimiento = "";
+                return;
+            }
+
+            const departamentoCoincidente = this.coincidirOpcionLista(
+                departamento,
+                this.departamentosColombia
+            );
+
+            if (departamentoCoincidente !== null) {
+                this.nacionalidadNacimiento = "colombiano";
+                this.departamentoNacimiento = departamentoCoincidente;
+                this.municipioNacimiento = municipio;
+                return;
+            }
+
+            this.nacionalidadNacimiento = "extranjero";
+            this.aplicarNacimientoExtranjeroMigrante();
+        },
+
         /** Precarga solo datos del paciente (editables). No carga actividades ni profesionales. */
         precargarDatosPaciente(paciente = {}) {
             if (!paciente || typeof paciente !== "object") return;
@@ -990,13 +1081,13 @@ export default {
             const apellido2 = pick(paciente.apellido2);
             const fechaNac = this.normalizarFechaCampo(paciente.fechaNac ?? paciente.fecha_nac);
             const sexo = pick(paciente.sexo);
-            const departamentoNacimiento = this.coincidirOpcionLista(
-                pick(paciente.departamentoNacimiento, paciente.departamento_nacimiento),
-                this.departamentosColombia
-            );
             const municipioNacimiento = pick(
                 paciente.municipioNacimiento,
                 paciente.municipio_nacimiento
+            );
+            const departamentoNacimientoRaw = pick(
+                paciente.departamentoNacimiento,
+                paciente.departamento_nacimiento
             );
             const identidadGenero = this.coincidirOpcionLista(
                 pick(paciente.identidadGenero, paciente.identidad_genero),
@@ -1019,8 +1110,9 @@ export default {
             if (apellido2 !== null) this.apellido2 = apellido2;
             if (fechaNac) this.fechaNac = fechaNac;
             if (sexo !== null) this.sexo = sexo;
-            if (departamentoNacimiento !== null) this.departamentoNacimiento = departamentoNacimiento;
-            if (municipioNacimiento !== null) this.municipioNacimiento = municipioNacimiento;
+            if (municipioNacimiento !== null || departamentoNacimientoRaw !== null) {
+                this.aplicarNacimientoPacientePrecargado(municipioNacimiento, departamentoNacimientoRaw);
+            }
             if (identidadGenero !== null) this.identidadGenero = identidadGenero;
             if (ocupacion !== null) this.ocupacion = ocupacion;
             if (nivelOcupacion !== null) this.nivelOcupacion = nivelOcupacion;
@@ -1312,6 +1404,7 @@ export default {
             this.sexo = "";
             this.departamentoNacimiento = "";
             this.municipioNacimiento = "";
+            this.nacionalidadNacimiento = "";
             this.identidadGenero = "";
             this.ocupacion = "";
             this.nivelOcupacion = "";

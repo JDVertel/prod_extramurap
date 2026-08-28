@@ -11,7 +11,7 @@
             <div class="text-muted small">Por favor espere, cargando información...</div>
         </div>
     </div>
-    <div v-if="!cargando" :class="['convenio-theme', convenioThemeClass]">
+    <div v-if="!cargando" :class="['convenio-theme', convenioThemeClass, 'enfermero-page', 'container-fluid', 'px-2', 'px-md-3', 'py-2']">
         <h1 class="display-6 center">{{ cargoMostrado }}</h1>
         <ProfesionalGrupoInfo :es-estado-view="esEstadoView" />
         <p v-if="esEstadoView && nombreProfesionalSeleccionado" class="text-center text-muted mb-2">
@@ -61,7 +61,7 @@
                                 <span class="bandeja-dia-badge">{{ grupo.dayLabel }}</span>
                             </div>
                             <div v-for="(encuesta, index) in grupo.items" :key="encuesta.id || index"
-                                class="container rounded-lg p-2 mb-2" style="border-radius: 24px;">
+                                class="container p-2 mb-2">
                                 <div class="row paciente shadow-sm">
                                     <div class="col-6 col-md-6">
                                         <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong> | </small>
@@ -85,11 +85,12 @@
                                                     :key="`${encuesta.id}-${destino.statusKey}`">
                                                     <button
                                                         type="button"
-                                                        class="btn btn-warning btn-sm agendar-btn"
+                                                        class="btn btn-sm btn-regresar-proceso"
                                                         :disabled="regresarDisabled[`${encuesta.id}_${destino.statusKey}`]"
+                                                        :title="`Regresar a ${destino.rolLabel} para corrección`"
                                                         @click="regresarParaCorreccion(encuesta, destino)">
                                                         <i class="bi bi-arrow-counterclockwise"></i>
-                                                        <span class="agendar-label">{{ `Reg ${destino.rolShort}` }}</span>
+                                                        <span>{{ destino.rolShort }}</span>
                                                     </button>
                                                 </div>
                                             </div>
@@ -103,9 +104,8 @@
 
             </div>
             <div class="tab-pane fade" id="nav-profile" role="tabpanel" aria-labelledby="nav-profile-tab" tabindex="0">
-
-
-                <h4> <small>En proceso</small></h4>
+                <div class="container-fluid px-0">
+                <h4><small>En proceso</small></h4>
 
                 <!-- Mensaje cuando no hay registros -->
                 <div v-if="!encuestasEnProceso || encuestasEnProceso.length === 0"
@@ -122,22 +122,18 @@
                         </button>
                     </div>
 
-                    <div class="table-responsive tabla-proceso-wrap" style="max-height: 500px; overflow-y: auto;">
+                    <div class="table-responsive tabla-proceso-wrap">
                         <table class="table table-sm table-hover table-striped table-bordered align-middle mb-0 tabla-proceso">
-                            <thead class="table-light sticky-top cabecera-proceso">
+                            <thead class="table-light cabecera-proceso">
                                 <tr>
-                                    <th>Convenio</th>
                                     <th>Auxiliar</th>
                                     <th>Paciente</th>
                                     <th>EPS</th>
-                                    <th>Riesgo</th>
-                                    <th>F. Nac</th>
                                     <th>F. Encuesta</th>
                                     <th>Estados</th>
                                     <th>Devolver</th>
                                 </tr>
                                 <tr>
-                                    <th></th>
                                     <th>
                                         <select id="filtroAuxiliar" v-model="filtroAuxiliar" class="form-select form-select-sm">
                                             <option value="">Todos ({{ encuestasEnProceso.length }})</option>
@@ -146,7 +142,7 @@
                                             </option>
                                         </select>
                                     </th>
-                                    <th colspan="5"></th>
+                                    <th colspan="3"></th>
                                     <th>
                                         <select id="filtroEstadoProfesional" v-model="filtroEstadoProfesional" class="form-select form-select-sm">
                                             <option value="">Estados: todos los profesionales</option>
@@ -160,30 +156,31 @@
                             </thead>
                             <tbody>
                                 <tr v-for="(encuesta, index) in encuestasEnProcesoFiltradas" :key="encuesta.id || index">
-                                    <td>{{ encuesta.convenio || "Sin convenio" }}</td>
                                     <td>{{ obtenerNombreAuxiliar(encuesta.idEncuestador) }}</td>
-                                    <td>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</td>
+                                    <td>
+                                        <div class="paciente-en-proceso">
+                                            <strong>{{ nombrePacienteEnProceso(encuesta) }}</strong>
+                                            <small class="text-muted d-block">
+                                                Nac: {{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }}
+                                                · {{ calcularEdadTexto(encuesta.fechaNac) }}
+                                                · {{ documentoPaciente(encuesta) }}
+                                            </small>
+                                        </div>
+                                    </td>
                                     <td>{{ encuesta.eps }}</td>
-                                    <td>{{ encuesta.poblacionRiesgo }}</td>
-                                    <td>{{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }}</td>
                                     <td>{{ formatearFechaCorta(encuesta.fecha) || 'N/A' }}</td>
                                     <td>
-                                        <div class="estado-lista">
-                                            <div
+                                        <div class="estado-lista-compacta">
+                                            <span
                                                 v-for="estado in obtenerEstadosVisibles(encuesta)"
                                                 :key="estado.key"
-                                                class="estado-item"
-                                                :class="estado.completado ? 'estado-item-ok' : 'estado-item-pendiente'">
-                                                <div class="estado-item-header">
-                                                    <span class="estado-rol">{{ estado.rol }}</span>
-                                                    <span class="badge rounded-pill"
-                                                        :class="estado.completado ? 'bg-success' : 'bg-secondary'">
-                                                        {{ estado.completado ? 'OK' : 'Pendiente' }}
-                                                    </span>
-                                                </div>
-                                                <div class="estado-profesional">{{ estado.nombre }}</div>
-                                                <div class="estado-fecha" v-if="estado.fecha">{{ estado.fecha }}</div>
-                                            </div>
+                                                class="estado-chip"
+                                                :class="estado.completado ? 'estado-chip-ok' : 'estado-chip-pendiente'"
+                                                :aria-label="tooltipEstadoGestion(estado)">
+                                                <span class="estado-chip-rol">{{ abreviarRolEstado(estado.rol) }}</span>
+                                                <i class="bi" :class="estado.completado ? 'bi-check-lg' : 'bi-x-lg'"></i>
+                                                <span class="estado-chip-tooltip">{{ tooltipEstadoGestion(estado) }}</span>
+                                            </span>
                                         </div>
                                     </td>
                                     <td>
@@ -192,10 +189,12 @@
                                                 v-for="destino in obtenerDestinosRegreso(encuesta)"
                                                 :key="`${encuesta.id}-proc-${destino.statusKey}`"
                                                 type="button"
-                                                class="btn btn-warning btn-sm"
+                                                class="btn btn-sm btn-regresar-proceso"
                                                 :disabled="regresarDisabled[`${encuesta.id}_${destino.statusKey}`]"
+                                                :title="`Regresar a ${destino.rolLabel} para corrección`"
                                                 @click="regresarParaCorreccion(encuesta, destino)">
-                                                {{ `Reg ${destino.rolShort}` }}
+                                                <i class="bi bi-arrow-counterclockwise"></i>
+                                                <span>{{ destino.rolShort }}</span>
                                             </button>
                                         </div>
                                         <span v-else class="text-muted small">Sin acción</span>
@@ -204,6 +203,8 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="tabla-proceso-respiro" aria-hidden="true"></div>
+                </div>
                 </div>
 
 
@@ -428,6 +429,43 @@ export default {
 
         formatearFechaCorta(valorFecha) {
             return formatBandejaShortDate(valorFecha);
+        },
+
+        calcularEdad(fechaNacimiento) {
+            if (!fechaNacimiento) return null;
+
+            const nacimiento = moment(fechaNacimiento);
+            if (!nacimiento.isValid()) return null;
+
+            return moment().diff(nacimiento, "years");
+        },
+
+        calcularEdadTexto(fechaNacimiento) {
+            const edad = this.calcularEdad(fechaNacimiento);
+            return Number.isFinite(edad) ? `${edad} años` : "N/A";
+        },
+
+        documentoPaciente(encuesta = {}) {
+            const documento = [encuesta.tipodoc, encuesta.numdoc]
+                .map((valor) => String(valor || "").trim())
+                .filter(Boolean)
+                .join("-");
+
+            return documento || "N/A";
+        },
+
+        nombrePacienteEnProceso(encuesta = {}) {
+            const nombre = `${encuesta.nombre1 || ""} ${encuesta.apellido1 || ""} ${encuesta.apellido2 || ""}`.trim();
+            return nombre || "Sin nombre";
+        },
+
+        textoPacienteEnProceso(encuesta = {}) {
+            return {
+                nombre: this.nombrePacienteEnProceso(encuesta),
+                fechaNac: this.formatearFechaCorta(encuesta.fechaNac) || "N/A",
+                edad: this.calcularEdadTexto(encuesta.fechaNac),
+                documento: this.documentoPaciente(encuesta),
+            };
         },
 
         agruparEncuestasPorDia(items) {
@@ -725,6 +763,28 @@ export default {
             });
         },
 
+        abreviarRolEstado(rol = "") {
+            const mapa = {
+                Auxiliar: "Aux",
+                "Médico": "Med",
+                Medico: "Med",
+                Enfermero: "Enf",
+                "Psicólogo": "Psi",
+                Psicologo: "Psi",
+                "Trabajador social": "TS",
+                Nutricionista: "Nut",
+                "Higienista oral": "Hig",
+            };
+
+            return mapa[String(rol || "").trim()] || String(rol || "").trim().slice(0, 3) || "Rol";
+        },
+
+        tooltipEstadoGestion(estado = {}) {
+            const estadoTexto = estado.completado ? "Completado" : "Pendiente";
+            const fecha = estado.fecha ? ` · ${this.formatearFechaCorta(estado.fecha)}` : "";
+            return `${estado.rol}: ${estado.nombre} · ${estadoTexto}${fecha}`;
+        },
+
         escaparHtml(texto = "") {
             return String(texto)
                 .replace(/&/g, "&amp;")
@@ -735,22 +795,20 @@ export default {
         },
 
         construirHtmlTablaEnProceso() {
-            const headers = ["Convenio", "Auxiliar", "Paciente", "EPS", "Riesgo", "F. Nac", "F. Encuesta", "Estados"];
+            const headers = ["Auxiliar", "Paciente", "EPS", "F. Encuesta", "Estados"];
             const filas = this.encuestasEnProcesoFiltradas;
             const thead = `<thead><tr>${headers.map((h) => `<th>${this.escaparHtml(h)}</th>`).join("")}</tr></thead>`;
             const tbody = `<tbody>${filas.map((encuesta) => {
                 const estados = this.construirEstadosGestion(encuesta)
                     .map((estado) => `${estado.rol}: ${estado.nombre} (${estado.completado ? "OK" : "Pendiente"}${estado.fecha ? ` - ${estado.fecha}` : ""})`)
                     .join(" | ");
+                const paciente = this.textoPacienteEnProceso(encuesta);
 
                 return `
                     <tr>
-                        <td>${this.escaparHtml(encuesta.convenio || "")}</td>
                         <td>${this.escaparHtml(this.obtenerNombreAuxiliar(encuesta.idEncuestador))}</td>
-                        <td>${this.escaparHtml(`${encuesta.nombre1 || ""} ${encuesta.apellido1 || ""}`.trim())}</td>
+                        <td>${this.escaparHtml(`${paciente.nombre} | Nac: ${paciente.fechaNac} · ${paciente.edad} · ${paciente.documento}`)}</td>
                         <td>${this.escaparHtml(encuesta.eps || "")}</td>
-                        <td>${this.escaparHtml(encuesta.poblacionRiesgo || "")}</td>
-                        <td>${this.escaparHtml(encuesta.fechaNac || "")}</td>
                         <td>${this.escaparHtml(encuesta.fecha || "")}</td>
                         <td>${this.escaparHtml(estados)}</td>
                     </tr>`;
@@ -781,13 +839,14 @@ export default {
                 if (!estados.length) return;
 
                 estados.forEach((estado) => {
+                    const paciente = this.textoPacienteEnProceso(encuesta);
                     filasExcel.push({
-                        Convenio: encuesta.convenio || "",
                         Auxiliar: this.obtenerNombreAuxiliar(encuesta.idEncuestador),
-                        Paciente: `${encuesta.nombre1 || ""} ${encuesta.apellido1 || ""}`.trim(),
+                        Paciente: paciente.nombre,
+                        Documento: paciente.documento,
+                        FechaNac: paciente.fechaNac,
+                        Edad: paciente.edad,
                         EPS: encuesta.eps || "",
-                        Riesgo: encuesta.poblacionRiesgo || "",
-                        FechaNac: encuesta.fechaNac || "",
                         FechaEncuesta: encuesta.fecha || "",
                         Profesional: estado.nombre,
                         Rol: estado.rol,
@@ -808,12 +867,12 @@ export default {
             }
 
             ws["!cols"] = [
-                { wch: 18 },
                 { wch: 24 },
                 { wch: 26 },
                 { wch: 16 },
-                { wch: 18 },
-                { wch: 14 },
+                { wch: 12 },
+                { wch: 10 },
+                { wch: 16 },
                 { wch: 16 },
                 { wch: 26 },
                 { wch: 20 },
@@ -1120,6 +1179,12 @@ export default {
             deep: true,
         }
     },
+    created() {
+        document.body.classList.add("pagina-enfermero");
+    },
+    beforeUnmount() {
+        document.body.classList.remove("pagina-enfermero");
+    },
     async mounted() {
         this.fechaActual = moment().format("YYYY-MM-DD");
         await this.cargarEncuestas();
@@ -1173,7 +1238,7 @@ export default {
 .progress-card {
     width: min(560px, calc(100vw - 32px));
     background: #fff;
-    border-radius: 16px;
+    border-radius: 0;
     padding: 24px;
     border: 1px solid #dee2e6;
 }
@@ -1246,79 +1311,257 @@ export default {
     opacity: 0.85;
 }
 
-.estado-lista {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 6px;
-    min-width: 240px;
-}
-
-.estado-item {
-    border-radius: 8px;
-    padding: 6px 8px;
-    border: 1px solid #dee2e6;
-    background-color: #fff;
-}
-
-.estado-item-ok {
-    background-color: #f0fff4;
-}
-
-.estado-item-pendiente {
-    background-color: #f8f9fa;
-}
-
-.estado-item-header {
+.estado-lista-compacta {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: center;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 2px;
+    align-content: center;
+    gap: 6px;
+    min-width: 0;
+    width: 100%;
+    max-width: none;
+    min-height: 100%;
 }
 
-.estado-rol {
+.estado-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.82rem;
     font-weight: 700;
+    line-height: 1.1;
+    border: 1px solid transparent;
+    cursor: help;
+    min-height: 28px;
+}
+
+.estado-chip:hover,
+.estado-chip:focus-visible {
+    z-index: 1035;
+}
+
+.estado-chip-ok {
+    background-color: #d1e7dd;
+    color: #0f5132;
+    border-color: #badbcc;
+}
+
+.estado-chip-pendiente {
+    background-color: #fce7f3;
+    color: #be185d;
+    border-color: #f9a8d4;
+}
+
+.estado-chip-pendiente .bi {
+    color: #db2777;
+}
+
+.estado-chip-rol {
     font-size: 0.78rem;
+    letter-spacing: 0.02em;
 }
 
-.estado-profesional {
-    font-size: 0.76rem;
-    line-height: 1.2;
+.estado-chip .bi {
+    font-size: 0.95rem;
+    line-height: 1;
 }
 
-.estado-fecha {
-    font-size: 0.7rem;
-    color: #6c757d;
+.estado-chip-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 8px);
+    bottom: auto;
+    transform: translateX(-50%);
+    min-width: max-content;
+    max-width: 280px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #212529;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1.3;
+    white-space: normal;
+    text-align: center;
+    z-index: 1040;
+    pointer-events: none;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.estado-chip-tooltip::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    top: auto;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: transparent transparent #212529 transparent;
+}
+
+.estado-chip:hover .estado-chip-tooltip,
+.estado-chip:focus-visible .estado-chip-tooltip {
+    visibility: visible;
+    opacity: 1;
 }
 
 .acciones-proceso {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    min-width: 160px;
+    justify-content: center;
+    align-items: center;
+    align-content: center;
+    gap: 8px;
+    min-width: 0;
+    width: 100%;
+    min-height: 100%;
+}
+
+.btn-regresar-proceso {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-width: 58px;
+    padding: 6px 11px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #9a3412;
+    background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%);
+    border: 2px solid #ea580c;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(234, 88, 12, 0.22);
+    white-space: nowrap;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.btn-regresar-proceso .bi {
+    font-size: 0.92rem;
+    line-height: 1;
+}
+
+.btn-regresar-proceso:hover:not(:disabled),
+.btn-regresar-proceso:focus-visible:not(:disabled) {
+    color: #fff;
+    background: linear-gradient(180deg, #fb923c 0%, #ea580c 100%);
+    border-color: #c2410c;
+    box-shadow: 0 4px 12px rgba(234, 88, 12, 0.38);
+    transform: translateY(-1px);
+}
+
+.btn-regresar-proceso:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(234, 88, 12, 0.28);
+}
+
+.btn-regresar-proceso:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.paciente-en-proceso {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    min-height: 100%;
 }
 
 .tabla-proceso-wrap {
-    border-radius: 12px;
-    box-shadow: var(--bs-box-shadow-sm);
+    border-radius: 0;
+    box-shadow: none;
+    border: 1px solid #dee2e6;
     background: var(--bs-body-bg);
+    max-height: calc(100vh - 340px);
+    overflow: auto;
+    padding-bottom: 72px;
+    box-sizing: border-box;
+}
+
+.tabla-proceso-respiro {
+    min-height: 72px;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+.enfermero-page #nav-profile .container-fluid {
+    padding-bottom: 1.5rem;
+}
+
+.tabla-proceso tbody td {
+    font-size: 0.8rem;
+    vertical-align: middle;
+    text-align: center;
+    position: relative;
+    overflow: visible;
+}
+
+.cabecera-proceso {
+    z-index: 1020;
+}
+
+.cabecera-proceso th {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+    background: var(--bs-table-bg, #f8f9fa);
+}
+
+.enfermero-page {
+    width: 100%;
+    max-width: none;
+    min-height: calc(100vh - 4rem);
+    box-sizing: border-box;
+}
+
+.enfermero-page .alert,
+.enfermero-page .bandeja-dia-badge,
+.enfermero-page .progress-card,
+.enfermero-page .tabla-proceso-wrap,
+.enfermero-page .row.paciente {
+    border-radius: 0 !important;
+}
+
+.enfermero-page .table-responsive,
+.enfermero-page .tabla-proceso-wrap,
+.enfermero-page .tabla-proceso {
+    width: 100%;
+    max-width: 100%;
 }
 
 .tabla-proceso thead th {
     font-size: 0.78rem;
     white-space: nowrap;
     vertical-align: middle;
-}
-
-.tabla-proceso tbody td {
-    font-size: 0.8rem;
-    vertical-align: top;
+    text-align: center;
 }
 
 .cabecera-proceso tr:nth-child(2) th {
     background: var(--bs-body-bg);
     padding-top: 0.35rem;
     padding-bottom: 0.35rem;
+    text-align: center;
+    vertical-align: middle;
+    top: 34px;
+    z-index: 1019;
+}
+
+.cabecera-proceso .form-select {
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* ===== TEMA VERDE TURQUESA (estilo navbar) ===== */
@@ -1335,7 +1578,7 @@ h1.display-6 {
         var(--convenio-color-2) 80%,
         var(--convenio-color-1) 100%
     );
-    border-radius: 10px;
+    border-radius: 0;
     padding: 8px 10px;
     color: #ffffff;
     display: flex;
@@ -1387,7 +1630,7 @@ h1.display-6 {
         width: 100%;
         min-height: 44px;
         height: auto;
-        border-radius: 10px;
+        border-radius: 0;
         flex-direction: column;
         justify-content: center;
         gap: 2px;
