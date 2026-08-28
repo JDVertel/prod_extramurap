@@ -163,8 +163,8 @@
                                     </td>
                                     <td>{{ obtenerNombreActividadDelContrato(item.key) }}</td>
                                     <td>
-                                        <div v-if="(cupsPorActividad[normalizarActividadId(item.key)] || []).length > 0">
-                                            <div v-for="(cup, idx) in cupsPorActividad[normalizarActividadId(item.key)]"
+                                        <div v-if="obtenerCupsAsignadosActividad(item.key).length > 0">
+                                            <div v-for="(cup, idx) in obtenerCupsAsignadosActividad(item.key)"
                                                 :key="`${cup._rowKey || cup.id || idx}-${asignacionesRevision}`"
                                                 class="d-flex align-items-center justify-content-between mb-1 p-1 border-bottom">
                                                 <div style="flex: 1; min-width: 0;">
@@ -729,9 +729,24 @@ export default {
                 ...listaUserActividades,
             ].forEach((actividad) => {
                 if (!actividad?.key) return;
-                if (!mapa.has(actividad.key)) {
-                    mapa.set(actividad.key, actividad);
+                const claveCanonica = this.obtenerClaveCanonicaActividad(actividad.key);
+                if (!claveCanonica) return;
+
+                const existente = mapa.get(claveCanonica);
+                if (!existente) {
+                    mapa.set(claveCanonica, { ...actividad, key: claveCanonica });
+                    return;
                 }
+
+                mapa.set(claveCanonica, {
+                    ...existente,
+                    ...actividad,
+                    key: claveCanonica,
+                    nombre: actividad.nombre || existente.nombre,
+                    Profesional: (Array.isArray(actividad.Profesional) && actividad.Profesional.length > 0)
+                        ? actividad.Profesional
+                        : existente.Profesional,
+                });
             });
 
             return Array.from(mapa.values());
@@ -822,7 +837,7 @@ export default {
 
             cupsLista.forEach((cup) => {
                 if (!cup) return;
-                const actividadId = this.normalizarActividadId(cup.actividadId);
+                const actividadId = this.obtenerClaveCanonicaActividad(cup.actividadId);
                 if (!actividadId) return;
                 if (!map[actividadId]) {
                     map[actividadId] = [];
@@ -912,6 +927,36 @@ export default {
 
         actividadCoincide(left, right) {
             return this.actividadesEquivalentes(left, right);
+        },
+
+        obtenerClaveCanonicaActividad(referencia) {
+            const ref = this.normalizarActividadId(referencia);
+            if (!ref) return "";
+
+            const actividad = this.buscarActividadEnCatalogo(ref);
+            if (actividad) {
+                return this.normalizarActividadId(
+                    actividad.key ||
+                    actividad.clave ||
+                    actividad.id ||
+                    actividad.actividadId ||
+                    ref
+                );
+            }
+
+            return ref;
+        },
+
+        obtenerCupsAsignadosActividad(actividadId) {
+            if (!this.asignaciones?.cups) return [];
+
+            const cupsLista = Array.isArray(this.asignaciones.cups)
+                ? this.asignaciones.cups
+                : Object.values(this.asignaciones.cups);
+
+            return cupsLista.filter(
+                (cup) => cup && this.actividadesEquivalentes(cup.actividadId, actividadId)
+            );
         },
 
         async obtenerCatalogoActividadesPorDefecto() {
@@ -1100,7 +1145,9 @@ export default {
                 cupsContrato.forEach((cupContrato) => {
                     const epsCupNorm = this.normalizarTextoComparacion(cupContrato?.epsNombre);
                     const coincideEps = !epsCupNorm || epsCupNorm === epsObjetivoNorm;
-                    const coincideProfesional = this.profesionalesIncluyen(cupContrato?.cupsProfesional, cargoUsuario);
+                    const profesionalesContrato = this.normalizarProfesionales(cupContrato?.cupsProfesional);
+                    const coincideProfesional = !profesionalesContrato.length
+                        || this.profesionalesIncluyen(profesionalesContrato, cargoUsuario);
                     const coincideActividad = this.coincideActividadContrato(
                         cupContrato,
                         actividadId,
@@ -1553,7 +1600,7 @@ export default {
                 const cupId = cupSeleccionado.id;
 
                 const existeEnActividad = this.cupsArray.some(
-                    (cup) => cup.id === cupId && cup.actividadId === this.idItem
+                    (cup) => this.obtenerIdCup(cup) === cupId && this.actividadesEquivalentes(cup.actividadId, this.idItem)
                 );
 
                 let existeEnAsignaciones = false;
@@ -1563,7 +1610,9 @@ export default {
                         : Object.values(this.asignaciones.cups);
 
                     existeEnAsignaciones = cupsGuardados.some(
-                        (cup) => cup && cup.id === cupId && cup.actividadId === this.idItem
+                        (cup) => cup
+                            && String(this.obtenerIdCup(cup)) === String(cupId)
+                            && this.actividadesEquivalentes(cup.actividadId, this.idItem)
                     );
                 }
 
@@ -1783,13 +1832,7 @@ export default {
                 return "Sin CUPS";
             }
 
-            const cupsArray = Array.isArray(this.asignaciones.cups) ?
-                this.asignaciones.cups :
-                Object.values(this.asignaciones.cups);
-
-            const cupsFiltrados = cupsArray.filter(cup => {
-                return cup && cup.actividadId === actividadId;
-            });
+            const cupsFiltrados = this.obtenerCupsAsignadosActividad(actividadId);
 
             if (cupsFiltrados.length === 0) {
                 return "Sin CUPS";
@@ -1805,11 +1848,7 @@ export default {
                 return [];
             }
 
-            const cupsArray = Array.isArray(this.asignaciones.cups) ?
-                this.asignaciones.cups :
-                Object.values(this.asignaciones.cups);
-
-            return cupsArray.filter(cup => cup && cup.actividadId === actividadId);
+            return this.obtenerCupsAsignadosActividad(actividadId);
         },
         async eliminarCupsAsignado(cup, actividadId) {
             if (!this.esAutorDelCup(cup)) {
@@ -2059,6 +2098,13 @@ export default {
                 return actividad.Profesional;
             }
 
+            const actividadLocal = this.tipoActividadExtramural.find(
+                (act) => this.actividadesEquivalentes(act.key, key)
+            );
+            if (actividadLocal && Array.isArray(actividadLocal.Profesional) && actividadLocal.Profesional.length > 0) {
+                return actividadLocal.Profesional;
+            }
+
             return [];
         },
 
@@ -2072,7 +2118,12 @@ export default {
 
             const cargo = this.cargoMostrado || "";
 
-            return Array.isArray(profesionales) && this.profesionalesIncluyen(profesionales, cargo);
+            if (!Array.isArray(profesionales) || profesionales.length === 0) {
+                return this.tieneCupsDisponiblesActividad(key)
+                    || this.obtenerCupsAsignadosActividad(key).length > 0;
+            }
+
+            return this.profesionalesIncluyen(profesionales, cargo);
         },
 
         normalizarProfesionales(profesionales) {
@@ -2089,23 +2140,71 @@ export default {
                 .toLowerCase()
                 .normalize("NFD")
                 .replace(/[\u0300-\u036f]/g, "")
-                .replace(/\s+/g, " ");
+                .replace(/[^a-z0-9\s/]/g, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+        },
+
+        canonizarCargoProfesional(cargo) {
+            const texto = this.normalizarCargoComparacion(cargo);
+            if (!texto) return "";
+
+            const aliasDirectos = {
+                "jefe/enf": "enfermero",
+                "jefe enf": "enfermero",
+                "enfermero jefe": "enfermero",
+                "jefe de enfermeria": "enfermero",
+                "medico": "medico",
+                "médico": "medico",
+                "psicologo": "psicologo",
+                "psicólogo": "psicologo",
+                "tsocial": "tsocial",
+                "trabajador social": "tsocial",
+                "nutricionista": "nutricionista",
+                "higienista oral": "higienista oral",
+            };
+            if (aliasDirectos[texto]) {
+                return aliasDirectos[texto];
+            }
+
+            const mapaCanonico = [
+                { canon: "auxiliar de enfermeria", tokens: ["auxiliar"] },
+                { canon: "enfermero", tokens: ["enfermero"] },
+                { canon: "enfermero", tokens: ["jefe", "enf"] },
+                { canon: "medico", tokens: ["medico"] },
+                { canon: "psicologo", tokens: ["psicologo"] },
+                { canon: "tsocial", tokens: ["tsocial"] },
+                { canon: "tsocial", tokens: ["trabajador", "social"] },
+                { canon: "nutricionista", tokens: ["nutricion"] },
+                { canon: "higienista oral", tokens: ["higienista"] },
+            ];
+
+            const encontrado = mapaCanonico.find((def) =>
+                def.tokens.every((token) => texto.includes(token))
+            );
+            return encontrado ? encontrado.canon : texto;
+        },
+
+        cargosEquivalentes(cargoA, cargoB) {
+            const a = this.canonizarCargoProfesional(cargoA);
+            const b = this.canonizarCargoProfesional(cargoB);
+            return !!a && !!b && a === b;
         },
 
         profesionalesIncluyen(profesionales, cargo) {
-            const cargoNorm = this.normalizarCargoComparacion(cargo);
-            if (!cargoNorm) return false;
+            const cargoCanon = this.canonizarCargoProfesional(cargo);
+            if (!cargoCanon) return false;
 
             return this.normalizarProfesionales(profesionales).some(
-                (item) => this.normalizarCargoComparacion(item) === cargoNorm
+                (item) => this.cargosEquivalentes(item, cargoCanon)
             );
         },
 
         profesionalesCoinciden(profesionalesA, profesionalesB) {
             const listaA = this.normalizarProfesionales(profesionalesA)
-                .map((item) => this.normalizarCargoComparacion(item));
+                .map((item) => this.canonizarCargoProfesional(item));
             const listaB = this.normalizarProfesionales(profesionalesB)
-                .map((item) => this.normalizarCargoComparacion(item));
+                .map((item) => this.canonizarCargoProfesional(item));
             return listaA.some((item) => listaB.includes(item));
         },
 

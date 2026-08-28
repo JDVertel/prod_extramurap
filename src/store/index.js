@@ -3850,6 +3850,38 @@ export default createStore({
     },
 
     /**
+     * Reabre la facturación de una encuesta cerrada (solo uso controlado desde historial del día).
+     */
+    reabrirFacturacion: async ({ commit }, payload) => {
+      const idEnc = typeof payload === "object"
+        ? (payload?.idEnc ?? payload?.idEncuesta ?? payload?.id)
+        : payload;
+      const idFacturador = typeof payload === "object"
+        ? String(payload?.idFacturador ?? payload?.iduser ?? "").trim()
+        : "";
+
+      try {
+        const patch = {
+          status_facturacion: false,
+          FechaFacturacion: null,
+          fechaFacturacion: null,
+        };
+
+        if (idFacturador) {
+          patch.asigfact = idFacturador;
+          patch.asig_fact = idFacturador;
+        }
+
+        const response = await realtime_api.patch(`/Encuesta/${idEnc}.json`, patch);
+        devLog("Facturación reabierta:", response.data);
+        return response.data;
+      } catch (error) {
+        console.error("Error al reabrir facturación:", error);
+        throw error;
+      }
+    },
+
+    /**
      * Asigna facturación a un CUPS
      */
     asigFacturacion: async ({ commit }, datafact) => {
@@ -4333,6 +4365,27 @@ export default createStore({
     },
     setEncuestasFactAprov(state, encuestas) {
       state.EncuestasFactAprov = encuestas;
+    },
+    upsertEncuestaFactAprov(state, paciente) {
+      const id = String(paciente?.id || "").trim();
+      if (!id) return;
+
+      const lista = Array.isArray(state.EncuestasFactAprov) ? [...state.EncuestasFactAprov] : [];
+      const indice = lista.findIndex((item) => String(item?.id || "").trim() === id);
+      const normalizado = {
+        ...(indice >= 0 ? lista[indice] : {}),
+        ...paciente,
+        id,
+        status_facturacion: false,
+      };
+
+      if (indice >= 0) {
+        lista[indice] = normalizado;
+      } else {
+        lista.unshift(normalizado);
+      }
+
+      state.EncuestasFactAprov = lista;
     },
     setEncuestasFactHistorial(state, encuestas) {
       state.EncuestasFactHistorial = encuestas;

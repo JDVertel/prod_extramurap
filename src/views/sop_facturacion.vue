@@ -18,11 +18,17 @@
             <div v-if="pacienteIdModal" class="facturacion-cups-panel">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                     <h2 class="mb-0">
-                        <i class="bi bi-clipboard-check"></i> Facturar CUPS
+                        <i class="bi bi-clipboard-check"></i>
+                        {{ facturacionReabiertaHistorial ? 'Editar facturación reabierta' : 'Facturar CUPS' }}
                     </h2>
                     <button type="button" class="btn btn-outline-secondary" @click="cerrarModalFacturacion">
                         <i class="bi bi-arrow-left"></i> Volver al listado
                     </button>
+                </div>
+
+                <div v-if="facturacionReabiertaHistorial" class="alert alert-info py-2 mb-3">
+                    Paciente reabierto desde el historial de hoy. Puede agregar o corregir números de factura y
+                    luego presionar <strong>Cerrar Paciente</strong> para finalizar nuevamente.
                 </div>
 
                 <div class="container-fluid px-0">
@@ -123,7 +129,7 @@
                             </div>
                         </div>
                         <button
-                            v-if="!modoEdicion && pacienteIdModal && hayCupsEnModal"
+                            v-if="!modoEdicion && pacienteIdModal && hayFacturasParaEditar"
                             type="button"
                             class="btn btn-info btn-sm"
                             :disabled="guardandoFactura || cargandoModal"
@@ -152,7 +158,11 @@
                                     :class="{ active: rolFacturacionActivo === rol }"
                                     @click="rolActivoFacturacion = rol">
                                     {{ etiquetaRolFacturacion(rol) }}
-                                    <span class="badge bg-secondary ms-1">{{ contarCupsPorRol(pacienteModalActual, rol) }}</span>
+                                    <span
+                                        class="badge ms-1"
+                                        :class="claseBadgeDiligenciaRol(pacienteModalActual, rol)">
+                                        {{ contarCupsPorRol(pacienteModalActual, rol) }}
+                                    </span>
                                 </button>
                             </li>
                         </ul>
@@ -306,6 +316,10 @@
                         <table class="table table-bordered table-striped table-sm align-middle">
                             <thead class="table-light">
                                 <tr>
+                                    <th>Acciones</th>
+                                    <th @click="ordenarPendientes('estado')" role="button" class="text-center">
+                                        Estado {{ indicadorOrdenPendientes('estado') }}
+                                    </th>
                                     <th @click="ordenarPendientes('grupo')" role="button">Grupo {{
                                         indicadorOrdenPendientes('grupo') }}</th>
                                     <th @click="ordenarPendientes('paciente')" role="button">Paciente {{
@@ -334,12 +348,10 @@
                                         indicadorOrdenPendientes('fecha') }}</th>
                                     <th @click="ordenarPendientes('fechagestEnfermera')" role="button">Fecha cierre {{
                                         indicadorOrdenPendientes('fechagestEnfermera') }}</th>
-                                    <th @click="ordenarPendientes('estado')" role="button" class="text-center">
-                                        Estado {{ indicadorOrdenPendientes('estado') }}
-                                    </th>
-                                    <th>Acciones</th>
                                 </tr>
-                                <tr>
+                                <tr class="fila-filtros-tabla">
+                                    <th class="filtro-sin-control"></th>
+                                    <th class="filtro-sin-control"></th>
                                     <th>
                                         <select v-model="filtrosPendientes.grupo" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -372,9 +384,9 @@
                                     </th>
                                     <th>
                                         <input v-model="filtrosPendientes.fechaNac" type="date"
-                                            class="form-control form-control-sm" />
+                                            class="form-control form-control-sm" title="Filtrar fecha nacimiento" />
                                     </th>
-                                    <th></th>
+                                    <th class="filtro-sin-control"></th>
                                     <th>
                                         <select v-model="filtrosPendientes.eps" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -396,7 +408,7 @@
                                                 :key="`pend-regimen-${item}`" :value="item">{{ item }}</option>
                                         </select>
                                     </th>
-                                    <th></th>
+                                    <th class="filtro-sin-control"></th>
                                     <th>
                                         <select v-model="filtrosPendientes.barrio" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -413,21 +425,69 @@
                                     </th>
                                     <th>
                                         <input v-model="filtrosPendientes.fecha" type="date"
-                                            class="form-control form-control-sm" />
+                                            class="form-control form-control-sm" title="Filtrar fecha demanda" />
                                     </th>
                                     <th>
                                         <input v-model="filtrosPendientes.fechagestEnfermera" type="date"
-                                            class="form-control form-control-sm" />
+                                            class="form-control form-control-sm" title="Filtrar fecha cierre" />
                                     </th>
-                                    <th></th>
-                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr
                                     v-for="paciente in encuestasPendientesProcesadas"
                                     :key="paciente.id"
-                                    :class="{ 'pendiente-gestion-incompleta': esPacienteFacturacionIncompleta(paciente) }">
+                                    :class="{
+                                        'pendiente-reabierto': esPacienteReabierto(paciente),
+                                        'pendiente-gestion-incompleta': debeResaltarPendienteAmarillo(paciente)
+                                    }">
+                                    <td>
+                                        <div class="d-flex gap-1">
+                                            <button type="button" class="btn btn-primary btn-sm btn-icono-tabla"
+                                                @click="setPacienteId(paciente.id)">
+                                                <i class="bi bi-bookmark-check-fill"></i>
+                                            </button>
+                                            <button
+                                                v-if="puedeDevolverPacientePendiente(paciente)"
+                                                type="button"
+                                                class="btn btn-outline-danger btn-sm btn-icono-tabla"
+                                                :disabled="devolverDisabled[paciente.id]"
+                                                @click="devolverARegistroInicial(paciente.id)"
+                                                title="Devolver a registro inicial">
+                                                <i class="bi bi-arrow-counterclockwise"></i>
+                                            </button>
+                                            <span
+                                                v-else-if="tieneCupsDiligenciados(paciente)"
+                                                class="btn btn-warning btn-sm btn-icono-tabla disabled opacity-100"
+                                                :title="textoEstadoFacturacionPendiente(paciente)">
+                                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span
+                                            v-if="esPacienteReabierto(paciente)"
+                                            class="estado-facturacion-devuelta"
+                                            title="Reabierto desde el historial de hoy. Debe cerrar nuevamente al terminar.">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                            <span class="small d-block">Devuelto</span>
+                                        </span>
+                                        <span
+                                            v-else-if="esPacienteFacturacionIncompleta(paciente)"
+                                            class="estado-facturacion-incompleta"
+                                            :title="textoEstadoFacturacionPendiente(paciente)">
+                                            <i class="bi bi-exclamation-triangle-fill"></i>
+                                            <span class="small d-block">Incompleto</span>
+                                        </span>
+                                        <span
+                                            v-else-if="esPacienteFacturacionEnProceso(paciente)"
+                                            class="estado-facturacion-en-proceso"
+                                            :title="textoEstadoFacturacionPendiente(paciente)">
+                                            <i class="bi bi-hourglass-split"></i>
+                                            <span class="small d-block">En proceso</span>
+                                        </span>
+                                        <span v-else class="text-muted small">Sin gestión</span>
+                                    </td>
                                     <td>{{ paciente.grupo }}</td>
                                     <td>
                                         {{ paciente.nombre1 }} {{ paciente.apellido1 }}
@@ -443,41 +503,8 @@
                                     <td>{{ paciente.direccion }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.barrio }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.comuna }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(paciente.fecha) }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechagestEnfermera) }}</td>
-                                    <td class="text-center">
-                                        <span
-                                            v-if="esPacienteFacturacionIncompleta(paciente)"
-                                            class="estado-facturacion-incompleta"
-                                            :title="textoEstadoFacturacionPendiente(paciente)">
-                                            <i class="bi bi-exclamation-triangle-fill"></i>
-                                            <span class="small d-block">Incompleto</span>
-                                        </span>
-                                        <span v-else class="text-muted small">Sin gestión</span>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex gap-2">
-                                            <button type="button" class="btn btn-primary"
-                                                @click="setPacienteId(paciente.id)">
-                                                <i class="bi bi-bookmark-check-fill"></i>
-                                            </button>
-                                            <button
-                                                v-if="paciente.allFacturasVacias"
-                                                type="button"
-                                                class="btn btn-outline-danger"
-                                                :disabled="devolverDisabled[paciente.id]"
-                                                @click="devolverARegistroInicial(paciente.id)"
-                                                title="Devolver a registro inicial">
-                                                <i class="bi bi-arrow-counterclockwise"></i>
-                                            </button>
-                                            <span
-                                                v-else-if="esPacienteFacturacionIncompleta(paciente)"
-                                                class="btn btn-warning btn-sm disabled opacity-100"
-                                                :title="textoEstadoFacturacionPendiente(paciente)">
-                                                <i class="bi bi-exclamation-triangle-fill"></i>
-                                            </span>
-                                        </div>
-                                    </td>
+                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaDemandaPaciente(paciente)) }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaCierreEnfermeraPaciente(paciente)) }}</td>
                                 </tr>
                                 <tr v-if="encuestasPendientesProcesadas.length === 0">
                                     <td colspan="16" class="text-center text-muted py-4">
@@ -607,6 +634,7 @@
                         <table class="table table-bordered table-striped table-sm align-middle table-success">
                             <thead class="table-light">
                                 <tr>
+                                    <th>Opciones</th>
                                     <th style="width: 42px;" class="text-center">
                                         <input
                                             type="checkbox"
@@ -645,10 +673,10 @@
                                         indicadorOrden('fechagestEnfermera') }}</th>
                                     <th @click="ordenarRegistro('remision')" role="button">Remisión {{
                                         indicadorOrden('remision') }}</th>
-                                    <th>Opciones</th>
                                 </tr>
-                                <tr>
-                                    <th></th>
+                                <tr class="fila-filtros-tabla">
+                                    <th class="filtro-sin-control"></th>
+                                    <th class="filtro-sin-control"></th>
                                     <th>
                                         <select v-model="filtrosRegistro.grupo" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -656,8 +684,15 @@
                                                 :value="item">{{ item }}</option>
                                         </select>
                                     </th>
-                                    <th></th>
-                                    <th></th>
+                                    <th class="filtro-sin-control"></th>
+                                    <th>
+                                        <input
+                                            v-model="filtrosRegistro.paciente"
+                                            type="text"
+                                            class="form-control form-control-sm"
+                                            placeholder="Buscar paciente"
+                                        />
+                                    </th>
                                     <th>
                                         <select v-model="filtrosRegistro.sexo" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -665,7 +700,6 @@
                                                 :value="item">{{ item }}</option>
                                         </select>
                                     </th>
-                                    <th></th>
                                     <th>
                                         <input
                                             v-model="filtrosRegistro.numdoc"
@@ -676,7 +710,7 @@
                                     </th>
                                     <th>
                                         <input v-model="filtrosRegistro.fechaNac" type="date"
-                                            class="form-control form-control-sm" />
+                                            class="form-control form-control-sm" title="Filtrar fecha nacimiento" />
                                     </th>
                                     <th>
                                         <select v-model="filtrosRegistro.eps" class="form-select form-select-sm">
@@ -692,7 +726,7 @@
                                                 :key="`regimen-${item}`" :value="item">{{ item }}</option>
                                         </select>
                                     </th>
-                                    <th></th>
+                                    <th class="filtro-sin-control"></th>
                                     <th>
                                         <select v-model="filtrosRegistro.barrio" class="form-select form-select-sm">
                                             <option value="">Todos</option>
@@ -709,11 +743,11 @@
                                     </th>
                                     <th>
                                         <input v-model="filtrosRegistro.fecha" type="date"
-                                            class="form-control form-control-sm" />
+                                            class="form-control form-control-sm" title="Filtrar fecha demanda" />
                                     </th>
                                     <th>
                                         <input v-model="filtrosRegistro.fechagestEnfermera" type="date"
-                                            class="form-control form-control-sm" />
+                                            class="form-control form-control-sm" title="Filtrar fecha cierre" />
                                     </th>
                                     <th>
                                         <select v-model="filtrosRegistro.remision" class="form-select form-select-sm">
@@ -722,11 +756,17 @@
                                                 :key="`remision-${item}`" :value="item">{{ item }}</option>
                                         </select>
                                     </th>
-                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-for="paciente in encuestasFactProcesadas" :key="paciente.id">
+                                    <td>
+                                        <button type="button" class="btn btn-warning btn-sm btn-icono-tabla"
+                                            :disabled="aprovDisabled[paciente.id] || aprovisionandoLote"
+                                            @click="AprovisionarPaciente(paciente.id)">
+                                            <i class="bi bi-person-plus"></i>
+                                        </button>
+                                    </td>
                                     <td class="text-center">
                                         <input
                                             type="checkbox"
@@ -750,16 +790,9 @@
                                     <td>{{ paciente.direccion }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.barrio }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.comuna }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(paciente.fecha) }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechagestEnfermera) }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaDemandaPaciente(paciente)) }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaCierreEnfermeraPaciente(paciente)) }}</td>
                                     <td>{{ paciente.requiereRemision }}</td>
-                                    <td>
-                                        <button type="button" class="btn btn-warning"
-                                            :disabled="aprovDisabled[paciente.id] || aprovisionandoLote"
-                                            @click="AprovisionarPaciente(paciente.id)">
-                                            <i class="bi bi-person-plus"></i>
-                                        </button>
-                                    </td>
                                 </tr>
                                 <tr v-if="encuestasFactProcesadas.length === 0">
                                     <td colspan="16" class="text-center text-muted py-4">
@@ -794,10 +827,15 @@
                             {{ etiquetaResumenHistorial }}
                         </div>
                     </div>
+                    <div v-if="historialPermiteReapertura" class="alert alert-light border py-2 mb-2 small">
+                        <i class="bi bi-info-circle"></i>
+                        Los pacientes cerrados <strong>hoy</strong> pueden reabrirse para editar o agregar números de factura.
+                    </div>
                     <div class="table-responsive tabla-scroll">
                         <table class="table table-bordered table-striped table-sm align-middle">
                             <thead class="table-light">
                                 <tr>
+                                    <th v-if="historialPermiteReapertura">Acciones</th>
                                     <th @click="ordenarHistorial('grupo')" role="button">Grupo {{
                                         indicadorOrdenHistorial('grupo') }}</th>
                                     <th @click="ordenarHistorial('paciente')" role="button">Paciente {{
@@ -818,6 +856,18 @@
                             </thead>
                             <tbody>
                                 <tr v-for="paciente in encuestasHistorialProcesadas" :key="`hist-${paciente.id}`">
+                                    <td v-if="historialPermiteReapertura">
+                                        <button
+                                            v-if="puedeReabrirPacienteHistorial(paciente)"
+                                            type="button"
+                                            class="btn btn-outline-primary btn-sm btn-icono-tabla"
+                                            :disabled="reabriendoPacienteId === paciente.id || cargando"
+                                            @click="reabrirPacienteHistorial(paciente)">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                            {{ reabriendoPacienteId === paciente.id ? 'Reabriendo...' : 'Reabrir' }}
+                                        </button>
+                                        <span v-else class="text-muted small">—</span>
+                                    </td>
                                     <td>{{ paciente.grupo }}</td>
                                     <td>
                                         {{ paciente.nombre1 }} {{ paciente.apellido1 }}
@@ -826,12 +876,12 @@
                                     <td>{{ paciente.tipodoc }}-{{ paciente.numdoc }}</td>
                                     <td>{{ paciente.eps }}</td>
                                     <td>{{ paciente.convenio }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(paciente.fecha) }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechagestEnfermera) }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaDemandaPaciente(paciente)) }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaCierreEnfermeraPaciente(paciente)) }}</td>
                                     <td>{{ formatearFechaHora(paciente.fechaFacturacion || paciente.FechaFacturacion) }}</td>
                                 </tr>
                                 <tr v-if="encuestasHistorialProcesadas.length === 0">
-                                    <td colspan="8" class="text-center text-muted py-4">
+                                    <td :colspan="historialPermiteReapertura ? 9 : 8" class="text-center text-muted py-4">
                                         No hay pacientes cerrados en facturación para {{ etiquetaPeriodoHistorial }}.
                                     </td>
                                 </tr>
@@ -848,6 +898,7 @@
 <script>
 import {
     mapActions,
+    mapMutations,
     mapState
 } from "vuex";
 import { nextTick } from "vue";
@@ -872,6 +923,10 @@ export default {
             mensajeAprovisionamientoLote: "",
             devolverDisabled: {}, // Estado de desactivación para devolver en pendientes
             pacienteIdModal: null,
+            facturacionReabiertaHistorial: false,
+            reabriendoPacienteId: null,
+            pacientesReabiertos: {},
+            pacientesReabiertosSnapshot: {},
             facturaDisabled: {}, // Estado de desactivación por cupId
             facturaInputs: {}, // Valores de factura por cupId
             cupl: null,
@@ -904,6 +959,7 @@ export default {
             },
             filtrosRegistro: {
                 grupo: "",
+                paciente: "",
                 sexo: "",
                 numdoc: "",
                 fechaNac: "",
@@ -1046,6 +1102,15 @@ export default {
         hayCupsEnModal() {
             return this.rolesFacturacionModal.length > 0;
         },
+        hayFacturasParaEditar() {
+            const paciente = this.pacienteModalActual;
+            if (!paciente?.cups || typeof paciente.cups !== "object") return false;
+
+            return Object.values(paciente.cups).some((cup) => {
+                if (!cup?.facturado) return false;
+                return this.normalizarFactura(cup.FactNum ?? cup.fact_num).length > 0;
+            });
+        },
         puedeGuardarEdicionFacturas() {
             if (!this.modoEdicion) return false;
             if (this.contarInvalidasEdicion() > 0) return false;
@@ -1133,18 +1198,19 @@ export default {
                         this.convenioUsuario
                       );
                 const cumpleGrupo = !this.filtrosRegistro.grupo || String(paciente.grupo || "").trim() === this.filtrosRegistro.grupo;
+                const cumplePaciente = this.cumpleFiltroPaciente(paciente, this.filtrosRegistro.paciente);
                 const cumpleSexo = !this.filtrosRegistro.sexo || String(paciente.sexo || "").trim() === this.filtrosRegistro.sexo;
                 const cumpleNumdoc = this.cumpleFiltroNumdoc(paciente, this.filtrosRegistro.numdoc);
-                const cumpleFechaNac = !this.filtrosRegistro.fechaNac || this.formatearFechaYYYYMMDD(paciente.fechaNac) === this.filtrosRegistro.fechaNac;
+                const cumpleFechaNac = this.cumpleFiltroFecha(paciente.fechaNac ?? paciente.fecha_nac, this.filtrosRegistro.fechaNac);
                 const cumpleEps = !this.filtrosRegistro.eps || String(paciente.eps || "").trim() === this.filtrosRegistro.eps;
                 const cumpleRegimen = !this.filtrosRegistro.regimen || String(paciente.regimen || "").trim() === this.filtrosRegistro.regimen;
                 const cumpleBarrio = !this.filtrosRegistro.barrio || String(paciente.barrioVeredacomuna?.barrio || "").trim() === this.filtrosRegistro.barrio;
                 const cumpleComuna = !this.filtrosRegistro.comuna || String(paciente.barrioVeredacomuna?.comuna || "").trim() === this.filtrosRegistro.comuna;
-                const cumpleFecha = !this.filtrosRegistro.fecha || this.formatearFechaYYYYMMDD(paciente.fecha) === this.filtrosRegistro.fecha;
-                const cumpleFechaCierre = !this.filtrosRegistro.fechagestEnfermera || this.formatearFechaYYYYMMDD(paciente.fechagestEnfermera) === this.filtrosRegistro.fechagestEnfermera;
+                const cumpleFecha = this.cumpleFiltroFecha(this.obtenerFechaDemandaPaciente(paciente), this.filtrosRegistro.fecha);
+                const cumpleFechaCierre = this.cumpleFiltroFecha(this.obtenerFechaCierreEnfermeraPaciente(paciente), this.filtrosRegistro.fechagestEnfermera);
                 const cumpleRemision = !this.filtrosRegistro.remision || String(paciente.requiereRemision || "").trim() === this.filtrosRegistro.remision;
 
-                return cumpleAccesoFacturador && cumpleGrupo && cumpleSexo && cumpleNumdoc && cumpleFechaNac && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre && cumpleRemision;
+                return cumpleAccesoFacturador && cumpleGrupo && cumplePaciente && cumpleSexo && cumpleNumdoc && cumpleFechaNac && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre && cumpleRemision;
             });
 
             if (!this.ordenRegistro.campo) return filtradas;
@@ -1196,40 +1262,37 @@ export default {
         },
         encuestasPendientesProcesadas() {
             const filas = Array.isArray(this.EncuestasFactAprov) ? [...this.EncuestasFactAprov] : [];
-            const docActual = String(this.documentoUsuarioActual || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
-            const filtradas = filas.filter(paciente => {
-                const asig = String(paciente?.asigfact ?? paciente?.asig_fact ?? "")
-                    .trim()
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]/g, "");
-                // Si ya está aprovisionado a este facturador, siempre visible.
-                const asignadoAMi = !!docActual && !!asig && asig === docActual;
-                const cumpleAccesoFacturador = asignadoAMi || encuestaVisibleParaFacturador(
-                    paciente,
-                    this.gruposFacturadorUsuario,
-                    this.convenioUsuario
-                );
-                const cumpleGrupo = !this.filtrosPendientes.grupo || String(paciente.grupo || "").trim() === this.filtrosPendientes.grupo;
-                const cumplePaciente = this.cumpleFiltroPaciente(paciente, this.filtrosPendientes.paciente);
-                const cumpleSexo = !this.filtrosPendientes.sexo || String(paciente.sexo || "").trim() === this.filtrosPendientes.sexo;
-                const cumpleNumdoc = this.cumpleFiltroNumdoc(paciente, this.filtrosPendientes.numdoc);
-                const cumpleFechaNac = !this.filtrosPendientes.fechaNac || this.formatearFechaYYYYMMDD(paciente.fechaNac) === this.filtrosPendientes.fechaNac;
-                const cumpleEps = !this.filtrosPendientes.eps || String(paciente.eps || "").trim() === this.filtrosPendientes.eps;
-                const cumpleConvenio = !this.filtrosPendientes.convenio || String(paciente.convenio || "").trim() === this.filtrosPendientes.convenio;
-                const cumpleRegimen = !this.filtrosPendientes.regimen || String(paciente.regimen || "").trim() === this.filtrosPendientes.regimen;
-                const cumpleBarrio = !this.filtrosPendientes.barrio || String(paciente.barrioVeredacomuna?.barrio || "").trim() === this.filtrosPendientes.barrio;
-                const cumpleComuna = !this.filtrosPendientes.comuna || String(paciente.barrioVeredacomuna?.comuna || "").trim() === this.filtrosPendientes.comuna;
-                const cumpleFecha = !this.filtrosPendientes.fecha || this.formatearFechaYYYYMMDD(paciente.fecha) === this.filtrosPendientes.fecha;
-                const cumpleFechaCierre = !this.filtrosPendientes.fechagestEnfermera || this.formatearFechaYYYYMMDD(paciente.fechagestEnfermera) === this.filtrosPendientes.fechagestEnfermera;
+            const filtradas = filas.filter(paciente => this.pacienteCumpleFiltrosPendientes(paciente));
 
-                return cumpleAccesoFacturador && cumpleGrupo && cumplePaciente && cumpleSexo && cumpleNumdoc && cumpleFechaNac && cumpleEps && cumpleConvenio && cumpleRegimen && cumpleBarrio && cumpleComuna && cumpleFecha && cumpleFechaCierre;
+            const idsVisibles = new Set(filtradas.map((paciente) => String(paciente?.id || "").trim()).filter(Boolean));
+            const enriquecerReabierto = (paciente) => {
+                const idPaciente = String(paciente?.id || "").trim();
+                if (!idPaciente) return paciente;
+                if (paciente.reabiertoDesdeHistorial || this.pacientesReabiertos[idPaciente]) {
+                    return { ...paciente, reabiertoDesdeHistorial: true };
+                }
+                return paciente;
+            };
+
+            let resultado = filtradas.map(enriquecerReabierto);
+
+            Object.entries(this.pacientesReabiertosSnapshot || {}).forEach(([id, paciente]) => {
+                if (!id || idsVisibles.has(id)) return;
+                const filaReabierta = {
+                    ...paciente,
+                    id,
+                    reabiertoDesdeHistorial: true,
+                    status_facturacion: false,
+                };
+                if (!this.pacienteCumpleFiltrosPendientes(filaReabierta, { omitirAcceso: true })) return;
+                resultado.unshift(filaReabierta);
             });
 
-            if (!this.ordenPendientes.campo) return filtradas;
+            if (!this.ordenPendientes.campo) return resultado;
 
             const direccion = this.ordenPendientes.direccion === "desc" ? -1 : 1;
-            return filtradas.sort((a, b) => {
+            return resultado.sort((a, b) => {
                 const valorA = this.obtenerValorColumnaPendientes(a, this.ordenPendientes.campo);
                 const valorB = this.obtenerValorColumnaPendientes(b, this.ordenPendientes.campo);
                 return valorA.localeCompare(valorB, "es", { numeric: true, sensitivity: "base" }) * direccion;
@@ -1263,7 +1326,10 @@ export default {
                 const valorB = this.obtenerValorColumnaHistorial(b, campo);
                 return valorA.localeCompare(valorB, "es", { numeric: true, sensitivity: "base" }) * direccion;
             });
-        }
+        },
+        historialPermiteReapertura() {
+            return this.periodoHistorial === "hoy";
+        },
 
     },
     watch: {
@@ -1317,7 +1383,11 @@ export default {
             "getEncuestaById",
             "asigFacturacion",
             "cerrarFacturacion",
+            "reabrirFacturacion",
             "getAllActividadesExtra"
+        ]),
+        ...mapMutations([
+            "upsertEncuestaFactAprov",
         ]),
         /*  */
 
@@ -1636,6 +1706,16 @@ export default {
             }
         },
         async devolverARegistroInicial(id) {
+            const idNormalizado = String(id || "").trim();
+            const paciente = (this.EncuestasFactAprov || []).find(
+                (item) => String(item?.id || "").trim() === idNormalizado
+            ) || this.pacientesReabiertosSnapshot?.[idNormalizado] || { id: idNormalizado };
+
+            if (!this.puedeDevolverPacientePendiente(paciente)) {
+                alert("No se puede devolver este paciente: ya tiene CUPS con número de factura registrado.");
+                return;
+            }
+
             const confirmar = confirm("Este registro se devolverá a la tabla inicial. ¿Desea continuar?");
             if (!confirmar) return;
 
@@ -1679,8 +1759,8 @@ export default {
                 direccion: paciente.direccion,
                 barrio: paciente.barrioVeredacomuna?.barrio,
                 comuna: paciente.barrioVeredacomuna?.comuna,
-                fecha: paciente.fecha,
-                fechagestEnfermera: paciente.fechagestEnfermera,
+                fecha: this.obtenerFechaDemandaPaciente(paciente),
+                fechagestEnfermera: this.obtenerFechaCierreEnfermeraPaciente(paciente),
                 remision: paciente.requiereRemision,
             };
 
@@ -1702,6 +1782,7 @@ export default {
         limpiarFiltrosRegistro() {
             this.filtrosRegistro = {
                 grupo: "",
+                paciente: "",
                 sexo: "",
                 numdoc: "",
                 fechaNac: "",
@@ -1733,9 +1814,9 @@ export default {
                 direccion: paciente.direccion,
                 barrio: paciente.barrioVeredacomuna?.barrio,
                 comuna: paciente.barrioVeredacomuna?.comuna,
-                fecha: paciente.fecha,
-                fechagestEnfermera: paciente.fechagestEnfermera,
-                estado: this.esPacienteFacturacionIncompleta(paciente) ? "Incompleto" : "Sin gestión",
+                fecha: this.obtenerFechaDemandaPaciente(paciente),
+                fechagestEnfermera: this.obtenerFechaCierreEnfermeraPaciente(paciente),
+                estado: this.obtenerEtiquetaEstadoFacturacionPendiente(paciente),
             };
 
             return String(mapaValores[campo] || "").trim();
@@ -1780,8 +1861,8 @@ export default {
                 documento: `${paciente.tipodoc || ""}-${paciente.numdoc || ""}`,
                 eps: paciente.eps,
                 convenio: paciente.convenio,
-                fecha: paciente.fecha,
-                fechagestEnfermera: paciente.fechagestEnfermera,
+                fecha: this.obtenerFechaDemandaPaciente(paciente),
+                fechagestEnfermera: this.obtenerFechaCierreEnfermeraPaciente(paciente),
                 fechaFacturacion: paciente.fechaFacturacion || paciente.FechaFacturacion,
             };
 
@@ -1999,6 +2080,25 @@ export default {
                 String(cup?.key || "Sin rol").trim() === rolBuscado
             ).length;
         },
+        cupEstaDiligenciado(cup = {}) {
+            if (!cup?.facturado) return false;
+            return this.facturaCumpleMinimo(cup.FactNum ?? cup.fact_num ?? "");
+        },
+        obtenerEstadoDiligenciaRol(paciente, rol) {
+            const cups = this.getCupsPorRol(paciente, rol);
+            if (!cups.length) return "ninguno";
+
+            const diligenciados = cups.filter(([, cup]) => this.cupEstaDiligenciado(cup)).length;
+            if (diligenciados === 0) return "ninguno";
+            if (diligenciados === cups.length) return "completo";
+            return "parcial";
+        },
+        claseBadgeDiligenciaRol(paciente, rol) {
+            const estado = this.obtenerEstadoDiligenciaRol(paciente, rol);
+            if (estado === "completo") return "bg-primary";
+            if (estado === "parcial") return "bg-warning text-dark";
+            return "bg-secondary";
+        },
         getCupsPorRol(paciente, rol) {
             if (!paciente?.cups || typeof paciente.cups !== "object") return [];
             const rolBuscado = String(rol || "").trim();
@@ -2040,12 +2140,20 @@ export default {
                 this.rolActivoFacturacion = this.rolesFacturacionModal[0];
             }
         },
-        cerrarModalFacturacion() {
+        async cerrarModalFacturacion() {
+            const fueReabierto = this.facturacionReabiertaHistorial;
             this.pacienteIdModal = null;
+            this.facturacionReabiertaHistorial = false;
             this.modoEdicion = false;
             this.facturaEditables = {};
             this.errorModalFacturacion = "";
             this.rolActivoFacturacion = "";
+
+            await this.getPendientes();
+            if (fueReabierto) {
+                await this.getHistorial();
+                this.activeTab = "pendientes";
+            }
         },
         async cargarPacienteModal(id) {
             this.cargandoModal = true;
@@ -2176,7 +2284,8 @@ export default {
                 }
                 // Disparar resize para que cualquier plugin o CSS recalcule
                 try { window.dispatchEvent(new Event('resize')); } catch (e) { }
-                this.cerrarModalFacturacion();
+                this.limpiarPacienteReabierto(id);
+                await this.cerrarModalFacturacion();
             } catch (error) {
                 console.error('[cerrarfact] Error:', error);
                 alert('Error al cerrar factura: ' + (error?.message || error));
@@ -2198,12 +2307,19 @@ export default {
             return edad;
         },
         formatearFechaYYYYMMDD(valorFecha) {
-            if (!valorFecha) return "";
+            if (valorFecha === null || valorFecha === undefined || valorFecha === "") return "";
+
+            if (valorFecha instanceof Date && !Number.isNaN(valorFecha.getTime())) {
+                const yyyy = valorFecha.getFullYear();
+                const mm = String(valorFecha.getMonth() + 1).padStart(2, "0");
+                const dd = String(valorFecha.getDate()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd}`;
+            }
 
             const texto = String(valorFecha).trim();
             if (!texto) return "";
 
-            const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s]|$)/);
             if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
 
             const latam = texto.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})/);
@@ -2211,10 +2327,62 @@ export default {
 
             const fecha = new Date(texto);
             if (!Number.isNaN(fecha.getTime())) {
-                return fecha.toISOString().slice(0, 10);
+                const yyyy = fecha.getFullYear();
+                const mm = String(fecha.getMonth() + 1).padStart(2, "0");
+                const dd = String(fecha.getDate()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd}`;
             }
 
             return texto;
+        },
+        obtenerFechaDemandaPaciente(paciente = {}) {
+            return paciente.fecha ?? paciente.fechavisita ?? paciente.fecha_visita ?? "";
+        },
+        obtenerFechaCierreEnfermeraPaciente(paciente = {}) {
+            return paciente.fechagestEnfermera ?? paciente.fecha_gest_enfermera ?? "";
+        },
+        cumpleFiltroFecha(valorPaciente, filtro) {
+            if (!String(filtro || "").trim()) return true;
+            const fechaPaciente = this.formatearFechaYYYYMMDD(valorPaciente);
+            if (!fechaPaciente) return false;
+            return fechaPaciente === String(filtro).trim();
+        },
+        pacienteCumpleFiltrosPendientes(paciente = {}, opciones = {}) {
+            const { omitirAcceso = false } = opciones;
+            const idPaciente = String(paciente?.id || "").trim();
+            const esReabierto = !!(idPaciente && this.pacientesReabiertos[idPaciente]);
+
+            if (!omitirAcceso && !esReabierto) {
+                const docActual = String(this.documentoUsuarioActual || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+                const asig = String(paciente?.asigfact ?? paciente?.asig_fact ?? "")
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]/g, "");
+                const asignadoAMi = !!docActual && !!asig && asig === docActual;
+                const cumpleAccesoFacturador = asignadoAMi || encuestaVisibleParaFacturador(
+                    paciente,
+                    this.gruposFacturadorUsuario,
+                    this.convenioUsuario
+                );
+                if (!cumpleAccesoFacturador) return false;
+            }
+
+            const cumpleGrupo = !this.filtrosPendientes.grupo || String(paciente.grupo || "").trim() === this.filtrosPendientes.grupo;
+            const cumplePaciente = this.cumpleFiltroPaciente(paciente, this.filtrosPendientes.paciente);
+            const cumpleSexo = !this.filtrosPendientes.sexo || String(paciente.sexo || "").trim() === this.filtrosPendientes.sexo;
+            const cumpleNumdoc = this.cumpleFiltroNumdoc(paciente, this.filtrosPendientes.numdoc);
+            const cumpleFechaNac = this.cumpleFiltroFecha(paciente.fechaNac ?? paciente.fecha_nac, this.filtrosPendientes.fechaNac);
+            const cumpleEps = !this.filtrosPendientes.eps || String(paciente.eps || "").trim() === this.filtrosPendientes.eps;
+            const cumpleConvenio = !this.filtrosPendientes.convenio || String(paciente.convenio || "").trim() === this.filtrosPendientes.convenio;
+            const cumpleRegimen = !this.filtrosPendientes.regimen || String(paciente.regimen || "").trim() === this.filtrosPendientes.regimen;
+            const cumpleBarrio = !this.filtrosPendientes.barrio || String(paciente.barrioVeredacomuna?.barrio || "").trim() === this.filtrosPendientes.barrio;
+            const cumpleComuna = !this.filtrosPendientes.comuna || String(paciente.barrioVeredacomuna?.comuna || "").trim() === this.filtrosPendientes.comuna;
+            const cumpleFecha = this.cumpleFiltroFecha(this.obtenerFechaDemandaPaciente(paciente), this.filtrosPendientes.fecha);
+            const cumpleFechaCierre = this.cumpleFiltroFecha(this.obtenerFechaCierreEnfermeraPaciente(paciente), this.filtrosPendientes.fechagestEnfermera);
+
+            return cumpleGrupo && cumplePaciente && cumpleSexo && cumpleNumdoc && cumpleFechaNac
+                && cumpleEps && cumpleConvenio && cumpleRegimen && cumpleBarrio && cumpleComuna
+                && cumpleFecha && cumpleFechaCierre;
         },
         formatearFechaDisplay(valorFecha) {
             const ymd = this.formatearFechaYYYYMMDD(valorFecha);
@@ -2241,11 +2409,30 @@ export default {
             });
             return `${d}/${m}/${y} ${hora}`;
         },
-        esPacienteFacturacionIncompleta(paciente = {}) {
-            if (paciente?.facturacionIncompleta === true) return true;
-
+        obtenerConteoCupsFacturacion(paciente = {}) {
             const cupsTotal = Number(paciente?.cupsTotal ?? paciente?.cups_total ?? 0);
             const cupsConFactura = Number(paciente?.cupsConFactura ?? paciente?.cups_con_factura ?? 0);
+            return { cupsTotal, cupsConFactura };
+        },
+        tieneCupsDiligenciados(paciente = {}) {
+            const { cupsTotal, cupsConFactura } = this.obtenerConteoCupsFacturacion(paciente);
+            if (cupsConFactura > 0) return true;
+            if (cupsTotal > 0) return false;
+            return paciente?.allFacturasVacias === false;
+        },
+        puedeDevolverPacientePendiente(paciente = {}) {
+            if (this.esPacienteReabierto(paciente)) return false;
+            return !this.tieneCupsDiligenciados(paciente);
+        },
+        esPacienteFacturacionEnProceso(paciente = {}) {
+            if (this.esPacienteReabierto(paciente)) return false;
+            if (!this.tieneCupsDiligenciados(paciente)) return false;
+            return !this.esPacienteFacturacionIncompleta(paciente);
+        },
+        esPacienteFacturacionIncompleta(paciente = {}) {
+            if (this.esPacienteReabierto(paciente)) return false;
+
+            const { cupsTotal, cupsConFactura } = this.obtenerConteoCupsFacturacion(paciente);
 
             if (cupsTotal > 0) {
                 return cupsConFactura > 0 && cupsConFactura < cupsTotal;
@@ -2253,15 +2440,38 @@ export default {
 
             return paciente?.allFacturasVacias === false;
         },
+        obtenerEtiquetaEstadoFacturacionPendiente(paciente = {}) {
+            if (this.esPacienteReabierto(paciente)) return "Devuelto";
+            if (this.esPacienteFacturacionIncompleta(paciente)) return "Incompleto";
+            if (this.esPacienteFacturacionEnProceso(paciente)) return "En proceso";
+            return "Sin gestión";
+        },
+        debeResaltarPendienteAmarillo(paciente = {}) {
+            if (this.esPacienteReabierto(paciente)) return false;
+            return this.tieneCupsDiligenciados(paciente);
+        },
         textoEstadoFacturacionPendiente(paciente = {}) {
-            const cupsTotal = Number(paciente?.cupsTotal ?? paciente?.cups_total ?? 0);
-            const cupsConFactura = Number(paciente?.cupsConFactura ?? paciente?.cups_con_factura ?? 0);
+            const { cupsTotal, cupsConFactura } = this.obtenerConteoCupsFacturacion(paciente);
+            const etiqueta = this.obtenerEtiquetaEstadoFacturacionPendiente(paciente);
 
-            if (cupsTotal > 0) {
-                return `Facturación incompleta: ${cupsConFactura} de ${cupsTotal} procedimiento(s) con número de factura.`;
+            if (etiqueta === "Devuelto") {
+                return "Reabierto desde el historial de hoy. Debe cerrar nuevamente al terminar.";
             }
 
-            return "Facturación incompleta: ya tiene al menos un número de factura registrado.";
+            if (cupsTotal > 0) {
+                if (etiqueta === "Incompleto") {
+                    return `Facturación incompleta: ${cupsConFactura} de ${cupsTotal} procedimiento(s) con número de factura.`;
+                }
+                if (etiqueta === "En proceso") {
+                    return `Facturación en proceso: ${cupsConFactura} de ${cupsTotal} procedimiento(s) con número de factura. Debe cerrar el paciente al terminar.`;
+                }
+            }
+
+            if (etiqueta === "En proceso" || etiqueta === "Incompleto") {
+                return "Ya tiene al menos un número de factura registrado. No puede devolverse a registro inicial.";
+            }
+
+            return "Sin gestión de facturación iniciada.";
         },
         obtenerProfesionalAprovisionamiento(paciente = {}) {
             const candidatos = [
@@ -2283,6 +2493,153 @@ export default {
             if (!actividadId || !this.actividadesExtra) return actividadId || '-';
             const actividad = this.actividadesExtra.find(act => String(act.key) === String(actividadId));
             return actividad ? actividad.nombre : actividadId;
+        },
+
+        debeResaltarPendiente(paciente = {}) {
+            return this.esPacienteReabierto(paciente) || this.debeResaltarPendienteAmarillo(paciente);
+        },
+        esPacienteReabierto(paciente = {}) {
+            const id = String(paciente?.id || "").trim();
+            if (paciente?.reabiertoDesdeHistorial === true) return true;
+            return !!(id && this.pacientesReabiertos[id]);
+        },
+        clavePacientesReabiertosStorage() {
+            const doc = String(this.obtenerDocumentoUsuarioActual() || "").trim();
+            return doc ? `facturacion-reabiertos-${doc}` : "facturacion-reabiertos";
+        },
+        persistirPacientesReabiertos() {
+            try {
+                sessionStorage.setItem(this.clavePacientesReabiertosStorage(), JSON.stringify({
+                    marcados: this.pacientesReabiertos,
+                    snapshot: this.pacientesReabiertosSnapshot,
+                }));
+            } catch (_error) {
+                // Ignorar fallos de almacenamiento local.
+            }
+        },
+        restaurarPacientesReabiertos() {
+            try {
+                const raw = sessionStorage.getItem(this.clavePacientesReabiertosStorage());
+                if (!raw) return;
+
+                const data = JSON.parse(raw);
+                this.pacientesReabiertos = data?.marcados && typeof data.marcados === "object"
+                    ? data.marcados
+                    : {};
+                this.pacientesReabiertosSnapshot = data?.snapshot && typeof data.snapshot === "object"
+                    ? data.snapshot
+                    : {};
+
+                Object.values(this.pacientesReabiertosSnapshot).forEach((paciente) => {
+                    this.upsertEncuestaFactAprov({
+                        ...paciente,
+                        reabiertoDesdeHistorial: true,
+                    });
+                });
+            } catch (_error) {
+                this.pacientesReabiertos = {};
+                this.pacientesReabiertosSnapshot = {};
+            }
+        },
+        marcarPacienteReabierto(paciente = {}) {
+            const id = String(paciente?.id || "").trim();
+            if (!id) return;
+
+            this.pacientesReabiertos = {
+                ...this.pacientesReabiertos,
+                [id]: true,
+            };
+            this.pacientesReabiertosSnapshot = {
+                ...this.pacientesReabiertosSnapshot,
+                [id]: {
+                    ...paciente,
+                    id,
+                    reabiertoDesdeHistorial: true,
+                    status_facturacion: false,
+                    FechaFacturacion: null,
+                    fechaFacturacion: null,
+                    asigfact: paciente.asigfact ?? paciente.asig_fact ?? this.obtenerDocumentoUsuarioActual(),
+                    asig_fact: paciente.asig_fact ?? paciente.asigfact ?? this.obtenerDocumentoUsuarioActual(),
+                },
+            };
+            this.upsertEncuestaFactAprov(this.pacientesReabiertosSnapshot[id]);
+            this.persistirPacientesReabiertos();
+        },
+        limpiarPacienteReabierto(id) {
+            const key = String(id || "").trim();
+            if (!key) return;
+
+            if (this.pacientesReabiertos[key]) {
+                const copiaMarcados = { ...this.pacientesReabiertos };
+                delete copiaMarcados[key];
+                this.pacientesReabiertos = copiaMarcados;
+            }
+
+            if (this.pacientesReabiertosSnapshot[key]) {
+                const copiaSnapshot = { ...this.pacientesReabiertosSnapshot };
+                delete copiaSnapshot[key];
+                this.pacientesReabiertosSnapshot = copiaSnapshot;
+            }
+
+            this.persistirPacientesReabiertos();
+        },
+        esPacienteCerradoHoy(paciente = {}) {
+            const fechaCierre = this.formatearFechaYYYYMMDD(
+                paciente.fechaFacturacion || paciente.FechaFacturacion
+            );
+            const { inicio } = this.calcularRangoHistorial("hoy");
+            return !!fechaCierre && fechaCierre === inicio;
+        },
+        puedeReabrirPacienteHistorial(paciente = {}) {
+            return this.historialPermiteReapertura && this.esPacienteCerradoHoy(paciente);
+        },
+        async reabrirPacienteHistorial(paciente = {}) {
+            const id = paciente?.id;
+            if (!id || !this.puedeReabrirPacienteHistorial(paciente)) {
+                return;
+            }
+
+            const nombre = [paciente.nombre1, paciente.apellido1, paciente.apellido2]
+                .filter(Boolean)
+                .join(" ")
+                .trim() || "este paciente";
+
+            const confirmar = confirm(
+                `¿Desea reabrir la facturación de ${nombre}?\n\nPodrá agregar o corregir números de factura y deberá cerrar el paciente nuevamente al terminar.`
+            );
+            if (!confirmar) return;
+
+            this.reabriendoPacienteId = id;
+            this.errorModalFacturacion = "";
+
+            try {
+                const documento = this.obtenerDocumentoUsuarioActual();
+                await this.reabrirFacturacion({
+                    idEnc: id,
+                    idFacturador: documento,
+                });
+
+                const pacienteReabierto = {
+                    ...paciente,
+                    id,
+                    reabiertoDesdeHistorial: true,
+                    status_facturacion: false,
+                    FechaFacturacion: null,
+                    fechaFacturacion: null,
+                    asigfact: documento,
+                    asig_fact: documento,
+                };
+
+                this.marcarPacienteReabierto(pacienteReabierto);
+                this.facturacionReabiertaHistorial = true;
+                await this.setPacienteId(id);
+                await this.getPendientes();
+            } catch (error) {
+                console.error("[reabrirPacienteHistorial] Error:", error);
+                alert("No se pudo reabrir la facturación: " + (error?.response?.data?.message || error?.message || error));
+            } finally {
+                this.reabriendoPacienteId = null;
+            }
         },
 
         iniciarEdicionCodigos() {
@@ -2357,6 +2714,7 @@ export default {
         document.body.classList.add("pagina-facturacion");
     },
     async mounted() {
+        this.restaurarPacientesReabiertos();
         this.cargando = true
         try {
             await this.getAllActividadesExtra();
@@ -2397,6 +2755,23 @@ export default {
 
 .facturacion-page .nav-tabs {
     flex-wrap: wrap;
+}
+
+.facturacion-page thead tr.fila-filtros-tabla th {
+    vertical-align: middle;
+    padding: 0.3rem 0.35rem;
+    font-weight: normal;
+    background-color: #f8f9fa;
+}
+
+.facturacion-page thead tr.fila-filtros-tabla .form-control,
+.facturacion-page thead tr.fila-filtros-tabla .form-select {
+    width: 100%;
+    min-width: 5.5rem;
+}
+
+.facturacion-page thead tr.fila-filtros-tabla th.filtro-sin-control {
+    background-color: #eef1f4;
 }
 
 /* Spinner overlay universal para evitar problemas en pantalla completa */
@@ -2474,6 +2849,14 @@ export default {
     box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.2);
 }
 
+.pendiente-reabierto > td {
+    background-color: #cfe2ff !important;
+}
+
+.pendiente-reabierto:hover > td {
+    background-color: #b6d4fe !important;
+}
+
 .pendiente-gestion-incompleta > td {
     background-color: #fff3cd !important;
 }
@@ -2482,9 +2865,48 @@ export default {
     background-color: #ffe69c !important;
 }
 
+.estado-facturacion-devuelta {
+    color: #084298;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
 .estado-facturacion-incompleta {
     color: #997404;
     font-weight: 600;
     line-height: 1.1;
+}
+
+.estado-facturacion-en-proceso {
+    color: #997404;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
+.facturacion-page h2 .bi,
+.facturacion-page h3 .bi {
+    font-size: 1em;
+    vertical-align: -0.1em;
+}
+
+.facturacion-page .tabla-scroll .btn-icono-tabla {
+    padding: 0.15rem 0.4rem;
+    line-height: 1.2;
+}
+
+.facturacion-page .tabla-scroll .btn-icono-tabla .bi {
+    font-size: 1em;
+}
+
+.facturacion-page .estado-facturacion-devuelta .bi,
+.facturacion-page .estado-facturacion-incompleta .bi,
+.facturacion-page .estado-facturacion-en-proceso .bi {
+    font-size: 1em;
+}
+
+.facturacion-page .estado-facturacion-devuelta .small,
+.facturacion-page .estado-facturacion-incompleta .small,
+.facturacion-page .estado-facturacion-en-proceso .small {
+    font-size: 0.875em;
 }
 </style>
