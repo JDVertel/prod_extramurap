@@ -3866,7 +3866,6 @@ export default createStore({
       const fechaFacturacion = hoy.toISOString();
 
       const payloadCup = {
-        ...(cup && typeof cup === "object" ? cup : {}),
         FactNum: numFactura,
         FactProf: idFacturador,
         facturado: facturado === false ? false : true,

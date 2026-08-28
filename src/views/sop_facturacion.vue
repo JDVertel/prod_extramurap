@@ -15,7 +15,264 @@
             </div>
         </div>
         <div v-if="!cargando">
+            <div v-if="pacienteIdModal" class="facturacion-cups-panel">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <h2 class="mb-0">
+                        <i class="bi bi-clipboard-check"></i> Facturar CUPS
+                    </h2>
+                    <button type="button" class="btn btn-outline-secondary" @click="cerrarModalFacturacion">
+                        <i class="bi bi-arrow-left"></i> Volver al listado
+                    </button>
+                </div>
 
+                <div class="container-fluid px-0">
+                    <div class="table-responsive mb-3">
+                        <table class="table table-bordered table-striped table-sm align-middle table-success mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Grupo</th>
+                                    <th>Paciente</th>
+                                    <th>Sexo</th>
+                                    <th>Documento</th>
+                                    <th>Fecha Nac.</th>
+                                    <th>Edad</th>
+                                    <th>EPS</th>
+                                    <th>Régimen</th>
+                                    <th>Dirección</th>
+                                    <th>Barrio</th>
+                                    <th>Comuna</th>
+                                    <th>lab/visit</th>
+                                    <th>Gest. Aux</th>
+                                    <th>Gest. Médica</th>
+                                    <th>Gest. Enfermera</th>
+                                    <th>Teléfono</th>
+                                </tr>
+                            </thead>
+                            <tbody class="table-group-divider">
+                                <tr v-for="paciente in InfoEncuestasById" :key="paciente.id">
+                                    <td>{{ paciente.grupo }}</td>
+                                    <td>
+                                        {{ paciente.nombre1 }} {{ paciente.apellido1 }}
+                                        {{ paciente.apellido2 }}
+                                    </td>
+                                    <td>{{ paciente.sexo }}</td>
+                                    <td>{{ paciente.tipodoc }}-{{ paciente.numdoc }}</td>
+                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechaNac) }}</td>
+                                    <td>{{ calcularEdad(paciente.fechaNac) }}</td>
+                                    <td>{{ paciente.eps }}</td>
+                                    <td>{{ paciente.regimen }}</td>
+                                    <td>{{ paciente.direccion }}</td>
+                                    <td>{{ paciente.barrioVeredacomuna?.barrio }}</td>
+                                    <td>{{ paciente.barrioVeredacomuna?.comuna }}</td>
+                                    <td>
+                                        {{
+                                            paciente.Agenda_tomademuestras?.cita_tomamuestras
+                                                ? "Sí"
+                                                : "No"
+                                        }}/{{
+                                            paciente.Agenda_Visitamedica?.cita_visitamedica
+                                                ? "Sí"
+                                                : "No"
+                                        }}
+                                    </td>
+                                    <td>
+                                        {{
+                                            paciente.status_gest_aux
+                                                ? formatearFechaYYYYMMDD(paciente.fechagestAuxiliar)
+                                                : "No"
+                                        }}
+                                    </td>
+                                    <td>
+                                        {{
+                                            paciente.status_gest_medica
+                                                ? formatearFechaYYYYMMDD(paciente.fechagestMedica)
+                                                : "No"
+                                        }}
+                                    </td>
+                                    <td>
+                                        {{
+                                            paciente.status_gest_enfermera
+                                                ? formatearFechaYYYYMMDD(paciente.fechagestEnfermera)
+                                                : "No"
+                                        }}
+                                    </td>
+                                    <td>{{ paciente.telefono }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="facturacion-cups-body position-relative">
+                    <div v-if="cargandoModal" class="facturacion-loading-overlay">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <div class="small text-muted mt-2">Cargando procedimientos...</div>
+                    </div>
+
+                    <div v-if="errorModalFacturacion" class="alert alert-danger py-2">
+                        {{ errorModalFacturacion }}
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <div>
+                            <h3 class="mb-0">Procedimientos y Actividades</h3>
+                            <div v-if="modoEdicion" class="small text-muted">
+                                Mínimo {{ minFacturaChars }} caracteres. Válido en verde, inválido en rojo.
+                            </div>
+                        </div>
+                        <button
+                            v-if="!modoEdicion && pacienteIdModal && hayCupsEnModal"
+                            type="button"
+                            class="btn btn-info btn-sm"
+                            :disabled="guardandoFactura || cargandoModal"
+                            @click="iniciarEdicionCodigos">
+                            <i class="bi bi-pencil-square"></i> Editar facturas
+                        </button>
+                    </div>
+
+                    <div
+                        v-if="modoEdicion && mensajeEdicionFacturas"
+                        class="alert py-2 mb-3"
+                        :class="claseAlertaEdicionFacturas">
+                        {{ mensajeEdicionFacturas }}
+                    </div>
+
+                    <div v-if="!hayCupsEnModal && !cargandoModal" class="alert alert-warning mb-0">
+                        No hay procedimientos CUPS asignados para este paciente.
+                    </div>
+
+                    <template v-else-if="pacienteModalActual">
+                        <ul class="nav nav-tabs mb-3" role="tablist">
+                            <li v-for="rol in rolesFacturacionModal" :key="`rol-tab-${rol}`" class="nav-item" role="presentation">
+                                <button
+                                    type="button"
+                                    class="nav-link"
+                                    :class="{ active: rolFacturacionActivo === rol }"
+                                    @click="rolActivoFacturacion = rol">
+                                    {{ etiquetaRolFacturacion(rol) }}
+                                    <span class="badge bg-secondary ms-1">{{ contarCupsPorRol(pacienteModalActual, rol) }}</span>
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="table-responsive tabla-scroll" ref="tablaHtml">
+                            <table class="table table-bordered table-striped table-sm align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th @click="ordenarCups('actividad')" role="button">
+                                            Actividad {{ indicadorOrdenCups('actividad') }}
+                                        </th>
+                                        <th @click="ordenarCups('rol')" role="button">
+                                            Rol {{ indicadorOrdenCups('rol') }}
+                                        </th>
+                                        <th @click="ordenarCups('profesional')" role="button">
+                                            Profesional {{ indicadorOrdenCups('profesional') }}
+                                        </th>
+                                        <th @click="ordenarCups('cantidad')" role="button">
+                                            Cantidad {{ indicadorOrdenCups('cantidad') }}
+                                        </th>
+                                        <th @click="ordenarCups('codigo')" role="button">
+                                            Homolog {{ indicadorOrdenCups('codigo') }}
+                                        </th>
+                                        <th @click="ordenarCups('descripcion')" role="button">
+                                            Descripción CUP {{ indicadorOrdenCups('descripcion') }}
+                                        </th>
+                                        <th @click="ordenarCups('detalle')" role="button">
+                                            Detalle {{ indicadorOrdenCups('detalle') }}
+                                        </th>
+                                        <th @click="ordenarCups('grupo')" role="button">
+                                            Grupo {{ indicadorOrdenCups('grupo') }}
+                                        </th>
+                                        <th>Factura</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr
+                                        v-for="([cupId, cup]) in getCupsPorRol(pacienteModalActual, rolFacturacionActivo)"
+                                        :key="cupId">
+                                        <td>{{ obtenerNombreActividad(cup.actividadId) }}</td>
+                                        <td>{{ etiquetaRolFacturacion(cup.key) || '-' }}</td>
+                                        <td>{{ cup.nombreProf || '-' }}</td>
+                                        <td>{{ cup.cantidad || '-' }}</td>
+                                        <td>{{ cup.codigo || '-' }}</td>
+                                        <td>{{ cup.DescripcionCUP || cup.cupsNombre || '-' }}</td>
+                                        <td>{{ cup.detalle || '-' }}</td>
+                                        <td>{{ cup.Grupo || '-' }}</td>
+                                        <td style="min-width: 220px;">
+                                            <template v-if="modoEdicion">
+                                                <input
+                                                    type="text"
+                                                    :id="`editar-factura-${cupId}`"
+                                                    class="form-control form-control-sm"
+                                                    :class="claseValidacionFacturaEdicion(cupId, cup)"
+                                                    v-model="facturaEditables[cupId]"
+                                                    :placeholder="`#factura (mín. ${minFacturaChars} caracteres)`"
+                                                    autocomplete="off">
+                                            </template>
+                                            <template v-else-if="cup.facturado">
+                                                <span class="badge bg-success">{{ cup.FactNum || 'Facturado' }}</span>
+                                            </template>
+                                            <template v-else>
+                                                <div class="input-group input-group-sm">
+                                                    <input
+                                                        type="text"
+                                                        :id="`factura-${cupId}`"
+                                                        class="form-control"
+                                                        :class="claseValidacionFactura(facturaInputs[cupId])"
+                                                        :disabled="facturaDisabled[cupId] || guardandoFactura"
+                                                        v-model="facturaInputs[cupId]"
+                                                        :placeholder="`#factura (mín. ${minFacturaChars} caracteres)`"
+                                                        autocomplete="off">
+                                                    <button
+                                                        :class="['btn', facturaCumpleMinimo(facturaInputs[cupId]) || facturaDisabled[cupId] ? 'btn-success' : 'btn-outline-secondary']"
+                                                        type="button"
+                                                        :disabled="!facturaCumpleMinimo(facturaInputs[cupId]) || facturaDisabled[cupId] || guardandoFactura"
+                                                        @click="regFactCup(cupId, facturaInputs[cupId], cup)">
+                                                        <i class="bi bi-bookmark-check-fill"></i>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                    <tr v-if="getCupsPorRol(pacienteModalActual, rolFacturacionActivo).length === 0">
+                                        <td colspan="9" class="text-center text-muted py-3">
+                                            No hay procedimientos para {{ etiquetaRolFacturacion(rolFacturacionActivo) }}.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 justify-content-end mt-3 pt-3 border-top">
+                    <button type="button" class="btn btn-secondary" @click="cerrarModalFacturacion">
+                        Volver al listado
+                    </button>
+
+                    <button v-if="modoEdicion" class="btn btn-warning" :disabled="guardandoFactura"
+                        @click="cancelarEdicion">
+                        <i class="bi bi-x-circle"></i> Cancelar edición
+                    </button>
+
+                    <button v-if="modoEdicion" class="btn btn-success"
+                        :disabled="guardandoFactura || !puedeGuardarEdicionFacturas"
+                        @click="guardarEdicionCodigos">
+                        <i class="bi bi-check-circle"></i>
+                        {{ guardandoFactura ? 'Guardando...' : 'Guardar cambios' }}
+                    </button>
+
+                    <button v-if="!modoEdicion && (allCupsWithFactura || noCupsRenderizados)" class="btn btn-danger"
+                        :disabled="guardandoFactura || cargandoModal"
+                        @click="cerrarfact(pacienteIdModal)">
+                        <i class="bi bi-check2-circle"></i> Cerrar Paciente
+                    </button>
+                </div>
+            </div>
+
+            <template v-else>
             <nav>
                 <div class="nav nav-tabs" id="nav-tab" role="tablist">
                     <button class="nav-link" :class="{ active: activeTab === 'pendientes' }"
@@ -200,8 +457,8 @@
                                     </td>
                                     <td>
                                         <div class="d-flex gap-2">
-                                            <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                                                data-bs-target="#staticBackdrop" @click="setPacienteId(paciente.id)">
+                                            <button type="button" class="btn btn-primary"
+                                                @click="setPacienteId(paciente.id)">
                                                 <i class="bi bi-bookmark-check-fill"></i>
                                             </button>
                                             <button
@@ -583,273 +840,7 @@
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Modal -->
-        <div class="modal fade modal-dialog-scrollable" id="staticBackdrop" data-bs-backdrop="static"
-            data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
-            <div class="modal-dialog modal-fullscreen">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h1 class="modal-title fs-5" id="exampleModalLabel">
-                            <i class="bi bi-clipboard-check"></i> Facturar CUPS
-                        </h1>
-
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="container-fluid">
-                        <table class="table table-bordered table-striped table-sm align-middle table-success">
-                            <thead class="table-light">
-                                <tr>
-                                    <!-- <th>idEnc</th> -->
-                                    <th>Grupo</th>
-                                    <th>Paciente</th>
-                                    <th>Sexo</th>
-                                    <th>Documento</th>
-                                    <th>Fecha Nac.</th>
-                                    <th>Edad</th>
-                                    <th>EPS</th>
-                                    <th>Régimen</th>
-                                    <th>Dirección</th>
-                                    <th>Barrio</th>
-                                    <th>Comuna</th>
-                                    <th>lab/visit</th>
-                                    <th>Gest. Aux</th>
-
-                                    <th>Gest. Médica</th>
-                                    <th>Gest. Enfermera</th>
-                                    <th>Teléfono</th>
-                                </tr>
-                            </thead>
-                            <tbody class="table-group-divider">
-                                <tr v-for="paciente in InfoEncuestasById" :key="paciente.id">
-                                    <!-- Campos principales del paciente -->
-                                    <!-- <td>{{ pacienteIdModal}}</td> -->
-                                    <td>{{ paciente.grupo }}</td>
-                                    <td>
-                                        {{ paciente.nombre1 }} {{ paciente.apellido1 }}
-                                        {{ paciente.apellido2 }}
-                                    </td>
-                                    <td>{{ paciente.sexo }}</td>
-                                    <td>{{ paciente.tipodoc }}-{{ paciente.numdoc }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(paciente.fechaNac) }}</td>
-                                    <td>{{ calcularEdad(paciente.fechaNac) }}</td>
-                                    <td>{{ paciente.eps }}</td>
-                                    <td>{{ paciente.regimen }}</td>
-                                    <td>{{ paciente.direccion }}</td>
-                                    <td>{{ paciente.barrioVeredacomuna?.barrio }}</td>
-                                    <td>{{ paciente.barrioVeredacomuna?.comuna }}</td>
-                                    <td>
-                                        {{
-                                            paciente.Agenda_tomademuestras?.cita_tomamuestras
-                                                ? "Sí"
-                                                : "No"
-                                        }}/{{
-                                            paciente.Agenda_Visitamedica?.cita_visitamedica
-                                                ? "Sí"
-                                                : "No"
-                                        }}
-                                    </td>
-                                    <td>
-                                        {{
-                                            paciente.status_gest_aux
-                                                ? formatearFechaYYYYMMDD(paciente.fechagestAuxiliar)
-                                                : "No"
-                                        }}
-                                    </td>
-
-                                    <td>
-                                        {{
-                                            paciente.status_gest_medica
-                                                ? formatearFechaYYYYMMDD(paciente.fechagestMedica)
-                                                : "No"
-                                        }}
-                                    </td>
-                                    <td>
-                                        {{
-                                            paciente.status_gest_enfermera
-                                                ? formatearFechaYYYYMMDD(paciente.fechagestEnfermera)
-                                                : "No"
-                                        }}
-                                    </td>
-                                    <td>{{ paciente.telefono }}</td>
-                                    <!-- Renderiza cada resultado de procedimiento como una fila individual -->
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="modal-body position-relative">
-                        <div v-if="cargandoModal" class="modal-loading-overlay">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Cargando...</span>
-                            </div>
-                            <div class="small text-muted mt-2">Cargando procedimientos...</div>
-                        </div>
-
-                        <div v-if="errorModalFacturacion" class="alert alert-danger py-2">
-                            {{ errorModalFacturacion }}
-                        </div>
-
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                            <div>
-                                <h3 class="mb-0">Procedimientos y Actividades</h3>
-                                <div v-if="modoEdicion" class="small text-muted">
-                                    Mínimo {{ minFacturaChars }} caracteres. Válido en verde, inválido en rojo.
-                                </div>
-                            </div>
-                            <button
-                                v-if="!modoEdicion && pacienteIdModal && hayCupsEnModal"
-                                type="button"
-                                class="btn btn-info btn-sm"
-                                :disabled="guardandoFactura || cargandoModal"
-                                @click="iniciarEdicionCodigos">
-                                <i class="bi bi-pencil-square"></i> Editar facturas
-                            </button>
-                        </div>
-
-                        <div
-                            v-if="modoEdicion && mensajeEdicionFacturas"
-                            class="alert py-2 mb-3"
-                            :class="claseAlertaEdicionFacturas">
-                            {{ mensajeEdicionFacturas }}
-                        </div>
-
-                        <div v-if="!hayCupsEnModal && !cargandoModal" class="alert alert-warning mb-0">
-                            No hay procedimientos CUPS asignados para este paciente.
-                        </div>
-
-                        <template v-else-if="pacienteModalActual">
-                            <ul class="nav nav-tabs mb-3" role="tablist">
-                                <li v-for="rol in rolesFacturacionModal" :key="`rol-tab-${rol}`" class="nav-item" role="presentation">
-                                    <button
-                                        type="button"
-                                        class="nav-link"
-                                        :class="{ active: rolFacturacionActivo === rol }"
-                                        @click="rolActivoFacturacion = rol">
-                                        {{ etiquetaRolFacturacion(rol) }}
-                                        <span class="badge bg-secondary ms-1">{{ contarCupsPorRol(pacienteModalActual, rol) }}</span>
-                                    </button>
-                                </li>
-                            </ul>
-
-                            <div class="table-responsive" ref="tablaHtml">
-                                <table class="table table-bordered table-striped table-sm align-middle">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th @click="ordenarCups('actividad')" role="button">
-                                                Actividad {{ indicadorOrdenCups('actividad') }}
-                                            </th>
-                                            <th @click="ordenarCups('rol')" role="button">
-                                                Rol {{ indicadorOrdenCups('rol') }}
-                                            </th>
-                                            <th @click="ordenarCups('profesional')" role="button">
-                                                Profesional {{ indicadorOrdenCups('profesional') }}
-                                            </th>
-                                            <th @click="ordenarCups('cantidad')" role="button">
-                                                Cantidad {{ indicadorOrdenCups('cantidad') }}
-                                            </th>
-                                            <th @click="ordenarCups('codigo')" role="button">
-                                                Homolog {{ indicadorOrdenCups('codigo') }}
-                                            </th>
-                                            <th @click="ordenarCups('descripcion')" role="button">
-                                                Descripción CUP {{ indicadorOrdenCups('descripcion') }}
-                                            </th>
-                                            <th @click="ordenarCups('detalle')" role="button">
-                                                Detalle {{ indicadorOrdenCups('detalle') }}
-                                            </th>
-                                            <th @click="ordenarCups('grupo')" role="button">
-                                                Grupo {{ indicadorOrdenCups('grupo') }}
-                                            </th>
-                                            <th>Factura</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr
-                                            v-for="([cupId, cup]) in getCupsPorRol(pacienteModalActual, rolFacturacionActivo)"
-                                            :key="cupId">
-                                            <td>{{ obtenerNombreActividad(cup.actividadId) }}</td>
-                                            <td>{{ etiquetaRolFacturacion(cup.key) || '-' }}</td>
-                                            <td>{{ cup.nombreProf || '-' }}</td>
-                                            <td>{{ cup.cantidad || '-' }}</td>
-                                            <td>{{ cup.codigo || '-' }}</td>
-                                            <td>{{ cup.DescripcionCUP || cup.cupsNombre || '-' }}</td>
-                                            <td>{{ cup.detalle || '-' }}</td>
-                                            <td>{{ cup.Grupo || '-' }}</td>
-                                            <td style="min-width: 220px;">
-                                                <template v-if="modoEdicion">
-                                                    <input
-                                                        type="text"
-                                                        :id="`editar-factura-${cupId}`"
-                                                        class="form-control form-control-sm"
-                                                        :class="claseValidacionFacturaEdicion(cupId, cup)"
-                                                        v-model="facturaEditables[cupId]"
-                                                        :placeholder="`#factura (mín. ${minFacturaChars} caracteres)`"
-                                                        autocomplete="off">
-                                                </template>
-                                                <template v-else-if="cup.facturado">
-                                                    <span class="badge bg-success">{{ cup.FactNum || 'Facturado' }}</span>
-                                                </template>
-                                                <template v-else>
-                                                    <div class="input-group input-group-sm">
-                                                        <input
-                                                            type="text"
-                                                            :id="`factura-${cupId}`"
-                                                            class="form-control"
-                                                            :class="claseValidacionFactura(facturaInputs[cupId])"
-                                                            :disabled="facturaDisabled[cupId] || guardandoFactura"
-                                                            v-model="facturaInputs[cupId]"
-                                                            :placeholder="`#factura (mín. ${minFacturaChars} caracteres)`"
-                                                            autocomplete="off">
-                                                        <button
-                                                            :class="['btn', facturaCumpleMinimo(facturaInputs[cupId]) || facturaDisabled[cupId] ? 'btn-success' : 'btn-outline-secondary']"
-                                                            type="button"
-                                                            :disabled="!facturaCumpleMinimo(facturaInputs[cupId]) || facturaDisabled[cupId] || guardandoFactura"
-                                                            @click="regFactCup(cupId, facturaInputs[cupId], cup)">
-                                                            <i class="bi bi-bookmark-check-fill"></i>
-                                                        </button>
-                                                    </div>
-                                                </template>
-                                            </td>
-                                        </tr>
-                                        <tr v-if="getCupsPorRol(pacienteModalActual, rolFacturacionActivo).length === 0">
-                                            <td colspan="9" class="text-center text-muted py-3">
-                                                No hay procedimientos para {{ etiquetaRolFacturacion(rolFacturacionActivo) }}.
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </template>
-
-                        <hr />
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
-                            @click="cerrarModalFacturacion">
-                            Cerrar
-                        </button>
-
-                        <button v-if="modoEdicion" class="btn btn-warning" :disabled="guardandoFactura"
-                            @click="cancelarEdicion">
-                            <i class="bi bi-x-circle"></i> Cancelar edición
-                        </button>
-
-                        <button v-if="modoEdicion" class="btn btn-success"
-                            :disabled="guardandoFactura || !puedeGuardarEdicionFacturas"
-                            @click="guardarEdicionCodigos">
-                            <i class="bi bi-check-circle"></i>
-                            {{ guardandoFactura ? 'Guardando...' : 'Guardar cambios' }}
-                        </button>
-
-                        <button v-if="!modoEdicion && (allCupsWithFactura || noCupsRenderizados)" class="btn btn-danger"
-                            :disabled="guardandoFactura || cargandoModal"
-                            @click="cerrarfact(pacienteIdModal)" data-bs-dismiss="modal">
-                            <i class="bi bi-check2-circle"></i> Cerrar Paciente
-                        </button>
-
-                    </div>
-                </div>
-            </div>
+            </template>
         </div>
     </div>
 </template>
@@ -2050,6 +2041,7 @@ export default {
             }
         },
         cerrarModalFacturacion() {
+            this.pacienteIdModal = null;
             this.modoEdicion = false;
             this.facturaEditables = {};
             this.errorModalFacturacion = "";
@@ -2104,6 +2096,7 @@ export default {
         setPacienteId(id) {
             this.pacienteIdModal = id;
             this.cargarPacienteModal(id);
+            window.scrollTo({ top: 0, behavior: "smooth" });
         },
         async regFactCup(cupId, numfact, cupActual = {}) {
             const numFactura = String(numfact || "").trim();
@@ -2183,6 +2176,7 @@ export default {
                 }
                 // Disparar resize para que cualquier plugin o CSS recalcule
                 try { window.dispatchEvent(new Event('resize')); } catch (e) { }
+                this.cerrarModalFacturacion();
             } catch (error) {
                 console.error('[cerrarfact] Error:', error);
                 alert('Error al cerrar factura: ' + (error?.message || error));
@@ -2254,7 +2248,7 @@ export default {
             const cupsConFactura = Number(paciente?.cupsConFactura ?? paciente?.cups_con_factura ?? 0);
 
             if (cupsTotal > 0) {
-                return cupsConFactura > 0;
+                return cupsConFactura > 0 && cupsConFactura < cupsTotal;
             }
 
             return paciente?.allFacturasVacias === false;
@@ -2439,7 +2433,15 @@ export default {
     overflow-x: auto;
 }
 
-.modal-loading-overlay {
+.facturacion-cups-panel {
+    width: 100%;
+}
+
+.facturacion-cups-body {
+    min-height: 240px;
+}
+
+.facturacion-loading-overlay {
     position: absolute;
     inset: 0;
     background: rgba(255, 255, 255, 0.82);
