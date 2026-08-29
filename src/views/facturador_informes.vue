@@ -143,6 +143,11 @@
 <script>
 import { mapState } from "vuex";
 import * as XLSX from "xlsx";
+import {
+    appendSheetToWorkbook,
+    buildExcelRowsFromObjects,
+    formatearValorExcel,
+} from "@/utils/excelExport";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
 import appLogoUrl from "@/assets/images/logo_extramurapp.png";
@@ -307,11 +312,16 @@ export default {
             };
         },
         filasExportables(filas = []) {
-            return (filas || []).map((fila) => ({
-                Etiqueta: fila.etiqueta,
-                "Pacientes cerrados": fila.pacientes,
-                "CUPS cerrados": fila.cupsRegistrados || 0,
-            }));
+            return buildExcelRowsFromObjects(
+                (filas || []).map((fila) => ({
+                    Etiqueta: fila.etiqueta,
+                    "Pacientes cerrados": fila.pacientes,
+                    "CUPS cerrados": fila.cupsRegistrados || 0,
+                })),
+                {
+                    numericLabels: ["Pacientes cerrados", "CUPS cerrados"],
+                }
+            );
         },
         getGeneratedAtLabel() {
             const now = new Date();
@@ -533,19 +543,33 @@ export default {
 
             const t = this.informe.totales || {};
             const libro = XLSX.utils.book_new();
+            const resumenRows = [
+                ...this.informacionUsuario.map((item) => ({
+                    Campo: item.label,
+                    Valor: formatearValorExcel(item.valor, { key: "texto", label: "Valor", excelType: "text" }),
+                })),
+                {
+                    Campo: "Pacientes cerrados",
+                    Valor: formatearValorExcel(t.pacientesCerrados || 0, {
+                        key: "pacientesCerrados",
+                        label: "Valor",
+                        excelType: "number",
+                    }),
+                },
+                {
+                    Campo: "CUPS cerrados",
+                    Valor: formatearValorExcel(t.cupsRegistrados || 0, {
+                        key: "cupsRegistrados",
+                        label: "Valor",
+                        excelType: "number",
+                    }),
+                },
+            ];
 
-            XLSX.utils.book_append_sheet(
-                libro,
-                XLSX.utils.json_to_sheet([
-                    ...this.informacionUsuario.map((item) => ({
-                        Campo: item.label,
-                        Valor: item.valor,
-                    })),
-                    { Campo: "Pacientes cerrados", Valor: t.pacientesCerrados || 0 },
-                    { Campo: "CUPS cerrados", Valor: t.cupsRegistrados || 0 },
-                ]),
-                "Resumen"
-            );
+            appendSheetToWorkbook(libro, {
+                rows: resumenRows,
+                sheetName: "Resumen",
+            });
 
             const hojas = [
                 ["Por convenio", this.informe.porConvenio],
@@ -553,11 +577,11 @@ export default {
             ];
 
             hojas.forEach(([nombre, filas]) => {
-                XLSX.utils.book_append_sheet(
-                    libro,
-                    XLSX.utils.json_to_sheet(this.filasExportables(filas)),
-                    nombre.slice(0, 31)
-                );
+                appendSheetToWorkbook(libro, {
+                    rows: this.filasExportables(filas),
+                    numericLabels: ["Pacientes cerrados", "CUPS cerrados"],
+                    sheetName: nombre.slice(0, 31),
+                });
             });
 
             XLSX.writeFile(libro, `informe_actividades_facturacion_${this.fechaInicio}_${this.fechaFin}.xlsx`);

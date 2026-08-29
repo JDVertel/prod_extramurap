@@ -511,6 +511,10 @@ import realtime_api from "@/api/realtimeApi.js";
 import { getAllUsers } from "@/api/usersApi";
 import * as XLSX from "xlsx";
 import {
+    buildExcelRowsFromColumnas,
+    createWorksheetFromRows,
+} from "@/utils/excelExport";
+import {
     mapState,
     mapActions
 } from "vuex";
@@ -626,7 +630,7 @@ const COLUMNAS_INFORME = [
     { key: "cupsNombre", label: "CUPS Nombre" },
     { key: "codigo", label: "Código" },
     { key: "descripcionCUP", label: "Descripción CUP" },
-    { key: "cantidad", label: "Cantidad" },
+    { key: "cantidad", label: "Cantidad", excelType: "number" },
     { key: "detalle", label: "Detalle" },
     { key: "grupoCUP", label: "Grupo CUP" },
     { key: "factura", label: "Factura" },
@@ -659,13 +663,13 @@ const COLUMNAS_ACTIVIDADES = [
     { key: "cupsNombre", label: "CUPS Nombre" },
     { key: "codigo", label: "Código" },
     { key: "descripcionCUP", label: "Descripción CUP" },
-    { key: "cantidad", label: "Cantidad" },
+    { key: "cantidad", label: "Cantidad", excelType: "number" },
     { key: "detalle", label: "Detalle" },
 ];
 
 const COLUMNAS_FACTURACION = [
     { key: "aprovisionado", label: "Aprovisionado" },
-    { key: "cantidad", label: "Cantidad CUPS" },
+    { key: "cantidad", label: "Cantidad CUPS", excelType: "number" },
     { key: "fechaFacturacionCup", label: "Fecha Facturacion CUPS" },
     { key: "fechaCierreFactura", label: "Fecha Cierre Factura" },
     { key: "numeroFactura", label: "Numero Factura" },
@@ -688,7 +692,7 @@ const COLUMNAS_PROFESIONALES = [
     { key: "actividad", label: "Actividad" },
     { key: "codigo", label: "Codigo" },
     { key: "cupsNombre", label: "Descripcion CUPS" },
-    { key: "cantidad", label: "Cantidad" },
+    { key: "cantidad", label: "Cantidad", excelType: "number" },
     { key: "detalle", label: "Detalle" },
     { key: "profesional", label: "Profesional" },
     { key: "rol", label: "Rol" },
@@ -1775,18 +1779,6 @@ export default {
             return lineas.join("\n");
         },
 
-        sanitizarValorExcel(valor) {
-            const texto = String(valor ?? "");
-            if (!texto) return "";
-
-            // Evita que Excel interprete contenido de usuario como fórmula.
-            if (/^[=+\-@]/.test(texto)) {
-                return `'${texto}`;
-            }
-
-            return texto;
-        },
-
         limpiarNombreArchivo(valor = "") {
             return String(valor || "")
                 .normalize("NFD")
@@ -1824,15 +1816,9 @@ export default {
                 return;
             }
 
-            const filasExcel = filas.map((fila) => {
-                const row = {};
-                this.columnasTabla.forEach((col) => {
-                    row[col.label] = this.sanitizarValorExcel(fila[col.key] ?? "");
-                });
-                return row;
-            });
+            const filasExcel = buildExcelRowsFromColumnas(filas, this.columnasTabla);
 
-            const ws = XLSX.utils.json_to_sheet(filasExcel);
+            const ws = createWorksheetFromRows(filasExcel, { columnas: this.columnasTabla });
             if (ws["!ref"]) {
                 ws["!autofilter"] = { ref: ws["!ref"] };
             }

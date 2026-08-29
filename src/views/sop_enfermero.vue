@@ -225,7 +225,7 @@
 import { mapActions, mapState } from "vuex";
 import moment from "moment";
 import { getAllUsers } from "@/api/usersApi";
-import * as XLSX from "xlsx";
+import { buildExcelRowsFromObjects, exportRowsToExcel } from "@/utils/excelExport";
 import realtime_api from "@/api/realtimeApi";
 import { encuestasApi } from "@/api/modulesApi";
 import { construirTooltipEpsCierres } from "@/utils/gestionCounters";
@@ -845,7 +845,7 @@ export default {
                         Paciente: paciente.nombre,
                         Documento: paciente.documento,
                         FechaNac: paciente.fechaNac,
-                        Edad: paciente.edad,
+                        Edad: this.calcularEdad(encuesta.fechaNac),
                         EPS: encuesta.eps || "",
                         FechaEncuesta: encuesta.fecha || "",
                         Profesional: estado.nombre,
@@ -861,28 +861,13 @@ export default {
                 return;
             }
 
-            const ws = XLSX.utils.json_to_sheet(filasExcel);
-            if (ws["!ref"]) {
-                ws["!autofilter"] = { ref: ws["!ref"] };
-            }
-
-            ws["!cols"] = [
-                { wch: 24 },
-                { wch: 26 },
-                { wch: 16 },
-                { wch: 12 },
-                { wch: 10 },
-                { wch: 16 },
-                { wch: 16 },
-                { wch: 26 },
-                { wch: 20 },
-                { wch: 12 },
-                { wch: 18 },
-            ];
-
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "En_Proceso");
-            XLSX.writeFile(wb, `en_proceso_${nombreArchivoProfesional}_${fecha}.xlsx`);
+            exportRowsToExcel({
+                rows: buildExcelRowsFromObjects(filasExcel, { numericLabels: ["Edad"] }),
+                numericLabels: ["Edad"],
+                sheetName: "En_Proceso",
+                fileName: `en_proceso_${nombreArchivoProfesional}_${fecha}.xlsx`,
+                colWidths: [24, 26, 16, 12, 10, 16, 16, 26, 20, 12, 18],
+            });
         },
     },
 

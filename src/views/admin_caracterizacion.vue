@@ -78,7 +78,7 @@
 
 <script>
 import realtime_api from "@/api/realtimeApi";
-import * as XLSX from "xlsx";
+import { exportRowsToExcel, buildExcelRowsFromColumnas } from "@/utils/excelExport";
 
 const COLUMNAS_BASE = [
     { key: "fecha", label: "Fecha" },
@@ -122,6 +122,7 @@ export default {
             return Array.from(keys).map((key) => ({
                 key,
                 label: this.formatearClave(key),
+                excelType: this.esClaveNumericaCaracterizacion(key) ? "number" : undefined,
             }));
         },
         columnasTabla() {
@@ -193,8 +194,24 @@ export default {
                 .replace(/^./, (match) => match.toUpperCase());
         },
 
+        esClaveNumericaCaracterizacion(key) {
+            const valores = this.registrosCaracterizacion
+                .map((registro) => registro?.caracterizacion?.[key])
+                .filter((valor) => valor !== null && valor !== undefined && valor !== "");
+
+            if (!valores.length) return false;
+
+            return valores.every((valor) => {
+                if (typeof valor === "number") return Number.isFinite(valor);
+                const texto = String(valor).trim();
+                if (!texto) return false;
+                return /^-?\d+(?:[.,]\d+)?$/.test(texto);
+            });
+        },
+
         formatearValor(valor) {
             if (valor === null || valor === undefined) return "";
+            if (typeof valor === "number" && Number.isFinite(valor)) return valor;
             if (Array.isArray(valor)) {
                 return valor.map((item) => this.formatearValor(item)).filter(Boolean).join(", ");
             }
@@ -357,34 +374,23 @@ export default {
         },
 
         exportarExcel() {
-            const filas = this.filasInforme.map((fila) => {
-                const row = {};
-                this.columnasTabla.forEach((col) => {
-                    row[col.label] = fila[col.key] ?? "";
-                });
-                return row;
-            });
+            const filasExcel = buildExcelRowsFromColumnas(this.filasInforme, this.columnasTabla);
 
-            if (!filas.length) {
+            if (!filasExcel.length) {
                 alert("No hay datos para exportar.");
                 return;
             }
-
-            const ws = XLSX.utils.json_to_sheet(filas);
-            if (ws["!ref"]) {
-                ws["!autofilter"] = { ref: ws["!ref"] };
-            }
-
-            ws["!cols"] = this.columnasTabla.map(() => ({ wch: 22 }));
-
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Caracterizacion");
 
             const convenio = this.convenioInforme
                 ? this.convenioInforme.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()
                 : "todos";
 
-            XLSX.writeFile(wb, `informe_caracterizacion_${convenio}_${this.fechaInicio}_${this.fechaFin}.xlsx`);
+            exportRowsToExcel({
+                rows: filasExcel,
+                columnas: this.columnasTabla,
+                sheetName: "Caracterizacion",
+                fileName: `informe_caracterizacion_${convenio}_${this.fechaInicio}_${this.fechaFin}.xlsx`,
+            });
         },
     },
     async mounted() {
