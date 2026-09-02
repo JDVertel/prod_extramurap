@@ -53,6 +53,54 @@
                     luego presionar <strong>Cerrar Paciente</strong> para finalizar nuevamente.
                 </div>
 
+                <div v-if="comparacionBdsEpsModal" class="alert alert-warning py-2 mb-3 comparacion-bds-eps">
+                    <div class="fw-semibold mb-2">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        El documento coincide en BDS_EPS, pero el nombre o apellido no coinciden. Compare los datos:
+                    </div>
+                    <div class="row g-3 small">
+                        <div class="col-md-6">
+                            <div class="comparacion-bds-eps-panel">
+                                <strong>Paciente en ExtramurApp</strong>
+                                <div class="mt-1">
+                                    <span class="text-muted">Nombre:</span>
+                                    {{ comparacionBdsEpsModal.paciente.nombre1 || "—" }}
+                                </div>
+                                <div>
+                                    <span class="text-muted">Apellido:</span>
+                                    {{ comparacionBdsEpsModal.paciente.apellido1 || "—" }}
+                                    {{ comparacionBdsEpsModal.paciente.apellido2 || "" }}
+                                </div>
+                                <div>
+                                    <span class="text-muted">Documento:</span>
+                                    {{ comparacionBdsEpsModal.paciente.tipodoc }}-{{ comparacionBdsEpsModal.paciente.numdoc }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="comparacion-bds-eps-panel">
+                                <strong>BDS_EPS</strong>
+                                <div
+                                    v-for="(registro, idx) in comparacionBdsEpsModal.registrosBd"
+                                    :key="`bds-eps-${idx}-${registro.epsNombre}-${registro.nombre1}`"
+                                    :class="{ 'border-top mt-2 pt-2': idx > 0 }">
+                                    <div v-if="registro.epsNombre" class="text-muted mb-1">
+                                        EPS: {{ registro.epsNombre }}
+                                    </div>
+                                    <div>
+                                        <span class="text-muted">Nombre:</span>
+                                        {{ registro.nombre1 || "—" }}
+                                    </div>
+                                    <div>
+                                        <span class="text-muted">Apellido:</span>
+                                        {{ registro.apellido1 || "—" }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="container-fluid px-0">
                     <div class="table-responsive mb-3">
                         <table class="table table-bordered table-striped table-sm align-middle table-success mb-0">
@@ -351,7 +399,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="table-responsive tabla-scroll" ref="tablaHtml">
+                    <div class="table-responsive tabla-scroll tabla-bandeja-scroll" ref="tablaHtml">
                         <table
                             :key="`pendientes-${revisionBandejasFacturacion}`"
                             class="table table-bordered table-striped table-sm align-middle">
@@ -362,7 +410,7 @@
                                         v-if="tieneRegistrosEpsBd"
                                         style="width: 42px;"
                                         class="text-center"
-                                        title="Solo pacientes no facturables">
+                                        title="Seleccionar pacientes no facturables (No en BDS_EPS)">
                                         <input
                                             type="checkbox"
                                             class="form-check-input m-0"
@@ -410,7 +458,17 @@
                                 <tr class="fila-filtros-tabla">
                                     <th class="filtro-sin-control"></th>
                                     <th v-if="tieneRegistrosEpsBd" class="filtro-sin-control"></th>
-                                    <th v-if="tieneRegistrosEpsBd" class="filtro-sin-control"></th>
+                                    <th v-if="tieneRegistrosEpsBd">
+                                        <select
+                                            v-model="filtrosPendientes.facturable"
+                                            class="form-select form-select-sm"
+                                            title="Filtrar por facturable">
+                                            <option value="">Todos</option>
+                                            <option value="si">Facturable</option>
+                                            <option value="alerta">Alerta</option>
+                                            <option value="no">No facturable</option>
+                                        </select>
+                                    </th>
                                     <th class="filtro-sin-control"></th>
                                     <th>
                                         <select v-model="filtrosPendientes.grupo" class="form-select form-select-sm">
@@ -710,7 +768,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="table-responsive tabla-scroll" ref="tablaHtml">
+                    <div class="table-responsive tabla-scroll tabla-bandeja-scroll" ref="tablaHtml">
                         <table
                             :key="`aprovisionar-${revisionBandejasFacturacion}`"
                             class="table table-bordered table-striped table-sm align-middle table-success">
@@ -913,7 +971,7 @@
                         <i class="bi bi-info-circle"></i>
                         Los pacientes cerrados <strong>hoy</strong> pueden reabrirse para editar o agregar números de factura.
                     </div>
-                    <div class="table-responsive tabla-scroll">
+                    <div class="table-responsive tabla-scroll tabla-bandeja-scroll">
                         <table
                             :key="`historial-${revisionBandejasFacturacion}`"
                             class="table table-bordered table-striped table-sm align-middle">
@@ -1035,6 +1093,13 @@ function evaluarFacturablePaciente(paciente, indice = {}) {
         estado: "alerta",
         epsNombre: epsNombres,
         tooltip: `Documento en BDS_EPS (${epsNombres}), pero nombre/apellido no coinciden`,
+        registrosBd: coincidencias.map((item) => ({
+            nombre1: item.nombre1 || "",
+            apellido1: item.apellido1 || "",
+            epsNombre: item.epsNombre || "",
+            tipoDocumento: item.tipoDocumento || "",
+            numdoc: item.numdoc || "",
+        })),
     };
 }
 
@@ -1122,6 +1187,7 @@ export default {
                 comuna: "",
                 fecha: "",
                 fechagestEnfermera: "",
+                facturable: "",
             },
             ordenPendientes: {
                 campo: "",
@@ -1215,6 +1281,32 @@ export default {
                 return null;
             }
             return this.InfoEncuestasById[0];
+        },
+        comparacionBdsEpsModal() {
+            if (!this.tieneRegistrosEpsBd || !this.pacienteModalActual) {
+                return null;
+            }
+
+            const info = evaluarFacturablePaciente(
+                this.pacienteModalActual,
+                this.epsBdIndicePorDocumento
+            );
+            if (info.estado !== "alerta") {
+                return null;
+            }
+
+            const paciente = this.pacienteModalActual;
+            return {
+                paciente: {
+                    nombre1: paciente.nombre1 || "",
+                    apellido1: paciente.apellido1 || "",
+                    apellido2: paciente.apellido2 || "",
+                    tipodoc: paciente.tipodoc || "",
+                    numdoc: paciente.numdoc || "",
+                },
+                registrosBd: Array.isArray(info.registrosBd) ? info.registrosBd : [],
+                epsNombre: info.epsNombre || "",
+            };
         },
         rolesFacturacionModal() {
             const paciente = this.pacienteModalActual;
@@ -1894,7 +1986,15 @@ export default {
             this.seleccionPendientesDepuracion = {};
         },
         esSeleccionableDepuracionPendiente(paciente = {}) {
-            return this.tieneRegistrosEpsBd && paciente?.facturableInfo?.estado !== "si";
+            return this.tieneRegistrosEpsBd && paciente?.facturableInfo?.estado === "no";
+        },
+        obtenerEstadoFacturablePaciente(paciente = {}) {
+            if (!this.tieneRegistrosEpsBd) {
+                return "";
+            }
+            const info = paciente?.facturableInfo
+                || evaluarFacturablePaciente(paciente, this.epsBdIndicePorDocumento);
+            return info?.estado || "no";
         },
         estaSeleccionadoDepuracionPendiente(id) {
             return !!this.seleccionPendientesDepuracion[String(id || "").trim()];
@@ -2273,6 +2373,7 @@ export default {
                 comuna: "",
                 fecha: "",
                 fechagestEnfermera: "",
+                facturable: "",
             };
             this.ordenPendientes = {
                 campo: "",
@@ -2812,10 +2913,12 @@ export default {
             const cumpleComuna = !this.filtrosPendientes.comuna || String(paciente.barrioVeredacomuna?.comuna || "").trim() === this.filtrosPendientes.comuna;
             const cumpleFecha = this.cumpleFiltroFecha(this.obtenerFechaDemandaPaciente(paciente), this.filtrosPendientes.fecha);
             const cumpleFechaCierre = this.cumpleFiltroFecha(this.obtenerFechaCierreEnfermeraPaciente(paciente), this.filtrosPendientes.fechagestEnfermera);
+            const cumpleFacturable = !this.filtrosPendientes.facturable
+                || this.obtenerEstadoFacturablePaciente(paciente) === this.filtrosPendientes.facturable;
 
             return cumpleGrupo && cumplePaciente && cumpleSexo && cumpleNumdoc && cumpleFechaNac
                 && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna
-                && cumpleFecha && cumpleFechaCierre;
+                && cumpleFecha && cumpleFechaCierre && cumpleFacturable;
         },
         formatearFechaDisplay(valorFecha) {
             const ymd = this.formatearFechaYYYYMMDD(valorFecha);
@@ -3263,6 +3366,37 @@ export default {
     max-height: calc(100vh - 260px);
     overflow-y: auto;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.facturacion-page .tabla-bandeja-scroll {
+    --facturacion-cabecera-alto: 2.45rem;
+}
+
+.facturacion-page .tabla-bandeja-scroll table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.facturacion-page .tabla-bandeja-scroll thead th {
+    position: sticky;
+    background-color: #f8f9fa;
+}
+
+.facturacion-page .tabla-bandeja-scroll thead tr:first-child th {
+    top: 0;
+    z-index: 4;
+    box-shadow: inset 0 -1px 0 #dee2e6;
+}
+
+.facturacion-page .tabla-bandeja-scroll thead tr.fila-filtros-tabla th {
+    top: var(--facturacion-cabecera-alto);
+    z-index: 3;
+    box-shadow: inset 0 -1px 0 #dee2e6;
+}
+
+.facturacion-page .tabla-bandeja-scroll thead tr.fila-filtros-tabla th.filtro-sin-control {
+    background-color: #eef1f4;
 }
 
 .facturacion-cups-panel {
@@ -3337,6 +3471,14 @@ export default {
 
 .facturacion-page .facturable-cell {
     line-height: 1.1;
+}
+
+.comparacion-bds-eps-panel {
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 0.375rem;
+    padding: 0.65rem 0.75rem;
+    height: 100%;
 }
 
 .estado-facturacion-devuelta {
