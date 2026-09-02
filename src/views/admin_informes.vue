@@ -94,49 +94,16 @@
                 </span>
             </div>
 
-            <div v-if="tipoinforme === '3' && tieneDatosTabla" class="alert alert-info d-flex flex-wrap gap-3 align-items-center py-2 px-3 mb-2">
-                <span><strong>Registros:</strong> {{ totalRegistrosFacturacionReporte }}</span>
-                <span><strong>CUPS:</strong> {{ totalCupsFacturacionReporte }}</span>
-            </div>
-
-            <button v-if="tieneDatosTabla" class="btn btn-outline-success mb-2 admin-informe-action" @click="exportarExcelFiltrado">
-                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
-            </button>
-            <div v-if="tipoinforme !== '4' && tieneDatosTabla" class="container-fluid px-0">
-                <div class="top-scrollbar" ref="topScrollbar" @scroll="onTopScroll">
-                    <div class="top-scrollbar-content" :style="{ width: `${anchoTabla}px` }"></div>
-                </div>
-                <div class="table-responsive tabla-wrapper mb-4" ref="tablaHtml" @scroll="onTableScroll">
-
-                    <table class="table table-bordered table-striped table-sm align-middle mb-4">
-                        <thead class="table-light">
-                            <tr>
-                                <th v-for="col in columnasTabla" :key="`head-${col.key}`" class="sticky-head sort-head"
-                                    @click="ordenarPor(col.key)">
-                                    {{ col.label }}
-                                    <span v-if="sortKey === col.key">{{ sortDirection === 'asc' ? '▲' : '▼' }}</span>
-                                </th>
-                            </tr>
-                            <tr>
-                                <th v-for="col in columnasTabla" :key="`filter-${col.key}`" class="sticky-filter">
-                                    <select v-model="filtros[col.key]" class="form-select form-select-sm" @click.stop>
-                                        <option value="">Todos</option>
-                                        <option v-for="opcion in opcionesFiltroPorColumna[col.key] || []"
-                                            :key="`${col.key}-${opcion}`" :value="opcion">
-                                            {{ opcion }}
-                                        </option>
-                                    </select>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="(fila, idx) in filasFiltradasOrdenadas" :key="fila.rowKey || idx">
-                                <td v-for="col in columnasTabla" :key="`${fila.rowKey || idx}-${col.key}`">{{
-                                    fila[col.key] }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+            <div v-if="tieneDatosTabla" class="d-flex flex-wrap align-items-center gap-3 mb-3 admin-informe-export-bar">
+                <button type="button" class="btn btn-outline-success admin-informe-action" @click="exportarExcelFiltrado">
+                    <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+                </button>
+                <span class="badge bg-primary fs-6 py-2 px-3">
+                    Registros: {{ totalRegistrosInformeAdmin }}
+                </span>
+                <span v-if="tipoinforme === '3'" class="badge bg-info text-dark fs-6 py-2 px-3">
+                    CUPS: {{ totalCupsFacturacionReporte }}
+                </span>
             </div>
             <div v-if="mostrarResumenProfesionales" class="container-fluid px-0 resumen-profesionales mb-4">
                 <div class="resumen-head mb-3">
@@ -225,7 +192,7 @@
                     </div>
                 </div>
             </div>
-            <div v-else-if="!mostrarResumenProfesionales" class="alert alert-secondary">
+            <div v-else-if="!tieneContenidoInforme" class="alert alert-secondary">
                 No hay datos cargados para el informe.
             </div>
         </div>
@@ -2815,6 +2782,9 @@ export default {
             }
 
             return filas;
+        },
+        totalRegistrosInformeAdmin() {
+            return this.filasFiltradasOrdenadas.length;
         },
         opcionesFiltroPorColumna() {
             const opciones = {};

@@ -20,6 +20,11 @@ export async function getDisponiblesFacturacionPorDocumento(params = {}) {
   return Array.isArray(data) ? data : [];
 }
 
+export async function cerrarDepuracionMasiva(payload = {}) {
+  const { data } = await http.post("/facturacion/cerrar-depuracion", payload);
+  return data;
+}
+
 export async function getInformeCerradosFacturacion(params = {}) {
   const { data } = await http.get("/facturacion/informe-cerrados", { params });
   return {

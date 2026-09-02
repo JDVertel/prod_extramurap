@@ -49,8 +49,15 @@
 
         <div v-if="tieneResultados" class="d-flex flex-wrap align-items-center gap-2 mb-2">
             <span class="badge bg-primary">Registros: {{ filasInforme.length }}</span>
+            <span class="badge bg-info text-dark">Vista previa: {{ conteoVistaPreviaCaracterizacion.visibles }}</span>
             <span class="badge bg-secondary">Rango: {{ fechaInicio }} a {{ fechaFin }}</span>
             <span class="badge bg-secondary">Convenio: {{ convenioInforme || 'Todos' }}</span>
+        </div>
+
+        <div v-if="tieneResultados" class="alert alert-light border py-2 px-3 mb-2 small">
+            Mostrando {{ conteoVistaPreviaCaracterizacion.visibles }} de
+            {{ conteoVistaPreviaCaracterizacion.totalRegistros }} registros en pantalla.
+            Use el botón de Excel para exportar el informe completo.
         </div>
 
         <div v-if="tieneResultados" class="table-responsive tabla-informe-wrap">
@@ -61,7 +68,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="fila in filasInforme" :key="fila.rowKey">
+                    <tr v-for="fila in filasInformeVistaPrevia" :key="fila.rowKey">
                         <td v-for="col in columnasTabla" :key="`${fila.rowKey}-${col.key}`">
                             {{ fila[col.key] }}
                         </td>
@@ -79,6 +86,7 @@
 <script>
 import realtime_api from "@/api/realtimeApi";
 import { exportRowsToExcel, buildExcelRowsFromColumnas } from "@/utils/excelExport";
+import { conteoVistaPreviaInforme, sliceVistaPreviaInforme } from "@/utils/informesPreview";
 
 const COLUMNAS_BASE = [
     { key: "fecha", label: "Fecha" },
@@ -154,6 +162,12 @@ export default {
         },
         tieneResultados() {
             return this.filasInforme.length > 0;
+        },
+        filasInformeVistaPrevia() {
+            return sliceVistaPreviaInforme(this.filasInforme);
+        },
+        conteoVistaPreviaCaracterizacion() {
+            return conteoVistaPreviaInforme(this.filasInforme.length);
         },
     },
     methods: {

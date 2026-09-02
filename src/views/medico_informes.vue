@@ -36,18 +36,9 @@
                             Nuevo informe
                         </button>
                         <span class="text-muted informe-count">
-                            Mostrando {{ registroInicio }} - {{ registroFin }} de {{ totalRegistros }} registros
+                            Vista previa: {{ encuestasPaginadas.length }} de {{ totalRegistros }} registros.
+                            Exporte PDF para el informe completo.
                         </span>
-                    </div>
-                    <div class="informe-page-size d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2">
-                        <label class="me-2 mb-0">Registros por pagina:</label>
-                        <select v-model.number="itemsPorPagina" class="form-select form-select-sm" style="width: auto;">
-                            <option :value="10">10</option>
-                            <option :value="25">25</option>
-                            <option :value="50">50</option>
-                            <option :value="100">100</option>
-                            <option :value="totalRegistros">Todos</option>
-                        </select>
                     </div>
                 </div>
                 <div v-if="activacion" class="alert alert-light border mb-3">
@@ -214,34 +205,6 @@
                     </div>
                 </div>
 
-                <nav v-if="activacion && ['1', '3'].includes(tipoInforme) && totalPaginas > 1" aria-label="Paginacion" class="mt-3">
-                    <ul class="pagination justify-content-center flex-wrap gap-1">
-                        <li class="page-item" :class="{ disabled: paginaActual === 1 }">
-                            <a class="page-link" href="#" @click.prevent="cambiarPagina(1)">
-                                <i class="bi bi-chevron-double-left"></i>
-                            </a>
-                        </li>
-                        <li class="page-item" :class="{ disabled: paginaActual === 1 }">
-                            <a class="page-link" href="#" @click.prevent="cambiarPagina(paginaActual - 1)">
-                                <i class="bi bi-chevron-left"></i>
-                            </a>
-                        </li>
-                        <li v-for="pagina in paginasVisibles" :key="pagina" class="page-item"
-                            :class="{ active: pagina === paginaActual }">
-                            <a class="page-link" href="#" @click.prevent="cambiarPagina(pagina)">{{ pagina }}</a>
-                        </li>
-                        <li class="page-item" :class="{ disabled: paginaActual === totalPaginas }">
-                            <a class="page-link" href="#" @click.prevent="cambiarPagina(paginaActual + 1)">
-                                <i class="bi bi-chevron-right"></i>
-                            </a>
-                        </li>
-                        <li class="page-item" :class="{ disabled: paginaActual === totalPaginas }">
-                            <a class="page-link" href="#" @click.prevent="cambiarPagina(totalPaginas)">
-                                <i class="bi bi-chevron-double-right"></i>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
             </div>
         </div>
     </div>
@@ -317,6 +280,7 @@ import {
     filtrarCupsDelProfesional,
     mapearActividadesDesdeCups,
 } from "@/utils/informesAsignaciones";
+import { sliceVistaPreviaInforme } from "@/utils/informesPreview";
 
 pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 export default {
@@ -854,9 +818,7 @@ export default {
             return Math.ceil(this.totalRegistros / this.itemsPorPagina);
         },
         encuestasPaginadas() {
-            const inicio = (this.paginaActual - 1) * this.itemsPorPagina;
-            const fin = inicio + this.itemsPorPagina;
-            return this.encuestasFiltradas?.slice(inicio, fin) || [];
+            return sliceVistaPreviaInforme(this.encuestasFiltradas);
         },
         registroInicio() {
             if (this.totalRegistros === 0) return 0;

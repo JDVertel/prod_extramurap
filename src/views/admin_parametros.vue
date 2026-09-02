@@ -24,6 +24,10 @@
           type="button" role="tab" aria-controls="nav-contratos" aria-selected="false">
           CONTRATOS <span class="badge bg-secondary ms-1">{{ contratos.length }}</span>
         </button>
+        <button class="nav-link" id="nav-bd-tab" data-bs-toggle="tab" data-bs-target="#nav-bd"
+          type="button" role="tab" aria-controls="nav-bd" aria-selected="false">
+          BDS_EPS <span class="badge bg-secondary ms-1">{{ epsBdLista.length }}</span>
+        </button>
       </div>
     </nav>
     <div v-if="csvImport.visible" class="alert mt-3 mb-2" :class="csvImport.inProgress ? 'alert-info' : 'alert-success'">
@@ -926,13 +930,191 @@
           </div>
         </div>
       </div>
+
+      <!-- ========== TAB: BD (EPS y registros planos) ========== -->
+      <div class="tab-pane fade" id="nav-bd" role="tabpanel" aria-labelledby="nav-bd-tab" tabindex="0">
+        <br />
+        <div class="container-fluid">
+          <h5 class="mb-1">Bases de datos por EPS</h5>
+          <p class="text-muted small mb-3">
+            Carga archivos Excel con columnas: tipo de documento, numdoc, 1nombre, 1apellido.
+            Este modulo es independiente del flujo operativo del sistema.
+          </p>
+
+          <div class="row g-3">
+            <div class="col-12 col-lg-7">
+              <div class="card parametros-panel h-100">
+                <div class="card-header">
+                  <strong>
+                    <i class="bi bi-pencil-square me-1"></i>
+                    {{ epsBdEditId ? 'Editar EPS BD' : 'Crear EPS BD' }}
+                  </strong>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label class="form-label">Nombre de la EPS</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="Nombre de la EPS"
+                      v-model="epsBdNombre" />
+                  </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-warning" @click="saveEpsBd">
+                      {{ epsBdEditId ? 'Actualizar' : 'Guardar EPS' }}
+                    </button>
+                    <button v-if="epsBdEditId" type="button" class="btn btn-sm btn-secondary" @click="clearFormEpsBd">
+                      Cancelar edición
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+              <div class="card parametros-panel h-100 border-secondary-subtle">
+                <div class="card-header bg-light">
+                  <strong><i class="bi bi-file-earmark-excel me-1"></i> Carga Excel</strong>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label class="form-label">EPS destino</label>
+                    <select class="form-select form-select-sm" v-model="epsBdSeleccionadaId">
+                      <option value="">Seleccione una EPS...</option>
+                      <option v-for="eps in epsBdLista" :key="eps.id" :value="eps.id">
+                        {{ eps.nombre }} ({{ eps.totalRegistros || 0 }})
+                      </option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Modo de importación</label>
+                    <select class="form-select form-select-sm" v-model="epsBdModoImportacion">
+                      <option value="append">Agregar a registros existentes</option>
+                      <option value="replace">Reemplazar todos los registros</option>
+                    </select>
+                  </div>
+                  <p class="text-muted small mb-3">
+                    Columnas: <code>tipo de documento</code>, <code>numdoc</code>, <code>1nombre</code>, <code>1apellido</code>
+                  </p>
+                  <input type="file" ref="excelEpsBd" accept=".xlsx,.xls" style="display:none" @change="importarExcelEpsBd">
+                  <button type="button" class="btn btn-sm btn-outline-secondary w-100"
+                    :disabled="csvImport.inProgress || !epsBdSeleccionadaId" @click="$refs.excelEpsBd.click()">
+                    <i class="bi bi-upload"></i> Importar Excel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card parametros-panel mt-3">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <strong><i class="bi bi-table me-1"></i> Registros de la EPS seleccionada</strong>
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="badge bg-primary">Total: {{ epsBdTotalRegistros }}</span>
+                <button type="button" class="btn btn-sm btn-success"
+                  :disabled="!epsBdSeleccionadaId || epsBdExportando || epsBdTotalRegistros === 0"
+                  @click="exportarExcelEpsBd">
+                  <span v-if="epsBdExportando" class="spinner-border spinner-border-sm me-1"></span>
+                  <i v-else class="bi bi-file-earmark-excel me-1"></i>
+                  Exportar Excel
+                </button>
+              </div>
+            </div>
+            <div class="card-body p-0">
+              <div v-if="!epsBdSeleccionadaId" class="p-3 text-muted small">
+                Seleccione una EPS para ver el resumen de registros cargados.
+              </div>
+              <div v-else-if="epsBdCargandoRegistros" class="p-3 text-muted small">
+                <span class="spinner-border spinner-border-sm me-1"></span> Cargando registros...
+              </div>
+              <div v-else-if="epsBdRegistrosPreview.length === 0" class="p-3 text-muted small">
+                No hay registros cargados para esta EPS.
+              </div>
+              <div v-else style="max-height: 420px; overflow-y: auto">
+                <table class="table table-bordered table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th>Tipo documento</th>
+                      <th>Num. documento</th>
+                      <th>1er nombre</th>
+                      <th>1er apellido</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, index) in epsBdRegistrosPreview" :key="row.id || index">
+                      <td>{{ row.tipoDocumento }}</td>
+                      <td>{{ row.numdoc }}</td>
+                      <td>{{ row.nombre1 }}</td>
+                      <td>{{ row.apellido1 }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div v-if="epsBdSeleccionadaId && epsBdTotalRegistros > 0" class="p-2 border-top">
+                <small class="text-muted">
+                  Muestra de {{ epsBdRegistrosPreview.length }} registros.
+                  Total cargados: <strong>{{ epsBdTotalRegistros }}</strong>.
+                  Use Exportar Excel para descargar el listado completo.
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <div class="card parametros-panel mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <strong><i class="bi bi-building me-1"></i> EPS registradas (modulo BD)</strong>
+              <span class="badge bg-secondary">{{ epsBdLista.length }}</span>
+            </div>
+            <div class="card-body p-0">
+              <div style="max-height: 360px; overflow-y: auto">
+                <table class="table table-bordered table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th>Editar</th>
+                      <th>Nombre EPS</th>
+                      <th>Registros</th>
+                      <th>Eliminar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="eps in epsBdLista" :key="eps.id">
+                      <td>
+                        <button class="btn btn-sm btn-warning" type="button" @click="editEpsBd(eps.id)">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                      </td>
+                      <td>{{ eps.nombre }}</td>
+                      <td>{{ eps.totalRegistros || 0 }}</td>
+                      <td>
+                        <button class="btn btn-sm btn-danger" type="button" @click="deleteEpsBd(eps.id)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
 import { mapState, mapActions } from "vuex";
+import * as XLSX from "xlsx";
+import {
+  bulkImportEpsBdRegistros,
+  createEpsBd,
+  deleteEpsBd as deleteEpsBdApi,
+  exportEpsBdRegistros,
+  listEpsBd,
+  listEpsBdRegistros,
+  updateEpsBd,
+} from "@/api/epsBdApi.js";
+import { exportRowsToExcel } from "@/utils/excelExport.js";
 import { formatApiError } from "@/utils/apiError.js";
+
+const EPS_BD_MUESTRA_REGISTROS = 5;
 export default {
   data() {
     return {
@@ -992,6 +1174,17 @@ export default {
         errores: 0,
         porcentaje: 0,
       },
+
+      // ===== BD (EPS + registros planos) =====
+      epsBdLista: [],
+      epsBdNombre: "",
+      epsBdEditId: null,
+      epsBdSeleccionadaId: "",
+      epsBdModoImportacion: "append",
+      epsBdRegistrosPreview: [],
+      epsBdTotalRegistros: 0,
+      epsBdCargandoRegistros: false,
+      epsBdExportando: false,
     };
   },
   computed: {
@@ -1215,6 +1408,9 @@ export default {
     },
     SbusquedaCup() {
       this.sincronizarSeleccionCupsDisponibles();
+    },
+    epsBdSeleccionadaId() {
+      this.cargarRegistrosEpsBd();
     },
   },
   methods: {
@@ -2299,6 +2495,256 @@ export default {
       };
     },
 
+    // ===== BD (EPS + registros planos) =====
+    async cargarEpsBdLista() {
+      try {
+        this.epsBdLista = await listEpsBd();
+      } catch (error) {
+        console.error("Error al cargar EPS BD:", error);
+        alert(formatApiError(error, "No se pudieron cargar las EPS del modulo BD."));
+      }
+    },
+
+    async cargarRegistrosEpsBd() {
+      const epsId = String(this.epsBdSeleccionadaId || "").trim();
+      this.epsBdRegistrosPreview = [];
+      this.epsBdTotalRegistros = 0;
+      if (!epsId) return;
+
+      this.epsBdCargandoRegistros = true;
+      try {
+        const respuesta = await listEpsBdRegistros(epsId, { limit: EPS_BD_MUESTRA_REGISTROS, offset: 0 });
+        const registros = Array.isArray(respuesta?.registros) ? respuesta.registros : [];
+        this.epsBdRegistrosPreview = registros.slice(0, EPS_BD_MUESTRA_REGISTROS);
+        this.epsBdTotalRegistros = Number(respuesta?.total || 0);
+      } catch (error) {
+        console.error("Error al cargar registros EPS BD:", error);
+        alert(formatApiError(error, "No se pudieron cargar los registros de la EPS."));
+      } finally {
+        this.epsBdCargandoRegistros = false;
+      }
+    },
+
+    clearFormEpsBd() {
+      this.epsBdNombre = "";
+      this.epsBdEditId = null;
+    },
+
+    editEpsBd(id) {
+      const eps = this.epsBdLista.find((item) => String(item.id) === String(id));
+      if (!eps) return;
+      this.epsBdEditId = eps.id;
+      this.epsBdNombre = eps.nombre;
+      this.epsBdSeleccionadaId = eps.id;
+    },
+
+    async saveEpsBd() {
+      const nombre = String(this.epsBdNombre || "").trim();
+      if (!nombre) {
+        alert("Ingrese el nombre de la EPS.");
+        return;
+      }
+
+      try {
+        if (this.epsBdEditId) {
+          await updateEpsBd(this.epsBdEditId, { nombre });
+        } else {
+          const creada = await createEpsBd({ nombre });
+          this.epsBdSeleccionadaId = creada?.id || "";
+        }
+        this.clearFormEpsBd();
+        await this.cargarEpsBdLista();
+        if (this.epsBdSeleccionadaId) {
+          await this.cargarRegistrosEpsBd();
+        }
+      } catch (error) {
+        console.error("Error al guardar EPS BD:", error);
+        alert(formatApiError(error, "No se pudo guardar la EPS BD."));
+      }
+    },
+
+    async deleteEpsBd(id) {
+      const eps = this.epsBdLista.find((item) => String(item.id) === String(id));
+      if (!eps) return;
+
+      const total = Number(eps.totalRegistros || 0);
+      const msg = total > 0
+        ? `Se eliminará la EPS "${eps.nombre}" y sus ${total} registros. ¿Continuar?`
+        : `Se eliminará la EPS "${eps.nombre}". ¿Continuar?`;
+      if (!confirm(msg)) return;
+
+      try {
+        const resultado = await deleteEpsBdApi(id);
+        if (String(this.epsBdSeleccionadaId) === String(id)) {
+          this.epsBdSeleccionadaId = "";
+          this.epsBdRegistrosPreview = [];
+          this.epsBdTotalRegistros = 0;
+        }
+        if (String(this.epsBdEditId) === String(id)) {
+          this.clearFormEpsBd();
+        }
+        await this.cargarEpsBdLista();
+
+        const eliminados = Number(resultado?.registrosEliminados || 0);
+        if (eliminados > 0) {
+          alert(`EPS eliminada junto con ${eliminados} registro(s) cargados desde Excel.`);
+        }
+      } catch (error) {
+        console.error("Error al eliminar EPS BD:", error);
+        alert(formatApiError(error, "No se pudo eliminar la EPS BD."));
+      }
+    },
+
+    _normalizarEncabezadoEpsBd(texto) {
+      return String(texto || "")
+        .replace(/^\uFEFF/, "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, "");
+    },
+
+    _mapearColumnaEpsBd(encabezado) {
+      const h = this._normalizarEncabezadoEpsBd(encabezado);
+      if (["tipodoc", "tipodocumento", "tipodedocumento", "tipoid", "tipoidentificacion"].includes(h)) {
+        return "tipoDocumento";
+      }
+      if (["numdoc", "numerodocumento", "documento", "numerodoc", "nrodocumento"].includes(h)) {
+        return "numdoc";
+      }
+      if (["1nombre", "nombre1", "primernombre", "nombre"].includes(h)) {
+        return "nombre1";
+      }
+      if (["1apellido", "apellido1", "primerapellido", "apellido"].includes(h)) {
+        return "apellido1";
+      }
+      return null;
+    },
+
+    _normalizarFilasExcelEpsBd(filasRaw = []) {
+      return filasRaw.map((fila) => {
+        const out = {};
+        Object.entries(fila || {}).forEach(([key, value]) => {
+          const campo = this._mapearColumnaEpsBd(key);
+          if (campo) {
+            out[campo] = String(value ?? "").trim();
+          }
+        });
+        return out;
+      }).filter((fila) => fila.tipoDocumento && fila.numdoc && fila.nombre1 && fila.apellido1);
+    },
+
+    async importarExcelEpsBd(event) {
+      const archivo = event.target.files?.[0];
+      event.target.value = "";
+      if (!archivo) return;
+
+      const epsId = String(this.epsBdSeleccionadaId || "").trim();
+      if (!epsId) {
+        alert("Seleccione una EPS destino antes de importar.");
+        return;
+      }
+
+      try {
+        const buffer = await archivo.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: "array" });
+        const hoja = workbook.Sheets[workbook.SheetNames[0]];
+        const filasRaw = XLSX.utils.sheet_to_json(hoja, { defval: "" });
+        const validas = this._normalizarFilasExcelEpsBd(filasRaw);
+
+        if (validas.length === 0) {
+          alert(
+            'No se encontraron filas validas. El Excel debe incluir columnas: "tipo de documento", "numdoc", "1nombre", "1apellido".'
+          );
+          return;
+        }
+
+        const omitidas = filasRaw.length - validas.length;
+        const modo = this.epsBdModoImportacion === "replace" ? "reemplazar" : "agregar";
+        const msg = omitidas > 0
+          ? `Se ${modo === "reemplazar" ? "reemplazarán" : "importarán"} ${validas.length} registros (${omitidas} omitidos por datos incompletos). ¿Continuar?`
+          : `Se ${modo === "reemplazar" ? "reemplazarán" : "importarán"} ${validas.length} registros. ¿Continuar?`;
+        if (!confirm(msg)) return;
+
+        this.iniciarProgresoCsv("Importando Excel BD", validas.length);
+
+        const CHUNK = 500;
+        let procesados = 0;
+        let insertados = 0;
+        let omitidosAcum = 0;
+        let reemplazoAplicado = false;
+
+        for (let i = 0; i < validas.length; i += CHUNK) {
+          const chunk = validas.slice(i, i + CHUNK);
+          const modoEnvio = !reemplazoAplicado && this.epsBdModoImportacion === "replace" ? "replace" : "append";
+          const resultado = await bulkImportEpsBdRegistros(epsId, {
+            modo: modoEnvio,
+            registros: chunk,
+          });
+          reemplazoAplicado = reemplazoAplicado || modoEnvio === "replace";
+          procesados += chunk.length;
+          insertados += Number(resultado?.insertados || 0);
+          omitidosAcum += Number(resultado?.omitidos || 0);
+
+          this.actualizarProgresoCsv({
+            procesados,
+            exitosos: insertados,
+            errores: omitidosAcum,
+            mensaje: `Procesando lote ${Math.ceil(procesados / CHUNK)}...`,
+          });
+        }
+
+        this.finalizarProgresoCsv(
+          `Importacion completada. Insertados: ${insertados}. Omitidos: ${omitidas + omitidosAcum}.`
+        );
+
+        await this.cargarEpsBdLista();
+        await this.cargarRegistrosEpsBd();
+      } catch (error) {
+        console.error("Error al importar Excel BD:", error);
+        this.finalizarProgresoCsv("Importacion con errores.");
+        alert(formatApiError(error, "No se pudo importar el archivo Excel."));
+      }
+    },
+
+    async exportarExcelEpsBd() {
+      const epsId = String(this.epsBdSeleccionadaId || "").trim();
+      if (!epsId) return;
+
+      const eps = this.epsBdLista.find((item) => String(item.id) === epsId);
+      const nombreEps = eps?.nombre || "eps_bd";
+
+      this.epsBdExportando = true;
+      try {
+        const respuesta = await exportEpsBdRegistros(epsId);
+        const registros = Array.isArray(respuesta?.registros) ? respuesta.registros : [];
+        if (!registros.length) {
+          alert("No hay registros para exportar.");
+          return;
+        }
+
+        const filas = registros.map((row) => ({
+          "Tipo documento": row.tipoDocumento,
+          "Num. documento": row.numdoc,
+          "1er nombre": row.nombre1,
+          "1er apellido": row.apellido1,
+        }));
+
+        exportRowsToExcel({
+          rows: filas,
+          sheetName: "Registros EPS",
+          fileName: `${nombreEps.replace(/[^\w\-]+/g, "_")}_registros.xlsx`,
+          colWidths: [18, 20, 28, 28],
+        });
+      } catch (error) {
+        console.error("Error al exportar Excel BD:", error);
+        alert(formatApiError(error, "No se pudo exportar el archivo Excel."));
+      } finally {
+        this.epsBdExportando = false;
+      }
+    },
+
     async importarCsvComunas(event) {
       const archivo = event.target.files[0];
       if (!archivo) return;
@@ -2523,6 +2969,7 @@ export default {
     this.getAllCups();
     this.getAllContratos();
     this.getAllActividadesExtra();
+    this.cargarEpsBdLista();
     /* traer  grupos, profesionales ,epsApp */
     /* crear epsApp autorizadas en las caracterizacion */
   },

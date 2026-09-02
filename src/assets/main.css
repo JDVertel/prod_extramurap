@@ -1,9 +1,16 @@
 @import "./base.css";
 
+:root {
+  --app-font-family: "Arial Narrow", Arial, sans-serif;
+  --bs-font-sans-serif: "Arial Narrow", Arial, sans-serif;
+  --bs-body-font-family: "Arial Narrow", Arial, sans-serif;
+}
+
 html,
 body {
   max-width: 100%;
   overflow-x: hidden;
+  font-family: var(--app-font-family);
 }
 
 #app {

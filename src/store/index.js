@@ -3917,7 +3917,7 @@ export default createStore({
      */
     GetRegistersbyRangeGeneralFact: async ({ commit }, parametros) => {
       try {
-        const { finicial, ffinal, convenio, gruposFacturador } = parametros || {};
+        const { finicial, ffinal, convenio, gruposFacturador, force } = parametros || {};
         const inicio = String(finicial ?? "").trim();
         const fin = String(ffinal ?? "").trim();
 
@@ -3930,6 +3930,7 @@ export default createStore({
           fechaInicio: inicio,
           fechaFin: fin,
           gruposFacturador: gruposFacturador || "",
+          _ts: force ? Date.now() : undefined,
         };
 
         let resultados = await getDisponiblesFacturacionPorRango({
@@ -3940,7 +3941,10 @@ export default createStore({
         // Si el convenio del usuario deja la lista vacía, reintenta sin convenio
         // (algunos registros históricos no lo traen poblado).
         if (!resultados.length && String(convenio || "").trim()) {
-          resultados = await getDisponiblesFacturacionPorRango(baseParams);
+          resultados = await getDisponiblesFacturacionPorRango({
+            ...baseParams,
+            _ts: force ? Date.now() : undefined,
+          });
           if (Array.isArray(resultados) && resultados.length) {
             resultados = resultados.filter((row) =>
               encuestaVisibleParaFacturador(row, gruposFacturador, convenio)
@@ -3964,6 +3968,7 @@ export default createStore({
       try {
         const tipodoc = String(parametros?.tipodoc ?? "").trim();
         const numdoc = String(parametros?.numdoc ?? "").trim();
+        const force = Boolean(parametros?.force);
 
         if (!tipodoc || !numdoc) {
           commit("setEncuestasFact", []);
@@ -3974,6 +3979,7 @@ export default createStore({
           tipodoc,
           numdoc,
           gruposFacturador: parametros?.gruposFacturador || "",
+          _ts: force ? Date.now() : undefined,
         };
 
         let resultados = await getDisponiblesFacturacionPorDocumento({
@@ -3982,7 +3988,10 @@ export default createStore({
         });
 
         if (!resultados.length && String(parametros?.convenio || "").trim()) {
-          resultados = await getDisponiblesFacturacionPorDocumento(baseParams);
+          resultados = await getDisponiblesFacturacionPorDocumento({
+            ...baseParams,
+            _ts: force ? Date.now() : undefined,
+          });
           if (Array.isArray(resultados) && resultados.length) {
             resultados = resultados.filter((row) =>
               encuestaVisibleParaFacturador(

@@ -154,7 +154,7 @@ html,
 body {
     margin: 0;
     padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    font-family: "Arial Narrow", Arial, sans-serif;
     background: transparent;
     color: #333;
     line-height: 1.6;

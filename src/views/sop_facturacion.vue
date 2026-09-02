@@ -1,6 +1,28 @@
 <template>
     <div class="facturacion-page px-2 px-md-3 py-2">
-        <h1> Facturación</h1>
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-1">
+            <h1 class="mb-0 d-flex align-items-center gap-2">
+                Facturación
+                <span
+                    v-if="refrescoSilenciosoEnCurso"
+                    class="badge text-bg-light border fw-normal small"
+                    title="Actualizando bandejas…">
+                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    Actualizando
+                </span>
+            </h1>
+            <button
+                type="button"
+                class="btn btn-outline-info btn-sm"
+                title="Guía de colores e iconos"
+                @click="mostrarGuiaFacturacion = true">
+                <i class="bi bi-info-circle me-1"></i> Guía de interfaz
+            </button>
+        </div>
+        <FacturacionGuiaModal
+            :visible="mostrarGuiaFacturacion"
+            :tiene-registros-eps-bd="tieneRegistrosEpsBd"
+            @close="mostrarGuiaFacturacion = false" />
         <ProfesionalGrupoInfo />
         <div v-if="cargando" class="spinner-overlay">
             <div class="progress-card shadow">
@@ -306,17 +328,55 @@
                     <div class="d-flex justify-content-between align-items-center mb-2 mt-2 gap-2 flex-wrap">
                         <div class="small text-muted">
                             Mostrando {{ encuestasPendientesProcesadas.length }} de {{ totalPendientesCargados }} pendientes cargados
+                            <template v-if="tieneRegistrosEpsBd">
+                                · {{ totalSeleccionadosDepuracionPendientes }} no facturable(s) seleccionado(s)
+                            </template>
+                            <template v-else-if="!cargando">
+                                · BDS_EPS sin registros cargados
+                            </template>
                         </div>
-                        <button type="button" class="btn btn-outline-secondary btn-sm"
-                            @click="limpiarFiltrosPendientes">
-                            Limpiar filtros
-                        </button>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button
+                                v-if="tieneRegistrosEpsBd"
+                                type="button"
+                                class="btn btn-outline-danger btn-sm"
+                                :disabled="totalSeleccionadosDepuracionPendientes === 0 || cerrandoDepuracionPendientes || cargando"
+                                @click="cerrarDepuracionSeleccionados">
+                                <i class="bi bi-x-octagon"></i>
+                                {{ cerrandoDepuracionPendientes ? 'Cerrando...' : `Cerrar depuración (${totalSeleccionadosDepuracionPendientes})` }}
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                @click="limpiarFiltrosPendientes">
+                                Limpiar filtros
+                            </button>
+                        </div>
                     </div>
                     <div class="table-responsive tabla-scroll" ref="tablaHtml">
-                        <table class="table table-bordered table-striped table-sm align-middle">
+                        <table
+                            :key="`pendientes-${revisionBandejasFacturacion}`"
+                            class="table table-bordered table-striped table-sm align-middle">
                             <thead class="table-light">
                                 <tr>
                                     <th>Acciones</th>
+                                    <th
+                                        v-if="tieneRegistrosEpsBd"
+                                        style="width: 42px;"
+                                        class="text-center"
+                                        title="Solo pacientes no facturables">
+                                        <input
+                                            type="checkbox"
+                                            class="form-check-input m-0"
+                                            :checked="todosSeleccionadosDepuracionPendientes"
+                                            :disabled="idsSeleccionablesDepuracionPendientes.length === 0 || cerrandoDepuracionPendientes || cargando"
+                                            @change="toggleSeleccionarTodosDepuracionPendientes">
+                                    </th>
+                                    <th
+                                        v-if="tieneRegistrosEpsBd"
+                                        class="text-center"
+                                        role="button"
+                                        @click="ordenarPendientes('facturable')">
+                                        Facturable {{ indicadorOrdenPendientes('facturable') }}
+                                    </th>
                                     <th @click="ordenarPendientes('estado')" role="button" class="text-center">
                                         Estado {{ indicadorOrdenPendientes('estado') }}
                                     </th>
@@ -334,8 +394,6 @@
                                         indicadorOrdenPendientes('edad') }}</th>
                                     <th @click="ordenarPendientes('eps')" role="button">EPS {{
                                         indicadorOrdenPendientes('eps') }}</th>
-                                    <th @click="ordenarPendientes('convenio')" role="button">Convenio {{
-                                        indicadorOrdenPendientes('convenio') }}</th>
                                     <th @click="ordenarPendientes('regimen')" role="button">Régimen {{
                                         indicadorOrdenPendientes('regimen') }}</th>
                                     <th @click="ordenarPendientes('direccion')" role="button">Dirección {{
@@ -351,6 +409,8 @@
                                 </tr>
                                 <tr class="fila-filtros-tabla">
                                     <th class="filtro-sin-control"></th>
+                                    <th v-if="tieneRegistrosEpsBd" class="filtro-sin-control"></th>
+                                    <th v-if="tieneRegistrosEpsBd" class="filtro-sin-control"></th>
                                     <th class="filtro-sin-control"></th>
                                     <th>
                                         <select v-model="filtrosPendientes.grupo" class="form-select form-select-sm">
@@ -395,13 +455,6 @@
                                         </select>
                                     </th>
                                     <th>
-                                        <select v-model="filtrosPendientes.convenio" class="form-select form-select-sm">
-                                            <option value="">Todos</option>
-                                            <option v-for="item in opcionesFiltroPendientes.convenio"
-                                                :key="`pend-convenio-${item}`" :value="item">{{ item }}</option>
-                                        </select>
-                                    </th>
-                                    <th>
                                         <select v-model="filtrosPendientes.regimen" class="form-select form-select-sm">
                                             <option value="">Todos</option>
                                             <option v-for="item in opcionesFiltroPendientes.regimen"
@@ -438,8 +491,9 @@
                                     v-for="paciente in encuestasPendientesProcesadas"
                                     :key="paciente.id"
                                     :class="{
-                                        'pendiente-reabierto': esPacienteReabierto(paciente),
-                                        'pendiente-gestion-incompleta': debeResaltarPendienteAmarillo(paciente)
+                                        'pendiente-facturable': tieneRegistrosEpsBd && paciente.facturableInfo?.estado === 'si',
+                                        'pendiente-reabierto': esPacienteReabierto(paciente) && !(tieneRegistrosEpsBd && paciente.facturableInfo?.estado === 'si'),
+                                        'pendiente-gestion-incompleta': debeResaltarPendienteAmarillo(paciente) && !(tieneRegistrosEpsBd && paciente.facturableInfo?.estado === 'si')
                                     }">
                                     <td>
                                         <div class="d-flex gap-1">
@@ -462,6 +516,33 @@
                                                 :title="textoEstadoFacturacionPendiente(paciente)">
                                                 <i class="bi bi-exclamation-triangle-fill"></i>
                                             </span>
+                                        </div>
+                                    </td>
+                                    <td v-if="tieneRegistrosEpsBd" class="text-center">
+                                        <input
+                                            v-if="esSeleccionableDepuracionPendiente(paciente)"
+                                            type="checkbox"
+                                            class="form-check-input m-0"
+                                            :checked="estaSeleccionadoDepuracionPendiente(paciente.id)"
+                                            :disabled="cerrandoDepuracionPendientes || cargando"
+                                            @change="toggleSeleccionDepuracionPendiente(paciente.id)">
+                                        <span v-else class="text-muted small">—</span>
+                                    </td>
+                                    <td
+                                        v-if="tieneRegistrosEpsBd"
+                                        class="text-center col-facturable"
+                                        :title="paciente.facturableInfo?.tooltip || 'No registrado en BDS_EPS'">
+                                        <span v-if="paciente.facturableInfo?.estado === 'no'" class="text-muted">No</span>
+                                        <div v-else class="facturable-cell">
+                                            <i
+                                                v-if="paciente.facturableInfo?.estado === 'si'"
+                                                class="bi bi-check-circle-fill text-success"
+                                                aria-label="Facturable"></i>
+                                            <i
+                                                v-else
+                                                class="bi bi-exclamation-triangle-fill text-warning"
+                                                aria-label="Documento en BD con datos diferentes"></i>
+                                            <small class="d-block text-muted mt-1">{{ paciente.facturableInfo?.epsNombre }}</small>
                                         </div>
                                     </td>
                                     <td class="text-center">
@@ -498,16 +579,15 @@
                                     <td>{{ formatearFechaYYYYMMDD(paciente.fechaNac) }}</td>
                                     <td>{{ calcularEdad(paciente.fechaNac) }}</td>
                                     <td>{{ paciente.eps }}</td>
-                                    <td>{{ paciente.convenio }}</td>
                                     <td>{{ paciente.regimen }}</td>
                                     <td>{{ paciente.direccion }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.barrio }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.comuna }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaDemandaPaciente(paciente)) }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaCierreEnfermeraPaciente(paciente)) }}</td>
+                                    <td>{{ formatearFechaHora(obtenerFechaDemandaPaciente(paciente)) }}</td>
+                                    <td>{{ formatearFechaHora(obtenerFechaCierreEnfermeraPaciente(paciente)) }}</td>
                                 </tr>
                                 <tr v-if="encuestasPendientesProcesadas.length === 0">
-                                    <td colspan="16" class="text-center text-muted py-4">
+                                    <td :colspan="columnasPendientesTabla" class="text-center text-muted py-4">
                                         No hay pacientes visibles en la bandeja.
                                         <span v-if="totalPendientesCargados > 0">Hay registros cargados, pero quedaron ocultos por filtros o por la pestaña actual.</span>
                                         <span v-else>No se cargaron pendientes para este facturador.</span>
@@ -631,7 +711,9 @@
                         </div>
                     </div>
                     <div class="table-responsive tabla-scroll" ref="tablaHtml">
-                        <table class="table table-bordered table-striped table-sm align-middle table-success">
+                        <table
+                            :key="`aprovisionar-${revisionBandejasFacturacion}`"
+                            class="table table-bordered table-striped table-sm align-middle table-success">
                             <thead class="table-light">
                                 <tr>
                                     <th>Opciones</th>
@@ -790,8 +872,8 @@
                                     <td>{{ paciente.direccion }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.barrio }}</td>
                                     <td>{{ paciente.barrioVeredacomuna?.comuna }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaDemandaPaciente(paciente)) }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaCierreEnfermeraPaciente(paciente)) }}</td>
+                                    <td>{{ formatearFechaHora(obtenerFechaDemandaPaciente(paciente)) }}</td>
+                                    <td>{{ formatearFechaHora(obtenerFechaCierreEnfermeraPaciente(paciente)) }}</td>
                                     <td>{{ paciente.requiereRemision }}</td>
                                 </tr>
                                 <tr v-if="encuestasFactProcesadas.length === 0">
@@ -832,7 +914,9 @@
                         Los pacientes cerrados <strong>hoy</strong> pueden reabrirse para editar o agregar números de factura.
                     </div>
                     <div class="table-responsive tabla-scroll">
-                        <table class="table table-bordered table-striped table-sm align-middle">
+                        <table
+                            :key="`historial-${revisionBandejasFacturacion}`"
+                            class="table table-bordered table-striped table-sm align-middle">
                             <thead class="table-light">
                                 <tr>
                                     <th v-if="historialPermiteReapertura">Acciones</th>
@@ -844,8 +928,6 @@
                                         indicadorOrdenHistorial('documento') }}</th>
                                     <th @click="ordenarHistorial('eps')" role="button">EPS {{
                                         indicadorOrdenHistorial('eps') }}</th>
-                                    <th @click="ordenarHistorial('convenio')" role="button">Convenio {{
-                                        indicadorOrdenHistorial('convenio') }}</th>
                                     <th @click="ordenarHistorial('fecha')" role="button">Fecha Demanda {{
                                         indicadorOrdenHistorial('fecha') }}</th>
                                     <th @click="ordenarHistorial('fechagestEnfermera')" role="button">Fecha cierre clínico {{
@@ -875,13 +957,12 @@
                                     </td>
                                     <td>{{ paciente.tipodoc }}-{{ paciente.numdoc }}</td>
                                     <td>{{ paciente.eps }}</td>
-                                    <td>{{ paciente.convenio }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaDemandaPaciente(paciente)) }}</td>
-                                    <td>{{ formatearFechaYYYYMMDD(obtenerFechaCierreEnfermeraPaciente(paciente)) }}</td>
+                                    <td>{{ formatearFechaHora(obtenerFechaDemandaPaciente(paciente)) }}</td>
+                                    <td>{{ formatearFechaHora(obtenerFechaCierreEnfermeraPaciente(paciente)) }}</td>
                                     <td>{{ formatearFechaHora(paciente.fechaFacturacion || paciente.FechaFacturacion) }}</td>
                                 </tr>
                                 <tr v-if="encuestasHistorialProcesadas.length === 0">
-                                    <td :colspan="historialPermiteReapertura ? 9 : 8" class="text-center text-muted py-4">
+                                    <td :colspan="historialPermiteReapertura ? 8 : 7" class="text-center text-muted py-4">
                                         No hay pacientes cerrados en facturación para {{ etiquetaPeriodoHistorial }}.
                                     </td>
                                 </tr>
@@ -904,11 +985,63 @@ import {
 import { nextTick } from "vue";
 import { CONVENIOS_PROGRAMA } from "@/constants/convenios";
 import ProfesionalGrupoInfo from "@/components/ProfesionalGrupoInfo.vue";
+import FacturacionGuiaModal from "@/components/FacturacionGuiaModal.vue";
 import { encuestaVisibleParaFacturador, normalizarGruposFacturador } from "@/utils/grupoUtils.js";
+import { listEpsBdIndiceDocumentos } from "@/api/epsBdApi.js";
+import { cerrarDepuracionMasiva } from "@/api/facturacionApi.js";
+
+function normalizarTextoFacturable(valor) {
+    return String(valor || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, " ");
+}
+
+function construirClaveDocumentoFacturable(tipodoc, numdoc) {
+    const tipo = String(tipodoc || "").trim().toUpperCase();
+    const num = String(numdoc || "").trim().replace(/\s+/g, "");
+    if (!tipo || !num) return "";
+    return `${tipo}-${num}`;
+}
+
+function nombresCoincidenFacturable(paciente, registro) {
+    const n1 = normalizarTextoFacturable(paciente?.nombre1);
+    const a1 = normalizarTextoFacturable(paciente?.apellido1);
+    const rn1 = normalizarTextoFacturable(registro?.nombre1);
+    const ra1 = normalizarTextoFacturable(registro?.apellido1);
+    return n1 === rn1 && a1 === ra1;
+}
+
+function evaluarFacturablePaciente(paciente, indice = {}) {
+    const docKey = construirClaveDocumentoFacturable(paciente?.tipodoc, paciente?.numdoc);
+    const coincidencias = docKey ? (indice[docKey] || []) : [];
+    if (!coincidencias.length) {
+        return { estado: "no", epsNombre: "", tooltip: "No registrado en BDS_EPS" };
+    }
+
+    const matchNombre = coincidencias.find((item) => nombresCoincidenFacturable(paciente, item));
+    if (matchNombre) {
+        return {
+            estado: "si",
+            epsNombre: matchNombre.epsNombre || "",
+            tooltip: `Facturable — EPS BD: ${matchNombre.epsNombre || "N/D"}`,
+        };
+    }
+
+    const epsNombres = [...new Set(coincidencias.map((item) => item.epsNombre).filter(Boolean))].join(", ");
+    return {
+        estado: "alerta",
+        epsNombre: epsNombres,
+        tooltip: `Documento en BDS_EPS (${epsNombres}), pero nombre/apellido no coinciden`,
+    };
+}
 
 export default {
     components: {
         ProfesionalGrupoInfo,
+        FacturacionGuiaModal,
     },
     data() {
         return {
@@ -919,6 +1052,8 @@ export default {
             activeTab: "pendientes", // Control de pestaña activa
             aprovDisabled: {}, // Estado de desactivación por paciente
             seleccionAprovisionamiento: {},
+            seleccionPendientesDepuracion: {},
+            cerrandoDepuracionPendientes: false,
             aprovisionandoLote: false,
             mensajeAprovisionamientoLote: "",
             devolverDisabled: {}, // Estado de desactivación para devolver en pendientes
@@ -982,7 +1117,6 @@ export default {
                 numdoc: "",
                 fechaNac: "",
                 eps: "",
-                convenio: "",
                 regimen: "",
                 barrio: "",
                 comuna: "",
@@ -1002,6 +1136,13 @@ export default {
                 campo: "profesional",
                 direccion: "asc",
             },
+            epsBdIndicePorDocumento: {},
+            epsBdTotalRegistrosIndice: 0,
+            mostrarGuiaFacturacion: false,
+            intervaloRefrescoFacturacionMs: 30000,
+            timerRefrescoFacturacion: null,
+            refrescoSilenciosoEnCurso: false,
+            revisionBandejasFacturacion: 0,
         }
     },
     computed: {
@@ -1236,6 +1377,22 @@ export default {
             const ids = this.idsSeleccionablesAprovisionamiento;
             return ids.length > 0 && ids.every((id) => this.seleccionAprovisionamiento[id]);
         },
+        idsSeleccionablesDepuracionPendientes() {
+            if (!this.tieneRegistrosEpsBd) return [];
+            return (this.encuestasPendientesProcesadas || [])
+                .filter((paciente) => this.esSeleccionableDepuracionPendiente(paciente))
+                .map((paciente) => String(paciente?.id || "").trim())
+                .filter(Boolean);
+        },
+        totalSeleccionadosDepuracionPendientes() {
+            return this.idsSeleccionablesDepuracionPendientes.filter(
+                (id) => this.seleccionPendientesDepuracion[id]
+            ).length;
+        },
+        todosSeleccionadosDepuracionPendientes() {
+            const ids = this.idsSeleccionablesDepuracionPendientes;
+            return ids.length > 0 && ids.every((id) => this.seleccionPendientesDepuracion[id]);
+        },
         opcionesFiltroPendientes() {
             const filas = Array.isArray(this.EncuestasFactAprov) ? this.EncuestasFactAprov : [];
             const generarOpciones = extractor => {
@@ -1251,7 +1408,6 @@ export default {
                 grupo: generarOpciones(p => p.grupo),
                 sexo: generarOpciones(p => p.sexo),
                 eps: generarOpciones(p => p.eps),
-                convenio: generarOpciones(p => p.convenio),
                 regimen: generarOpciones(p => p.regimen),
                 barrio: generarOpciones(p => p.barrioVeredacomuna?.barrio),
                 comuna: generarOpciones(p => p.barrioVeredacomuna?.comuna),
@@ -1259,6 +1415,18 @@ export default {
         },
         totalPendientesCargados() {
             return Array.isArray(this.EncuestasFactAprov) ? this.EncuestasFactAprov.length : 0;
+        },
+        tieneConsultaAprovisionCargada() {
+            return Boolean(
+                (this.fechaInicio && this.fechaFin) ||
+                (this.tipodoc && this.numdoc)
+            );
+        },
+        tieneRegistrosEpsBd() {
+            return Number(this.epsBdTotalRegistrosIndice || 0) > 0;
+        },
+        columnasPendientesTabla() {
+            return this.tieneRegistrosEpsBd ? 17 : 15;
         },
         encuestasPendientesProcesadas() {
             const filas = Array.isArray(this.EncuestasFactAprov) ? [...this.EncuestasFactAprov] : [];
@@ -1289,14 +1457,26 @@ export default {
                 resultado.unshift(filaReabierta);
             });
 
-            if (!this.ordenPendientes.campo) return resultado;
+            if (!this.ordenPendientes.campo) {
+                return resultado.map((paciente) => ({
+                    ...paciente,
+                    ...(this.tieneRegistrosEpsBd
+                        ? { facturableInfo: evaluarFacturablePaciente(paciente, this.epsBdIndicePorDocumento) }
+                        : {}),
+                }));
+            }
 
             const direccion = this.ordenPendientes.direccion === "desc" ? -1 : 1;
             return resultado.sort((a, b) => {
                 const valorA = this.obtenerValorColumnaPendientes(a, this.ordenPendientes.campo);
                 const valorB = this.obtenerValorColumnaPendientes(b, this.ordenPendientes.campo);
                 return valorA.localeCompare(valorB, "es", { numeric: true, sensitivity: "base" }) * direccion;
-            });
+            }).map((paciente) => ({
+                ...paciente,
+                ...(this.tieneRegistrosEpsBd
+                    ? { facturableInfo: evaluarFacturablePaciente(paciente, this.epsBdIndicePorDocumento) }
+                    : {}),
+            }));
         },
         rangoHistorialActual() {
             return this.calcularRangoHistorial(this.periodoHistorial);
@@ -1341,6 +1521,11 @@ export default {
 
             if (nuevaTab === "historial") {
                 await this.getHistorial();
+                return;
+            }
+
+            if (nuevaTab === "aprovisionar") {
+                await this.refrescarBandejaActiva({ force: true });
             }
         },
         documentoUsuarioActual: {
@@ -1421,9 +1606,103 @@ export default {
 
             return documento;
         },
-        async getPendientes() {
-            this.cargando = true;
+        async cargarIndiceEpsBd() {
             try {
+                const respuesta = await listEpsBdIndiceDocumentos();
+                const indice = {};
+                (respuesta?.registros || []).forEach((registro) => {
+                    const docKey = construirClaveDocumentoFacturable(registro.tipoDocumento, registro.numdoc);
+                    if (!docKey) return;
+                    if (!indice[docKey]) indice[docKey] = [];
+                    indice[docKey].push(registro);
+                });
+                this.epsBdIndicePorDocumento = indice;
+                this.epsBdTotalRegistrosIndice = Number(respuesta?.total || 0);
+                if (!this.epsBdTotalRegistrosIndice) {
+                    this.limpiarSeleccionDepuracionPendientes();
+                }
+            } catch (error) {
+                console.error("[facturacion:pendientes] error-cargar-indice-eps-bd", error);
+                this.epsBdIndicePorDocumento = {};
+                this.epsBdTotalRegistrosIndice = 0;
+                this.limpiarSeleccionDepuracionPendientes();
+            }
+        },
+        puedeRefrescarFacturacionSilencioso({ permitirConModal = false } = {}) {
+            return !this.cargando
+                && !this.refrescoSilenciosoEnCurso
+                && !this.guardandoFactura
+                && !this.cargandoModal
+                && !this.cerrandoDepuracionPendientes
+                && !this.aprovisionandoLote
+                && !this.reabriendoPacienteId
+                && (permitirConModal || !this.pacienteIdModal);
+        },
+        marcarRevisionBandejasFacturacion() {
+            this.revisionBandejasFacturacion += 1;
+        },
+        async refrescarBandejaActiva({ silencioso = false, force = true, recargarIndiceEpsBd = false, permitirConModal = false } = {}) {
+            if (silencioso && !this.puedeRefrescarFacturacionSilencioso({ permitirConModal })) {
+                return;
+            }
+
+            if (this.activeTab === "pendientes") {
+                await this.getPendientes({ silencioso, force, recargarIndiceEpsBd, permitirConModal });
+                return;
+            }
+
+            if (this.activeTab === "historial") {
+                await this.getHistorial({ silencioso, force });
+                return;
+            }
+
+            if (this.activeTab === "aprovisionar" && this.tieneConsultaAprovisionCargada()) {
+                if (this.fechaInicio && this.fechaFin) {
+                    await this.getdataEncuestas(this.fechaInicio, this.fechaFin, this.convenioFiltro, {
+                        silencioso,
+                        limpiarSeleccion: false,
+                        force,
+                    });
+                    return;
+                }
+
+                if (this.tipodoc && this.numdoc) {
+                    await this.getdataEncuestasById(this.tipodoc, this.numdoc, {
+                        silencioso,
+                        limpiarSeleccion: false,
+                        force,
+                    });
+                }
+            }
+        },
+        iniciarRefrescoAutomaticoFacturacion() {
+            this.detenerRefrescoAutomaticoFacturacion();
+            this.timerRefrescoFacturacion = setInterval(() => {
+                this.refrescarBandejaActiva({ silencioso: true, force: true });
+            }, this.intervaloRefrescoFacturacionMs);
+        },
+        detenerRefrescoAutomaticoFacturacion() {
+            if (this.timerRefrescoFacturacion) {
+                clearInterval(this.timerRefrescoFacturacion);
+                this.timerRefrescoFacturacion = null;
+            }
+        },
+        manejarVisibilidadFacturacion() {
+            if (document.visibilityState === "visible") {
+                this.refrescarBandejaActiva({ silencioso: true, force: true });
+            }
+        },
+        async getPendientes({ silencioso = false, force = true, recargarIndiceEpsBd = !silencioso, permitirConModal = false } = {}) {
+            if (silencioso) {
+                if (!this.puedeRefrescarFacturacionSilencioso({ permitirConModal })) return;
+                this.refrescoSilenciosoEnCurso = true;
+            } else {
+                this.cargando = true;
+            }
+            try {
+                if (recargarIndiceEpsBd) {
+                    await this.cargarIndiceEpsBd();
+                }
                 const documento = await this.esperarUsuarioDisponible();
                 if (this.isFacturacionPendientesDebugEnabled()) {
                     console.warn("[facturacion:pendientes] inicio-getPendientes", {
@@ -1437,11 +1716,12 @@ export default {
                     });
                 }
                 const resultados = await this.GetRegistersbyRangeGeneralFactAprov({
-                    force: true,
+                    force,
                     iduser: documento,
                     gruposFacturador: this.gruposFacturadorUsuario,
                     convenio: this.convenioUsuario,
                 });
+                this.marcarRevisionBandejasFacturacion();
 
                 if (this.isFacturacionPendientesDebugEnabled()) {
                     console.warn("[facturacion:pendientes] vista-getPendientes", {
@@ -1466,7 +1746,11 @@ export default {
                     });
                 }
             } finally {
-                this.cargando = false;
+                if (silencioso) {
+                    this.refrescoSilenciosoEnCurso = false;
+                } else {
+                    this.cargando = false;
+                }
             }
         },
         calcularRangoHistorial(periodo = "hoy") {
@@ -1496,22 +1780,32 @@ export default {
             const valorHoy = formatear(hoy);
             return { inicio: valorHoy, fin: valorHoy };
         },
-        async getHistorial() {
-            this.cargando = true;
+        async getHistorial({ silencioso = false, force = true } = {}) {
+            if (silencioso) {
+                if (!this.puedeRefrescarFacturacionSilencioso()) return;
+                this.refrescoSilenciosoEnCurso = true;
+            } else {
+                this.cargando = true;
+            }
             try {
                 const documento = await this.esperarUsuarioDisponible();
                 const { inicio, fin } = this.rangoHistorialActual;
 
                 await this.GetHistorialFacturacion({
-                    force: true,
+                    force,
                     iduser: documento,
                     fechaInicio: inicio,
                     fechaFin: fin,
                     gruposFacturador: this.gruposFacturadorUsuario,
                     convenio: this.convenioUsuario,
                 });
+                this.marcarRevisionBandejasFacturacion();
             } finally {
-                this.cargando = false;
+                if (silencioso) {
+                    this.refrescoSilenciosoEnCurso = false;
+                } else {
+                    this.cargando = false;
+                }
             }
         },
         async cambiarPeriodoHistorial(periodo) {
@@ -1523,15 +1817,22 @@ export default {
             this.periodoHistorial = periodo;
             await this.getHistorial();
         },
-        async getdataEncuestas(fechaInicio, fechaFin, convenio, { limpiarSeleccion = true } = {}) {
-            this.cargando = true;
+        async getdataEncuestas(fechaInicio, fechaFin, convenio, { limpiarSeleccion = true, silencioso = false, force = true } = {}) {
+            if (silencioso) {
+                if (!this.puedeRefrescarFacturacionSilencioso()) return;
+                this.refrescoSilenciosoEnCurso = true;
+            } else {
+                this.cargando = true;
+            }
             if (limpiarSeleccion) {
                 this.limpiarSeleccionAprovision();
                 this.mensajeAprovisionamientoLote = "";
             }
             try {
                 if (!fechaInicio || !fechaFin) {
-                    alert("Debe seleccionar fecha inicial y fecha final.");
+                    if (!silencioso) {
+                        alert("Debe seleccionar fecha inicial y fecha final.");
+                    }
                     return;
                 }
 
@@ -1540,17 +1841,28 @@ export default {
                     ffinal: fechaFin,
                     convenio: convenio || this.convenioUsuario,
                     gruposFacturador: this.gruposFacturadorUsuario,
+                    force,
                 };
                 await this.GetRegistersbyRangeGeneralFact(parametros);
+                this.marcarRevisionBandejasFacturacion();
             } catch (error) {
                 console.error("Error al consultar encuestas:", error);
             } finally {
-                this.cargando = false;
+                if (silencioso) {
+                    this.refrescoSilenciosoEnCurso = false;
+                } else {
+                    this.cargando = false;
+                }
             }
         },
 
-        async getdataEncuestasById(tipodoc, numdoc, { limpiarSeleccion = true } = {}) {
-            this.cargando = true;
+        async getdataEncuestasById(tipodoc, numdoc, { limpiarSeleccion = true, silencioso = false, force = true } = {}) {
+            if (silencioso) {
+                if (!this.puedeRefrescarFacturacionSilencioso()) return;
+                this.refrescoSilenciosoEnCurso = true;
+            } else {
+                this.cargando = true;
+            }
             if (limpiarSeleccion) {
                 this.limpiarSeleccionAprovision();
                 this.mensajeAprovisionamientoLote = "";
@@ -1561,16 +1873,112 @@ export default {
                     numdoc: numdoc,
                     gruposFacturador: this.gruposFacturadorUsuario,
                     convenio: this.convenioUsuario,
+                    force,
                 };
                 await this.GetRegistersbyRangeGeneralFactByID(parametros);
+                this.marcarRevisionBandejasFacturacion();
             } catch (error) {
                 console.error("Error al consultar encuestas:", error);
             } finally {
-                this.cargando = false;
+                if (silencioso) {
+                    this.refrescoSilenciosoEnCurso = false;
+                } else {
+                    this.cargando = false;
+                }
             }
         },
         limpiarSeleccionAprovision() {
             this.seleccionAprovisionamiento = {};
+        },
+        limpiarSeleccionDepuracionPendientes() {
+            this.seleccionPendientesDepuracion = {};
+        },
+        esSeleccionableDepuracionPendiente(paciente = {}) {
+            return this.tieneRegistrosEpsBd && paciente?.facturableInfo?.estado !== "si";
+        },
+        estaSeleccionadoDepuracionPendiente(id) {
+            return !!this.seleccionPendientesDepuracion[String(id || "").trim()];
+        },
+        toggleSeleccionDepuracionPendiente(id) {
+            const key = String(id || "").trim();
+            if (!key) return;
+
+            if (this.seleccionPendientesDepuracion[key]) {
+                delete this.seleccionPendientesDepuracion[key];
+                return;
+            }
+
+            this.seleccionPendientesDepuracion[key] = true;
+        },
+        toggleSeleccionarTodosDepuracionPendientes() {
+            const ids = this.idsSeleccionablesDepuracionPendientes;
+            if (!ids.length) return;
+
+            if (this.todosSeleccionadosDepuracionPendientes) {
+                ids.forEach((id) => {
+                    delete this.seleccionPendientesDepuracion[id];
+                });
+                return;
+            }
+
+            ids.forEach((id) => {
+                this.seleccionPendientesDepuracion[id] = true;
+            });
+        },
+        async cerrarDepuracionSeleccionados() {
+            if (!this.tieneRegistrosEpsBd) return;
+
+            const ids = this.idsSeleccionablesDepuracionPendientes.filter(
+                (id) => this.seleccionPendientesDepuracion[id]
+            );
+
+            if (!ids.length) {
+                alert("Seleccione al menos un paciente no facturable.");
+                return;
+            }
+
+            const confirmar = confirm(
+                `¿Cerrar ${ids.length} paciente(s) en depuración?\n\n` +
+                "Se colocará 0000 en todas las facturas de CUPS y el paciente saldrá de Pendientes y Aprovisionar.\n" +
+                "Esta acción no se puede deshacer desde esta pantalla."
+            );
+            if (!confirmar) return;
+
+            this.cerrandoDepuracionPendientes = true;
+            try {
+                const resultado = await cerrarDepuracionMasiva({
+                    encuestaIds: ids,
+                    idFacturador: this.obtenerDocumentoUsuarioActual(),
+                });
+
+                const cerrados = Number(resultado?.cerrados || 0);
+                const errores = Array.isArray(resultado?.errores) ? resultado.errores : [];
+
+                (resultado?.cerradosIds || []).forEach((id) => {
+                    const key = String(id || "").trim();
+                    delete this.seleccionPendientesDepuracion[key];
+                    delete this.pacientesReabiertos[key];
+                    delete this.pacientesReabiertosSnapshot[key];
+                });
+                this.persistirPacientesReabiertos();
+
+                await this.recargarBandejasFacturacion();
+
+                if (errores.length) {
+                    alert(`Cerrados: ${cerrados}. No procesados: ${errores.length}.`);
+                    return;
+                }
+
+                alert(`${cerrados} paciente(s) cerrado(s) en depuración.`);
+            } catch (error) {
+                console.error("Error al cerrar depuración masiva:", error);
+                alert(
+                    "No se pudo completar el cierre en depuración.\n\n" +
+                    (error?.response?.data?.message || error?.message || "Error desconocido")
+                );
+            } finally {
+                this.cerrandoDepuracionPendientes = false;
+            }
         },
         estaSeleccionadoAprovision(id) {
             return !!this.seleccionAprovisionamiento[String(id || "").trim()];
@@ -1610,7 +2018,11 @@ export default {
             };
         },
         async recargarBandejasFacturacion() {
-            await this.GetRegistersbyRangeGeneralFactAprov(this.obtenerParametrosRecargaBandejas());
+            await this.GetRegistersbyRangeGeneralFactAprov({
+                ...this.obtenerParametrosRecargaBandejas(),
+                force: true,
+            });
+            this.marcarRevisionBandejasFacturacion();
 
             if (this.fechaInicio && this.fechaFin) {
                 await this.GetRegistersbyRangeGeneralFact({
@@ -1618,6 +2030,7 @@ export default {
                     ffinal: this.fechaFin,
                     convenio: this.convenioFiltro || this.convenioUsuario,
                     gruposFacturador: this.gruposFacturadorUsuario,
+                    force: true,
                 });
             } else if (this.tipodoc && this.numdoc) {
                 await this.GetRegistersbyRangeGeneralFactByID({
@@ -1625,8 +2038,10 @@ export default {
                     numdoc: this.numdoc,
                     gruposFacturador: this.gruposFacturadorUsuario,
                     convenio: this.convenioUsuario,
+                    force: true,
                 });
             }
+            this.marcarRevisionBandejasFacturacion();
         },
         AprovisionarPaciente(id) {
             return this.ejecutarAprovisionamiento(id);
@@ -1800,6 +2215,10 @@ export default {
             };
         },
         obtenerValorColumnaPendientes(paciente, campo) {
+            if (campo === "facturable") {
+                return this.obtenerValorOrdenFacturablePendiente(paciente);
+            }
+
             const mapaValores = {
                 id: paciente.id,
                 grupo: paciente.grupo,
@@ -1809,7 +2228,6 @@ export default {
                 fechaNac: paciente.fechaNac,
                 edad: this.calcularEdad(paciente.fechaNac),
                 eps: paciente.eps,
-                convenio: paciente.convenio,
                 regimen: paciente.regimen,
                 direccion: paciente.direccion,
                 barrio: paciente.barrioVeredacomuna?.barrio,
@@ -1820,6 +2238,14 @@ export default {
             };
 
             return String(mapaValores[campo] || "").trim();
+        },
+        obtenerValorOrdenFacturablePendiente(paciente) {
+            const info = paciente?.facturableInfo
+                || evaluarFacturablePaciente(paciente, this.epsBdIndicePorDocumento);
+            const pesoPorEstado = { si: "1", alerta: "2", no: "3" };
+            const peso = pesoPorEstado[info?.estado] || "9";
+            const eps = normalizarTextoFacturable(info?.epsNombre || "");
+            return `${peso}-${eps}-${info?.estado || ""}`;
         },
         ordenarPendientes(campo) {
             if (this.ordenPendientes.campo === campo) {
@@ -1842,7 +2268,6 @@ export default {
                 numdoc: "",
                 fechaNac: "",
                 eps: "",
-                convenio: "",
                 regimen: "",
                 barrio: "",
                 comuna: "",
@@ -1860,7 +2285,6 @@ export default {
                 paciente: `${paciente.nombre1 || ""} ${paciente.apellido1 || ""} ${paciente.apellido2 || ""}`,
                 documento: `${paciente.tipodoc || ""}-${paciente.numdoc || ""}`,
                 eps: paciente.eps,
-                convenio: paciente.convenio,
                 fecha: this.obtenerFechaDemandaPaciente(paciente),
                 fechagestEnfermera: this.obtenerFechaCierreEnfermeraPaciente(paciente),
                 fechaFacturacion: paciente.fechaFacturacion || paciente.FechaFacturacion,
@@ -2149,9 +2573,9 @@ export default {
             this.errorModalFacturacion = "";
             this.rolActivoFacturacion = "";
 
-            await this.getPendientes();
+            await this.getPendientes({ silencioso: true, force: true });
             if (fueReabierto) {
-                await this.getHistorial();
+                await this.getHistorial({ silencioso: true, force: true });
                 this.activeTab = "pendientes";
             }
         },
@@ -2215,6 +2639,7 @@ export default {
 
             this.guardandoFactura = true;
             this.errorModalFacturacion = "";
+            let refrescarPendientesTrasGuardar = false;
 
             try {
                 if (!(cupId in this.facturaInputs)) {
@@ -2234,6 +2659,7 @@ export default {
                 await this.getEncuestaById(this.pacienteIdModal);
                 this.sincronizarEstadoFacturasModal();
                 this.facturaDisabled[cupId] = true;
+                refrescarPendientesTrasGuardar = true;
             } catch (error) {
                 console.error("[regFactCup] ERROR:", error);
                 this.facturaDisabled[cupId] = false;
@@ -2241,6 +2667,14 @@ export default {
                 alert(this.errorModalFacturacion);
             } finally {
                 this.guardandoFactura = false;
+                if (refrescarPendientesTrasGuardar) {
+                    await this.getPendientes({
+                        silencioso: true,
+                        force: true,
+                        recargarIndiceEpsBd: false,
+                        permitirConModal: true,
+                    });
+                }
             }
         },
 
@@ -2373,7 +2807,6 @@ export default {
             const cumpleNumdoc = this.cumpleFiltroNumdoc(paciente, this.filtrosPendientes.numdoc);
             const cumpleFechaNac = this.cumpleFiltroFecha(paciente.fechaNac ?? paciente.fecha_nac, this.filtrosPendientes.fechaNac);
             const cumpleEps = !this.filtrosPendientes.eps || String(paciente.eps || "").trim() === this.filtrosPendientes.eps;
-            const cumpleConvenio = !this.filtrosPendientes.convenio || String(paciente.convenio || "").trim() === this.filtrosPendientes.convenio;
             const cumpleRegimen = !this.filtrosPendientes.regimen || String(paciente.regimen || "").trim() === this.filtrosPendientes.regimen;
             const cumpleBarrio = !this.filtrosPendientes.barrio || String(paciente.barrioVeredacomuna?.barrio || "").trim() === this.filtrosPendientes.barrio;
             const cumpleComuna = !this.filtrosPendientes.comuna || String(paciente.barrioVeredacomuna?.comuna || "").trim() === this.filtrosPendientes.comuna;
@@ -2381,7 +2814,7 @@ export default {
             const cumpleFechaCierre = this.cumpleFiltroFecha(this.obtenerFechaCierreEnfermeraPaciente(paciente), this.filtrosPendientes.fechagestEnfermera);
 
             return cumpleGrupo && cumplePaciente && cumpleSexo && cumpleNumdoc && cumpleFechaNac
-                && cumpleEps && cumpleConvenio && cumpleRegimen && cumpleBarrio && cumpleComuna
+                && cumpleEps && cumpleRegimen && cumpleBarrio && cumpleComuna
                 && cumpleFecha && cumpleFechaCierre;
         },
         formatearFechaDisplay(valorFecha) {
@@ -2392,22 +2825,40 @@ export default {
             return `${partes[2]}/${partes[1]}/${partes[0]}`;
         },
         formatearFechaHora(valorFecha) {
-            if (!valorFecha) return "";
+            if (valorFecha === null || valorFecha === undefined || valorFecha === "") return "";
 
-            const texto = String(valorFecha).trim();
-            const fecha = new Date(texto);
-            if (Number.isNaN(fecha.getTime())) {
-                return this.formatearFechaYYYYMMDD(texto);
+            if (valorFecha instanceof Date && !Number.isNaN(valorFecha.getTime())) {
+                return this.formatearFechaHoraDesdeDate(valorFecha);
             }
 
+            const texto = String(valorFecha).trim();
+            if (!texto) return "";
+
+            const conHoraLocal = texto.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+            const tieneZonaHoraria = /[zZ]$|[+-]\d{2}:\d{2}$/.test(texto);
+            if (conHoraLocal && !tieneZonaHoraria) {
+                const [, y, m, d, hh, mi] = conHoraLocal;
+                return `${d}/${m}/${y} ${hh}:${mi}`;
+            }
+
+            const normalizado = texto.includes(" ") && !texto.includes("T")
+                ? texto.replace(" ", "T")
+                : texto;
+            const fecha = new Date(normalizado);
+            if (!Number.isNaN(fecha.getTime())) {
+                return this.formatearFechaHoraDesdeDate(fecha);
+            }
+
+            const ymd = this.formatearFechaYYYYMMDD(texto);
+            return ymd ? `${this.formatearFechaDisplay(texto)} 00:00` : texto;
+        },
+        formatearFechaHoraDesdeDate(fecha) {
             const y = fecha.getFullYear();
             const m = String(fecha.getMonth() + 1).padStart(2, "0");
             const d = String(fecha.getDate()).padStart(2, "0");
-            const hora = fecha.toLocaleTimeString("es-CO", {
-                hour: "2-digit",
-                minute: "2-digit",
-            });
-            return `${d}/${m}/${y} ${hora}`;
+            const hh = String(fecha.getHours()).padStart(2, "0");
+            const mi = String(fecha.getMinutes()).padStart(2, "0");
+            return `${d}/${m}/${y} ${hh}:${mi}`;
         },
         obtenerConteoCupsFacturacion(paciente = {}) {
             const cupsTotal = Number(paciente?.cupsTotal ?? paciente?.cups_total ?? 0);
@@ -2718,6 +3169,7 @@ export default {
         this.cargando = true
         try {
             await this.getAllActividadesExtra();
+            await this.cargarIndiceEpsBd();
             // getPendientes ya se dispara por el watcher immediate de documentoUsuarioActual
             if (!String(this.documentoUsuarioActual || "").trim()) {
                 await this.getPendientes();
@@ -2731,9 +3183,14 @@ export default {
         } finally {
             this.cargando = false
         }
+
+        this.iniciarRefrescoAutomaticoFacturacion();
+        document.addEventListener("visibilitychange", this.manejarVisibilidadFacturacion);
     },
     beforeUnmount() {
         document.body.classList.remove("pagina-facturacion");
+        this.detenerRefrescoAutomaticoFacturacion();
+        document.removeEventListener("visibilitychange", this.manejarVisibilidadFacturacion);
     },
 }
 </script>
@@ -2863,6 +3320,23 @@ export default {
 
 .pendiente-gestion-incompleta:hover > td {
     background-color: #ffe69c !important;
+}
+
+.pendiente-facturable > td {
+    background-color: #d1e7dd !important;
+}
+
+.pendiente-facturable:hover > td {
+    background-color: #badbcc !important;
+}
+
+.facturacion-page .col-facturable {
+    min-width: 110px;
+    vertical-align: middle;
+}
+
+.facturacion-page .facturable-cell {
+    line-height: 1.1;
 }
 
 .estado-facturacion-devuelta {
