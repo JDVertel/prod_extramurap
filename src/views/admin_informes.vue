@@ -149,11 +149,15 @@
                 </span>
             </div>
 
-            <div v-if="mostrarResumenProfesionales" class="d-flex flex-wrap align-items-center gap-3 mb-3 admin-informe-export-bar">
+            <div v-if="mostrarPanelInformeProfesional" class="d-flex flex-wrap align-items-center gap-3 mb-3 admin-informe-export-bar">
                 <button type="button" class="btn btn-outline-danger admin-informe-action" @click="exportarPdfResumenProfesional">
                     <i class="bi bi-file-earmark-pdf"></i> Descargar PDF (resumen)
                 </button>
                 <span class="text-muted small">PDF del informe general del profesional (no incluye la tabla Excel).</span>
+            </div>
+            <div v-if="mostrarPanelInformeProfesional && !datasetInformeProfesionales.hasData" class="alert alert-warning border py-4 text-center mb-4">
+                <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                <strong>{{ mensajeRangoSinDatos }}</strong>
             </div>
             <div v-if="tieneDatosTabla" class="d-flex flex-wrap align-items-center gap-3 mb-3 admin-informe-export-bar">
                 <button type="button" class="btn btn-outline-success admin-informe-action" @click="exportarExcelFiltrado">
@@ -568,6 +572,7 @@ import {
 import { CONVENIOS_PROGRAMA } from "@/constants/convenios";
 import { informesApi } from "@/api/informesApi";
 import { usuarioPerteneceAGrupoReservado } from "@/utils/grupoUtils";
+import { MENSAJE_RANGO_SIN_DATOS } from "@/utils/informeProfesionalPdf";
 
 pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 
@@ -2096,7 +2101,7 @@ export default {
         },
 
         async exportarPdfResumenProfesional() {
-            if (!this.mostrarResumenProfesionales) {
+            if (!this.mostrarPanelInformeProfesional) {
                 alert("No hay resumen de profesional para exportar.");
                 return;
             }
@@ -2152,71 +2157,82 @@ export default {
                     ],
                     margin: [0, 0, 0, 12],
                 },
-                { text: "Resumen general", style: "subheader" },
-                {
-                    table: {
-                        widths: ["*", 80],
-                        body: [
-                            [
-                                { text: "Indicador", bold: true, fillColor: "#e8f1fb" },
-                                { text: "Valor", bold: true, fillColor: "#e8f1fb", alignment: "right" },
-                            ],
-                            ...metricas.map(([label, value]) => [
-                                { text: label },
-                                { text: value, alignment: "right" },
-                            ]),
-                        ],
-                    },
-                    layout: "lightHorizontalLines",
-                    margin: [0, 0, 0, 14],
-                },
-                { text: "Actividades con más CUPS diligenciados", style: "subheader" },
-                rankingRows.length
-                    ? {
+            ];
+
+            if (!data.hasData) {
+                content.push({
+                    text: MENSAJE_RANGO_SIN_DATOS,
+                    style: "emptyMessage",
+                    margin: [0, 12, 0, 0],
+                });
+            } else {
+                content.push(
+                    { text: "Resumen general", style: "subheader" },
+                    {
                         table: {
-                            widths: ["*", 70, "*"],
+                            widths: ["*", 80],
                             body: [
                                 [
-                                    { text: "Actividad", bold: true, fillColor: "#e8f1fb" },
-                                    { text: "CUPS", bold: true, fillColor: "#e8f1fb", alignment: "right" },
-                                    { text: "Detalle", bold: true, fillColor: "#e8f1fb" },
+                                    { text: "Indicador", bold: true, fillColor: "#e8f1fb" },
+                                    { text: "Valor", bold: true, fillColor: "#e8f1fb", alignment: "right" },
                                 ],
-                                ...rankingRows.map(([a, b, c]) => [
-                                    { text: a },
-                                    { text: b, alignment: "right" },
-                                    { text: c },
+                                ...metricas.map(([label, value]) => [
+                                    { text: label },
+                                    { text: value, alignment: "right" },
                                 ]),
                             ],
                         },
                         layout: "lightHorizontalLines",
                         margin: [0, 0, 0, 14],
-                    }
-                    : { text: "No hay actividades para graficar.", style: "meta", margin: [0, 0, 0, 14] },
-                { text: "Cierres diarios del profesional", style: "subheader" },
-                cierresRows.length
-                    ? {
-                        table: {
-                            widths: ["*", 90],
-                            body: [
-                                [
-                                    { text: "Fecha", bold: true, fillColor: "#e8f1fb" },
-                                    { text: "Pacientes", bold: true, fillColor: "#e8f1fb", alignment: "right" },
+                    },
+                    { text: "Actividades con más CUPS diligenciados", style: "subheader" },
+                    rankingRows.length
+                        ? {
+                            table: {
+                                widths: ["*", 70, "*"],
+                                body: [
+                                    [
+                                        { text: "Actividad", bold: true, fillColor: "#e8f1fb" },
+                                        { text: "CUPS", bold: true, fillColor: "#e8f1fb", alignment: "right" },
+                                        { text: "Detalle", bold: true, fillColor: "#e8f1fb" },
+                                    ],
+                                    ...rankingRows.map(([a, b, c]) => [
+                                        { text: a },
+                                        { text: b, alignment: "right" },
+                                        { text: c },
+                                    ]),
                                 ],
-                                ...cierresRows.map(([a, b]) => [
-                                    { text: a },
-                                    { text: b, alignment: "right" },
-                                ]),
-                            ],
-                        },
-                        layout: "lightHorizontalLines",
-                    }
-                    : { text: "No hay cierres diarios en el rango.", style: "meta" },
-                {
-                    text: "Nota: este PDF contiene el informe general del profesional. El detalle tabular permanece disponible en Exportar a Excel.",
-                    style: "note",
-                    margin: [0, 16, 0, 0],
-                },
-            ];
+                            },
+                            layout: "lightHorizontalLines",
+                            margin: [0, 0, 0, 14],
+                        }
+                        : { text: "No hay actividades para graficar.", style: "meta", margin: [0, 0, 0, 14] },
+                    { text: "Cierres diarios del profesional", style: "subheader" },
+                    cierresRows.length
+                        ? {
+                            table: {
+                                widths: ["*", 90],
+                                body: [
+                                    [
+                                        { text: "Fecha", bold: true, fillColor: "#e8f1fb" },
+                                        { text: "Pacientes", bold: true, fillColor: "#e8f1fb", alignment: "right" },
+                                    ],
+                                    ...cierresRows.map(([a, b]) => [
+                                        { text: a },
+                                        { text: b, alignment: "right" },
+                                    ]),
+                                ],
+                            },
+                            layout: "lightHorizontalLines",
+                        }
+                        : { text: "No hay cierres diarios en el rango.", style: "meta" },
+                    {
+                        text: "Nota: este PDF contiene el informe general del profesional. El detalle tabular permanece disponible en Exportar a Excel.",
+                        style: "note",
+                        margin: [0, 16, 0, 0],
+                    },
+                );
+            }
 
             const profesionalSlug = this.limpiarNombreArchivo(data.profesionalNombre || "profesional");
             const rangoSlug = [this.fechaInicio, this.fechaFin].filter(Boolean).join("_a_") || "sin_rango";
@@ -2235,6 +2251,7 @@ export default {
                     meta: { fontSize: 9, color: "#475569" },
                     chip: { fontSize: 9, color: "#075985", bold: true },
                     note: { fontSize: 8, color: "#64748b", italics: true },
+                    emptyMessage: { fontSize: 12, italics: true, color: "#b45309", alignment: "center" },
                 },
                 defaultStyle: { fontSize: 10 },
             };
@@ -2668,7 +2685,7 @@ export default {
                     this.consultaActual = consultaUsada;
                 }
                 this.mostrarFormulario = this.tipoinforme === "4"
-                    ? !this.datasetInformeProfesionales.hasData
+                    ? false
                     : this.filasInformeTabla.length === 0;
                 this.actualizarProgreso(80, this.tipoinforme === "4" ? "Renderizando resumen..." : "Renderizando tabla...");
                 await this.$nextTick();
@@ -3189,6 +3206,14 @@ export default {
         mostrarResumenProfesionales() {
             return this.tipoinforme === "4" && this.datasetInformeProfesionales.hasData;
         },
+        mostrarPanelInformeProfesional() {
+            return this.tipoinforme === "4"
+                && !this.mostrarFormulario
+                && this.consultaActual?.tipo === "Profesionales";
+        },
+        mensajeRangoSinDatos() {
+            return MENSAJE_RANGO_SIN_DATOS;
+        },
         actividadChartItems() {
             const maximo = Math.max(...this.datasetInformeProfesionales.rankingActividades.map((item) => item.value), 0);
             if (!maximo) return [];
@@ -3328,7 +3353,9 @@ export default {
             return this.filasFiltradasOrdenadas.length;
         },
         tieneContenidoInforme() {
-            if (this.tipoinforme === "4") return this.mostrarResumenProfesionales || this.tieneDatosTabla;
+            if (this.tipoinforme === "4") {
+                return this.mostrarPanelInformeProfesional || this.mostrarResumenProfesionales || this.tieneDatosTabla;
+            }
             return this.tieneDatosTabla;
         },
         parametrosConsultaEtiquetas() {

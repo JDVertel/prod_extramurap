@@ -24,186 +24,205 @@
                 </div>
             </div>
             <div :class="activacion ? 'col-12' : 'col-12 col-lg-9 col-xl-10'">
-                <div v-if="activacion" class="informe-toolbar d-flex flex-column flex-lg-row justify-content-between align-items-stretch align-items-lg-center gap-2 mb-2">
-                    <div class="informe-actions d-flex flex-column flex-sm-row flex-wrap gap-2 align-items-stretch align-items-sm-center">
-                        <button class="btn btn-primary" @click="copiarTabla">
-                            <i class="bi bi-clipboard"></i> Copiar tabla
-                        </button>
-                        <button class="btn btn-danger" @click="exportarPdfInforme">
-                            <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
-                        </button>
-                        <button class="btn btn-secondary" @click="resetInforme">
-                            Nuevo informe
-                        </button>
-                        <span class="text-muted informe-count">
-                            Vista previa: {{ encuestasPaginadas.length }} de {{ totalRegistros }} registros.
-                            Exporte PDF para el informe completo.
-                        </span>
-                    </div>
-                </div>
-                <div v-if="activacion" class="alert alert-light border mb-3">
-                    <h5 class="mb-1">{{ tipoInformeLabel }}</h5>
-                    <div><strong>Tipo:</strong> {{ tipoInformeLabel }}</div>
-                    <div><strong>Rango:</strong> {{ fechaInicio || "-" }} a {{ fechaFin || "-" }}</div>
-                    <div><strong>Usuario:</strong> {{ userData?.nombre || "-" }}</div>
-                    <div><strong>Convenio:</strong> {{ userData?.convenio || "-" }}</div>
-                    <div><strong>Grupo:</strong> {{ userData?.grupo || "-" }}</div>
-                </div>
-                <div class="table-responsive informe-table-scroll" v-if="activacion && tipoInforme === '1'" style="max-height: 60vh; overflow-y: auto;">
-                    <table class="table table-bordered table-striped table-sm informe-wide-table"
-                        style="border-collapse: collapse; width: 100%">
-                        <thead>
-                            <tr>
-                                <th colspan="5" style="background: #d0e6f7">DATOS DE IPS</th>
-                                <th colspan="7" style="background: #d0e6f7">DATOS DEL USUARIO</th>
-                                <th colspan="11" style="background: #4aed31ff">TIPO ACTIVIDAD REALIZADA</th>
-                                <th colspan="6" style="background: #d0e6f7">POBLACION DE RIESGO</th>
-                                <th colspan="1" style="background: #d0e6f7">REQUIERE REMISION</th>
-                                <th colspan="3" style="background: #d0e6f7">ENCUESTADOR</th>
-                            </tr>
-                            <tr>
-                                <th>DPTO</th>
-                                <th>MUNICIPIO</th>
-                                <th>NOMBRE</th>
-                                <th>CODIGO</th>
-                                <th>FECHA</th>
-                                <th>NOMBRE DEL USUARIO</th>
-                                <th>TIPO ID</th>
-                                <th>NUMERO ID</th>
-                                <th>DIRECCION DEL USUARIO</th>
-                                <th>TELEFONO DE USUARIO</th>
-                                <th>BARRIO/VEREDA</th>
-                                <th>DESPLAZAMIENTO EFECTIVO (Si/No)</th>
-                                <th v-for="col in columnasTipoActividad" :key="col" style="writing-mode: vertical-lr">
-                                    {{ col }}
-                                </th>
-                                <th v-for="col in columnasPoblacionRiesgo" :key="col" style="writing-mode: vertical-lr">
-                                    {{ col }}
-                                </th>
-                                <th style="writing-mode: vertical-lr">
-                                    REQUIERE REMISION A PROCEDIMIENTOS (Si/No)
-                                </th>
-                                <th style="writing-mode: vertical-lr">NOMBRE</th>
-                                <th style="writing-mode: vertical-lr">CARGO</th>
-                                <th style="writing-mode: vertical-lr">DOCUMENTO</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="usuario in encuestasPaginadas" :key="usuario.id">
-                                <td>{{ dataips.dpto }}</td>
-                                <td>{{ dataips.municipio }}</td>
-                                <td>{{ dataips.nombre }}</td>
-                                <td>{{ dataips.codHab }}</td>
-                                <td>{{ formatearFechaYYYYMMDD(usuario.fecha) }}</td>
-                                <td>
-                                    {{ usuario.nombre1 }} {{ usuario.nombre2 }} {{ usuario.apellido1 }}
-                                    {{ usuario.apellido2 }}
-                                </td>
-                                <td>{{ usuario.tipodoc }}</td>
-                                <td>{{ usuario.numdoc }}</td>
-                                <td>{{ usuario.direccion }}</td>
-                                <td>{{ usuario.telefono }}</td>
-                                <td>{{ usuario.barrioVeredacomuna?.barrio }}</td>
-                                <td>{{ usuario.desplazamiento }}</td>
-                                <td v-for="col in columnasTipoActividad" :key="col" style="text-align: center">
-                                    <span v-if="actividadRealizada(usuario, col)">X</span>
-                                </td>
-                                <td v-for="col in columnasPoblacionRiesgo" :key="col" style="text-align: center">
-                                    <span
-                                        v-if="usuario.poblacionRiesgo && usuario.poblacionRiesgo.includes(col)">X</span>
-                                </td>
-                                <td style="text-align: center">{{ usuario.requiereRemision }}</td>
-                                <td>{{ userData.nombre }}</td>
-                                <td>{{ userData.cargo }}</td>
-                                <td>{{ userData.numDocumento }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- Barra de acciones -->
+                <div v-if="activacion" class="informe-toolbar d-flex flex-wrap gap-2 mb-3">
+                    <button class="btn btn-danger" @click="exportarPdfInforme">
+                        <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                    </button>
+                    <button class="btn btn-secondary" @click="resetInforme">
+                        Nuevo informe
+                    </button>
+                    <span class="text-muted align-self-center small">Total registros: {{ totalRegistros }}</span>
                 </div>
 
-                <div v-if="activacion && tipoInforme === '2'" class="mt-3">
-                    <div class="row g-3 mb-3">
-                        <div class="col-12 col-md-3"><div class="alert alert-primary mb-0"><strong>Total pacientes:</strong> {{ resumenActividades.totalPacientes }}</div></div>
-                        <div class="col-12 col-md-3"><div class="alert alert-info mb-0"><strong>Total actividades:</strong> {{ resumenActividades.totalActividades }}</div></div>
-                        <div class="col-12 col-md-3"><div class="alert alert-success mb-0"><strong>Total CUPS:</strong> {{ resumenActividades.totalCups }}</div></div>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-12 col-lg-6">
-                            <h6>Actividades aplicadas (cantidad)</h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered">
-                                    <thead><tr><th>Actividad</th><th>Cantidad</th></tr></thead>
-                                    <tbody>
-                                        <tr v-for="item in resumenActividades.actividades" :key="`act-${item.nombre}`">
-                                            <td>{{ item.nombre }}</td>
-                                            <td>{{ item.cantidad }}</td>
-                                        </tr>
-                                        <tr v-if="resumenActividades.actividades.length === 0"><td colspan="2">Sin datos</td></tr>
-                                    </tbody>
-                                </table>
+                <div v-if="activacion && informeSinDatos" class="alert alert-warning border py-4 text-center">
+                    <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                    <strong>{{ mensajeRangoSinDatos }}</strong>
+                </div>
+
+                <template v-if="activacion && !informeSinDatos">
+                    <!-- Tarjetas KPI -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-6 col-md-4 col-xl-3">
+                            <div class="card kpi-card h-100 border-0 shadow-sm">
+                                <div class="card-body py-3">
+                                    <div class="kpi-label">Total registros</div>
+                                    <div class="kpi-value">{{ totalRegistros }}</div>
+                                </div>
                             </div>
                         </div>
-                        <div class="col-12 col-lg-6">
-                            <h6>CUPS vs cantidad aplicada</h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered">
-                                    <thead><tr><th>CUPS</th><th>Cantidad</th></tr></thead>
-                                    <tbody>
-                                        <tr v-for="item in resumenActividades.cups" :key="`cup-${item.nombre}`">
-                                            <td>{{ item.nombre }}</td>
-                                            <td>{{ item.cantidad }}</td>
-                                        </tr>
-                                        <tr v-if="resumenActividades.cups.length === 0"><td colspan="2">Sin datos</td></tr>
-                                    </tbody>
-                                </table>
+                        <div class="col-6 col-md-4 col-xl-3" v-if="tipoInforme === '2'">
+                            <div class="card kpi-card h-100 border-0 shadow-sm">
+                                <div class="card-body py-3">
+                                    <div class="kpi-label">Total actividades</div>
+                                    <div class="kpi-value">{{ resumenActividades.totalActividades }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-3">
+                            <div class="card kpi-card h-100 border-0 shadow-sm">
+                                <div class="card-body py-3">
+                                    <div class="kpi-label">Total CUPS</div>
+                                    <div class="kpi-value">{{ tipoInforme === '3' ? resumenFacturacion.totalCups : resumenActividades.totalCups }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4 col-xl-3" v-if="tipoInforme === '3'">
+                            <div class="card kpi-card h-100 border-0 shadow-sm">
+                                <div class="card-body py-3">
+                                    <div class="kpi-label">Pacientes únicos</div>
+                                    <div class="kpi-value">{{ resumenFacturacion.totalPacientes }}</div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div v-if="activacion && tipoInforme === '3'" class="mt-3">
-                    <div class="row g-3 mb-3">
-                        <div class="col-12 col-md-3"><div class="alert alert-primary mb-0"><strong>Total pacientes:</strong> {{ resumenFacturacion.totalPacientes }}</div></div>
-                        <div class="col-12 col-md-3"><div class="alert alert-success mb-0"><strong>Total CUPS:</strong> {{ resumenFacturacion.totalCups }}</div></div>
+                    <!-- Info general -->
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-light py-2"><strong>Información del informe</strong></div>
+                        <div class="card-body py-3">
+                            <div class="row g-2">
+                                <div class="col-12 col-md-4"><span class="text-muted">Tipo:</span> <strong class="ms-1">{{ tipoInformeLabel }}</strong></div>
+                                <div class="col-12 col-md-4"><span class="text-muted">Rango:</span> <strong class="ms-1">{{ fechaInicio || "-" }} a {{ fechaFin || "-" }}</strong></div>
+                                <div class="col-12 col-md-4"><span class="text-muted">Usuario:</span> <strong class="ms-1">{{ userData?.nombre || "-" }}</strong></div>
+                                <div class="col-12 col-md-4"><span class="text-muted">Cargo:</span> <strong class="ms-1">{{ userData?.cargo || "-" }}</strong></div>
+                                <div class="col-12 col-md-4"><span class="text-muted">Convenio:</span> <strong class="ms-1">{{ userData?.convenio || "-" }}</strong></div>
+                                <div class="col-12 col-md-4"><span class="text-muted">IPS:</span> <strong class="ms-1">{{ dataips?.nombre || "-" }}</strong></div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="table-responsive informe-table-scroll" style="max-height: 60vh; overflow-y: auto;">
-                        <table class="table table-bordered table-striped table-sm informe-facturacion-table" style="border-collapse: collapse; width: 100%">
-                            <thead>
-                                <tr>
-                                    <th>Fecha cierre facturacion</th>
-                                    <th>Tipo ID</th>
-                                    <th>Numero ID</th>
-                                    <th>Paciente</th>
-                                    <th>EPS</th>
-                                    <th>Convenio</th>
-                                    <th>Codigo CUPS</th>
-                                    <th>Nombre CUPS</th>
-                                    <th>Cantidad</th>
-                                    <th>Numero factura</th>
-                                    <th>Profesional CUPS</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="row in encuestasPaginadas" :key="row.asignacionCupId || `${row.encuestaId}-${row.cupsId}-${row.numeroFactura}`">
-                                    <td>{{ formatearFechaYYYYMMDD(row.fechaCierreFacturacion) }}</td>
-                                    <td>{{ row.tipodoc }}</td>
-                                    <td>{{ row.numdoc }}</td>
-                                    <td>{{ nombrePaciente(row) }}</td>
-                                    <td>{{ row.eps }}</td>
-                                    <td>{{ row.convenio }}</td>
-                                    <td>{{ row.cupsCodigo }}</td>
-                                    <td>{{ row.cupsNombre }}</td>
-                                    <td>{{ row.cantidad || 1 }}</td>
-                                    <td>{{ row.numeroFactura }}</td>
-                                    <td>{{ row.profesionalNombreCup || userData?.nombre }}</td>
-                                </tr>
-                                <tr v-if="encuestasPaginadas.length === 0">
-                                    <td colspan="11" class="text-center">Sin datos</td>
-                                </tr>
-                            </tbody>
-                        </table>
+
+                    <!-- Tipo 1: resumen actividades y población -->
+                    <div v-if="tipoInforme === '1'" class="row g-3">
+                        <div class="col-12 col-xl-6">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-light py-2"><strong>Actividades realizadas</strong></div>
+                                <div class="card-body p-0">
+                                    <div v-if="resumenActividades.actividades.length === 0" class="text-muted text-center py-4">Sin datos</div>
+                                    <div v-for="item in resumenActividades.actividades" :key="`ra-${item.nombre}`" class="chart-row px-3 py-1 border-bottom">
+                                        <div class="chart-label" :title="item.nombre">{{ item.nombre }}</div>
+                                        <div class="chart-track">
+                                            <div class="chart-bar chart-bar-pacientes" :style="{ width: `${porcentajeBarra(item.cantidad, resumenActividades.totalActividades)}%` }"></div>
+                                        </div>
+                                        <div class="chart-meta-single"><strong>{{ item.cantidad }}</strong></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-xl-6">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-light py-2"><strong>Población de riesgo</strong></div>
+                                <div class="card-body p-0">
+                                    <div v-if="resumenPoblacionRiesgo.length === 0" class="text-muted text-center py-4">Sin datos</div>
+                                    <div v-for="item in resumenPoblacionRiesgo" :key="`pr-${item.nombre}`" class="chart-row px-3 py-1 border-bottom">
+                                        <div class="chart-label" :title="item.nombre">{{ item.nombre }}</div>
+                                        <div class="chart-track">
+                                            <div class="chart-bar chart-bar-cups" :style="{ width: `${porcentajeBarra(item.cantidad, totalRegistros)}%` }"></div>
+                                        </div>
+                                        <div class="chart-meta-single"><strong>{{ item.cantidad }}</strong></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-xl-6">
+                            <div class="card shadow-sm">
+                                <div class="card-header bg-light py-2"><strong>CUPS aplicados</strong></div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped mb-0">
+                                        <thead><tr><th>CUPS</th><th class="text-end">Cantidad</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="item in resumenActividades.cups" :key="`cup-${item.nombre}`">
+                                                <td>{{ item.nombre }}</td><td class="text-end">{{ item.cantidad }}</td>
+                                            </tr>
+                                            <tr v-if="resumenActividades.cups.length === 0"><td colspan="2" class="text-center text-muted">Sin datos</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-xl-6">
+                            <div class="card shadow-sm">
+                                <div class="card-header bg-light py-2"><strong>Remisión a procedimientos</strong></div>
+                                <div class="card-body py-3">
+                                    <div class="row g-2">
+                                        <div class="col-6"><div class="kpi-label">Requieren</div><div class="kpi-value text-warning">{{ resumenRemision.si }}</div></div>
+                                        <div class="col-6"><div class="kpi-label">No requieren</div><div class="kpi-value text-success">{{ resumenRemision.no }}</div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
+
+                    <!-- Tipo 2: resumen actividades -->
+                    <div v-if="tipoInforme === '2'" class="row g-3">
+                        <div class="col-12 col-xl-6">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-light py-2"><strong>Actividades aplicadas</strong></div>
+                                <div class="card-body p-0">
+                                    <div v-if="resumenActividades.actividades.length === 0" class="text-muted text-center py-4">Sin datos</div>
+                                    <div v-for="item in resumenActividades.actividades" :key="`a2-${item.nombre}`" class="chart-row px-3 py-1 border-bottom">
+                                        <div class="chart-label" :title="item.nombre">{{ item.nombre }}</div>
+                                        <div class="chart-track">
+                                            <div class="chart-bar chart-bar-pacientes" :style="{ width: `${porcentajeBarra(item.cantidad, resumenActividades.totalActividades)}%` }"></div>
+                                        </div>
+                                        <div class="chart-meta-single"><strong>{{ item.cantidad }}</strong></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-xl-6">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-light py-2"><strong>CUPS vs cantidad aplicada</strong></div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped mb-0">
+                                        <thead><tr><th>CUPS</th><th class="text-end">Cantidad</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="item in resumenActividades.cups" :key="`c2-${item.nombre}`">
+                                                <td>{{ item.nombre }}</td><td class="text-end">{{ item.cantidad }}</td>
+                                            </tr>
+                                            <tr v-if="resumenActividades.cups.length === 0"><td colspan="2" class="text-center text-muted">Sin datos</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tipo 3: resumen facturación -->
+                    <div v-if="tipoInforme === '3'" class="row g-3">
+                        <div class="col-12 col-xl-6">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-light py-2"><strong>CUPS por EPS</strong></div>
+                                <div class="card-body p-0">
+                                    <div v-if="resumenFacturacionPorEps.length === 0" class="text-muted text-center py-4">Sin datos</div>
+                                    <div v-for="item in resumenFacturacionPorEps" :key="`eps-${item.nombre}`" class="chart-row px-3 py-1 border-bottom">
+                                        <div class="chart-label" :title="item.nombre">{{ item.nombre }}</div>
+                                        <div class="chart-track">
+                                            <div class="chart-bar chart-bar-pacientes" :style="{ width: `${porcentajeBarra(item.cantidad, resumenFacturacion.totalCups)}%` }"></div>
+                                        </div>
+                                        <div class="chart-meta-single"><strong>{{ item.cantidad }}</strong></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-xl-6">
+                            <div class="card shadow-sm h-100">
+                                <div class="card-header bg-light py-2"><strong>CUPS más aplicados</strong></div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped mb-0">
+                                        <thead><tr><th>Código - Nombre</th><th class="text-end">Cant.</th></tr></thead>
+                                        <tbody>
+                                            <tr v-for="item in resumenCupsFact" :key="`cf-${item.nombre}`">
+                                                <td>{{ item.nombre }}</td><td class="text-end">{{ item.cantidad }}</td>
+                                            </tr>
+                                            <tr v-if="resumenCupsFact.length === 0"><td colspan="2" class="text-center text-muted">Sin datos</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
 
             </div>
         </div>
@@ -233,17 +252,16 @@
     -webkit-overflow-scrolling: touch;
 }
 
-.informe-wide-table {
-    min-width: 1180px;
-}
-
-.informe-facturacion-table {
-    min-width: 980px;
-}
-
-.informe-count {
-    align-self: center;
-}
+.kpi-card { background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%); }
+.kpi-label { font-size: 0.78rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; }
+.kpi-value { font-size: 1.6rem; font-weight: 700; color: #0f172a; line-height: 1.2; }
+.chart-row { display: grid; grid-template-columns: minmax(110px,32%) 1fr minmax(48px,12%); gap: 0.5rem; align-items: center; }
+.chart-label { font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chart-track { position: relative; height: 16px; background: #eef2f7; border-radius: 999px; overflow: hidden; }
+.chart-bar { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; min-width: 2px; }
+.chart-bar-pacientes { background: rgba(14,165,233,0.55); }
+.chart-bar-cups { background: rgba(34,197,94,0.75); }
+.chart-meta-single { font-size: 0.82rem; color: #475569; text-align: right; }
 
 @media (max-width: 575.98px) {
     .informes-page h1 {
@@ -281,6 +299,10 @@ import {
     mapearActividadesDesdeCups,
 } from "@/utils/informesAsignaciones";
 import { sliceVistaPreviaInforme } from "@/utils/informesPreview";
+import {
+    MENSAJE_RANGO_SIN_DATOS,
+    buildPdfContentResumenProfesional,
+} from "@/utils/informeProfesionalPdf";
 
 pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 export default {
@@ -319,28 +341,10 @@ export default {
         };
     },
     methods: {
-        copiarTabla() {
-            const tabla = this.$el.querySelector("table");
-            if (!tabla) return;
-            let texto = '';
-            const filas = tabla.querySelectorAll('tr');
-            filas.forEach(fila => {
-                let celdas = Array.from(fila.querySelectorAll('th,td'));
-                texto += celdas.map(celda => celda.innerText.replace(/\n/g, ' ')).join('\t') + '\n';
-            });
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(texto).then(() => {
-                    alert('Tabla copiada al portapapeles');
-                });
-            } else {
-                const textarea = document.createElement('textarea');
-                textarea.value = texto;
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                alert('Tabla copiada al portapapeles');
-            }
+        porcentajeBarra(valor, maximo) {
+            const base = Number(maximo || 0);
+            if (!base) return 0;
+            return Math.max(4, Math.round((Number(valor || 0) / base) * 100));
         },
         getGeneratedAtLabel() {
             const now = new Date();
@@ -465,75 +469,6 @@ export default {
                 return { stack: tiles };
             };
         },
-        buildPacientesCerradosPdfTable() {
-            const headers = [
-                "DPTO",
-                "MUNICIPIO",
-                "NOMBRE",
-                "CODIGO",
-                "FECHA",
-                "NOMBRE DEL USUARIO",
-                "TIPO ID",
-                "NUMERO ID",
-                "DIRECCION DEL USUARIO",
-                "TELEFONO DE USUARIO",
-                "BARRIO/VEREDA",
-                "DESPLAZAMIENTO EFECTIVO (Si/No)",
-                ...this.columnasTipoActividad,
-                ...this.columnasPoblacionRiesgo,
-                "REQUIERE REMISION A PROCEDIMIENTOS (Si/No)",
-                "NOMBRE",
-                "CARGO",
-                "DOCUMENTO",
-            ];
-
-            const body = [
-                [
-                    { text: "DATOS DE IPS", colSpan: 5, fillColor: "#d0e6f7", bold: true }, {}, {}, {}, {},
-                    { text: "DATOS DEL USUARIO", colSpan: 7, fillColor: "#d0e6f7", bold: true }, {}, {}, {}, {}, {}, {},
-                    { text: "TIPO ACTIVIDAD REALIZADA", colSpan: this.columnasTipoActividad.length, fillColor: "#4aed31", bold: true },
-                    ...Array(Math.max(this.columnasTipoActividad.length - 1, 0)).fill({}),
-                    { text: "POBLACION DE RIESGO", colSpan: this.columnasPoblacionRiesgo.length, fillColor: "#d0e6f7", bold: true },
-                    ...Array(Math.max(this.columnasPoblacionRiesgo.length - 1, 0)).fill({}),
-                    { text: "REQUIERE REMISION", fillColor: "#d0e6f7", bold: true },
-                    { text: "ENCUESTADOR", colSpan: 3, fillColor: "#d0e6f7", bold: true }, {}, {},
-                ],
-                headers,
-                ...(this.encuestasFiltradas || []).map((row) => [
-                    this.dataips?.dpto || "",
-                    this.dataips?.municipio || "",
-                    this.dataips?.nombre || "",
-                    this.dataips?.codHab || "",
-                    this.formatearFechaYYYYMMDD(row?.fecha),
-                    this.nombrePaciente(row),
-                    row?.tipodoc || "",
-                    row?.numdoc || "",
-                    row?.direccion || "",
-                    row?.telefono || "",
-                    row?.barrioVeredacomuna?.barrio || row?.barrioVeredacomuna || "",
-                    row?.desplazamiento || "",
-                    ...this.columnasTipoActividad.map((col) => this.actividadRealizada(row, col) ? "X" : ""),
-                    ...this.columnasPoblacionRiesgo.map((col) => row?.poblacionRiesgo && String(row.poblacionRiesgo).includes(col) ? "X" : ""),
-                    row?.requiereRemision || "",
-                    this.userData?.nombre || "",
-                    this.userData?.cargo || "",
-                    this.userData?.numDocumento || "",
-                ]),
-            ];
-
-            const widths = headers.map((_, index) => {
-                const header = headers[index];
-                if (["NOMBRE DEL USUARIO", "DIRECCION DEL USUARIO", "BARRIO/VEREDA"].includes(header)) return 52;
-                if ([...this.columnasTipoActividad, ...this.columnasPoblacionRiesgo].includes(header)) return 24;
-                return 38;
-            });
-
-            return {
-                table: { headerRows: 2, widths, body },
-                layout: "lightHorizontalLines",
-                margin: [0, 0, 0, 8],
-            };
-        },
         async exportarPdfInforme() {
             const logoData = await this.getLogoForPdf();
             const metaRows = [
@@ -554,70 +489,17 @@ export default {
                     layout: "lightHorizontalLines",
                     margin: [0, 0, 0, 12],
                 },
+                ...buildPdfContentResumenProfesional({
+                    tipoInforme: this.tipoInforme,
+                    totalRegistros: this.totalRegistros,
+                    resumenActividades: this.resumenActividades,
+                    resumenFacturacion: this.resumenFacturacion,
+                    resumenPoblacionRiesgo: this.resumenPoblacionRiesgo,
+                    resumenRemision: this.resumenRemision,
+                    resumenFacturacionPorEps: this.resumenFacturacionPorEps,
+                    resumenCupsFact: this.resumenCupsFact,
+                }),
             ];
-
-            if (this.tipoInforme === "2") {
-                content.push(
-                    { text: `Total pacientes: ${this.resumenActividades.totalPacientes}`, margin: [0, 0, 0, 3] },
-                    { text: `Total actividades: ${this.resumenActividades.totalActividades}`, margin: [0, 0, 0, 3] },
-                    { text: `Total CUPS: ${this.resumenActividades.totalCups}`, margin: [0, 0, 0, 10] },
-                    { text: "Actividades aplicadas", style: "subheader" },
-                    {
-                        table: {
-                            headerRows: 1,
-                            widths: ["*", 90],
-                            body: [["Actividad", "Cantidad"], ...this.resumenActividades.actividades.map((item) => [item.nombre, String(item.cantidad)])],
-                        },
-                        layout: "lightHorizontalLines",
-                        margin: [0, 0, 0, 10],
-                    },
-                    { text: "CUPS vs cantidad aplicada", style: "subheader" },
-                    {
-                        table: {
-                            headerRows: 1,
-                            widths: ["*", 90],
-                            body: [["CUPS", "Cantidad"], ...this.resumenActividades.cups.map((item) => [item.nombre, String(item.cantidad)])],
-                        },
-                        layout: "lightHorizontalLines",
-                    }
-                );
-            } else if (this.tipoInforme === "3") {
-                content.push(
-                    { text: "Pacientes facturados/CUPS", style: "subheader" },
-                    { text: `Total pacientes: ${this.resumenFacturacion.totalPacientes}`, margin: [0, 0, 0, 3] },
-                    { text: `Total CUPS: ${this.resumenFacturacion.totalCups}`, margin: [0, 0, 0, 10] },
-                    {
-                        table: {
-                            headerRows: 1,
-                            widths: [50, 32, 45, "*", 50, 55, 45, "*", 32, 50, 60],
-                            body: [
-                                ["Fecha cierre facturacion", "Tipo ID", "Numero ID", "Paciente", "EPS", "Convenio", "Codigo CUPS", "Nombre CUPS", "Cantidad", "Numero factura", "Profesional CUPS"],
-                                ...(this.encuestasFiltradas || []).map((row) => [
-                                    this.formatearFechaYYYYMMDD(row?.fechaCierreFacturacion),
-                                    String(row?.tipodoc || ""),
-                                    String(row?.numdoc || ""),
-                                    this.nombrePaciente(row),
-                                    String(row?.eps || ""),
-                                    String(row?.convenio || ""),
-                                    String(row?.cupsCodigo || ""),
-                                    String(row?.cupsNombre || ""),
-                                    String(row?.cantidad || 1),
-                                    String(row?.numeroFactura || ""),
-                                    String(row?.profesionalNombreCup || this.userData?.nombre || ""),
-                                ]),
-                            ],
-                        },
-                        layout: "lightHorizontalLines",
-                    }
-                );
-            } else {
-                content.push(
-                    { text: "Pacientes cerrados", style: "subheader" },
-                    { text: `Total pacientes: ${this.totalRegistros}`, margin: [0, 0, 0, 3] },
-                    { text: `Total CUPS: ${this.resumenActividades.totalCups}`, margin: [0, 0, 0, 10] },
-                    this.buildPacientesCerradosPdfTable()
-                );
-            }
 
             const tipoArchivo = this.tipoInforme === "2"
                 ? "actividades"
@@ -633,17 +515,18 @@ export default {
             const rangoArchivo = `${this.fechaInicio || "sin_inicio"}_a_${this.fechaFin || "sin_fin"}`;
 
             const docDefinition = {
-                pageSize: ["1", "3"].includes(this.tipoInforme) ? "A3" : "A4",
-                pageOrientation: ["1", "3"].includes(this.tipoInforme) ? "landscape" : "portrait",
-                pageMargins: ["1", "3"].includes(this.tipoInforme) ? [18, 18, 18, 18] : [26, 26, 26, 26],
+                pageSize: "A4",
+                pageOrientation: "portrait",
+                pageMargins: [26, 26, 26, 26],
                 ...(logoData ? { background: this.buildPdfWatermark(logoData) } : {}),
                 content,
                 styles: {
                     header: { fontSize: 16, bold: true, margin: [0, 0, 0, 10] },
                     subheader: { fontSize: 12, bold: true, margin: [0, 6, 0, 6] },
                     ipsHeaderName: { fontSize: 13, bold: true },
+                    emptyMessage: { fontSize: 12, italics: true, color: "#b45309", alignment: "center" },
                 },
-                defaultStyle: { fontSize: ["1", "3"].includes(this.tipoInforme) ? 5 : 9 },
+                defaultStyle: { fontSize: 9 },
             };
 
             pdfMake.createPdf(docDefinition).download(`${tipoArchivo}_${usuarioArchivo}_${rangoArchivo}.pdf`);
@@ -814,6 +697,12 @@ export default {
         totalRegistros() {
             return this.encuestasFiltradas?.length || 0;
         },
+        informeSinDatos() {
+            return this.totalRegistros === 0;
+        },
+        mensajeRangoSinDatos() {
+            return MENSAJE_RANGO_SIN_DATOS;
+        },
         totalPaginas() {
             return Math.ceil(this.totalRegistros / this.itemsPorPagina);
         },
@@ -894,6 +783,47 @@ export default {
                 totalPacientes: pacientes.size,
                 totalCups: (this.encuestasFiltradas || []).length,
             };
+        },
+        resumenPoblacionRiesgo() {
+            const counter = new Map();
+            (this.encuestasFiltradas || []).forEach((enc) => {
+                this.columnasPoblacionRiesgo.forEach((col) => {
+                    if (enc.poblacionRiesgo && String(enc.poblacionRiesgo).includes(col)) {
+                        counter.set(col, (counter.get(col) || 0) + 1);
+                    }
+                });
+            });
+            return Array.from(counter.entries())
+                .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+                .sort((a, b) => b.cantidad - a.cantidad);
+        },
+        resumenRemision() {
+            let si = 0, no = 0;
+            (this.encuestasFiltradas || []).forEach((enc) => {
+                const v = String(enc.requiereRemision || "").toLowerCase();
+                if (v === "si" || v === "sí") si++; else no++;
+            });
+            return { si, no };
+        },
+        resumenFacturacionPorEps() {
+            const counter = new Map();
+            (this.encuestasFiltradas || []).forEach((row) => {
+                const eps = String(row.eps || "Sin EPS").trim();
+                counter.set(eps, (counter.get(eps) || 0) + Number(row.cantidad || 1));
+            });
+            return Array.from(counter.entries())
+                .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+                .sort((a, b) => b.cantidad - a.cantidad);
+        },
+        resumenCupsFact() {
+            const counter = new Map();
+            (this.encuestasFiltradas || []).forEach((row) => {
+                const key = [row.cupsCodigo, row.cupsNombre].filter(Boolean).join(" - ") || "Sin CUPS";
+                counter.set(key, (counter.get(key) || 0) + Number(row.cantidad || 1));
+            });
+            return Array.from(counter.entries())
+                .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+                .sort((a, b) => b.cantidad - a.cantidad);
         },
     },
     watch: {

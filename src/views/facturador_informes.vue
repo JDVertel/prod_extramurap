@@ -23,7 +23,7 @@
                     <button type="button" class="btn btn-outline-success" :disabled="informeSinDatos" @click="exportarExcel">
                         <i class="bi bi-file-earmark-spreadsheet"></i> Exportar Excel
                     </button>
-                    <button type="button" class="btn btn-danger" :disabled="informeSinDatos" @click="exportarPdfInforme">
+                    <button type="button" class="btn btn-danger" @click="exportarPdfInforme">
                         <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
                     </button>
                     <button type="button" class="btn btn-secondary" @click="resetInforme">
@@ -36,7 +36,7 @@
 
                 <div v-if="activacion && informeSinDatos" class="alert alert-warning border mb-0 py-4 text-center">
                     <i class="bi bi-inbox fs-3 d-block mb-2"></i>
-                    <strong>No hay datos para el informe</strong>
+                    <strong>{{ mensajeRangoSinDatos }}</strong>
                     <p class="mb-0 mt-2 text-muted">
                         No se encontraron pacientes cerrados ni CUPS cerrados entre
                         {{ fechaInicio }} y {{ fechaFin }}.
@@ -154,6 +154,7 @@ import appLogoUrl from "@/assets/images/logo_extramurapp.png";
 import esebLogoUrl from "@/assets/images/logo_eseb.png";
 import { getInformeCerradosFacturacion } from "@/api/facturacionApi.js";
 import { normalizarGruposFacturador } from "@/utils/grupoUtils.js";
+import { MENSAJE_RANGO_SIN_DATOS } from "@/utils/informeProfesionalPdf";
 
 pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 
@@ -230,6 +231,9 @@ export default {
         informeSinDatos() {
             const t = this.informe?.totales || {};
             return (t.pacientesCerrados || 0) === 0 && (t.cupsRegistrados || 0) === 0;
+        },
+        mensajeRangoSinDatos() {
+            return MENSAJE_RANGO_SIN_DATOS;
         },
     },
     methods: {
@@ -477,10 +481,6 @@ export default {
                 this.$toast?.error?.("Debe generar el informe antes de exportar PDF");
                 return;
             }
-            if (this.informeSinDatos) {
-                this.$toast?.error?.("No hay datos para el informe");
-                return;
-            }
 
             const logoData = await this.getLogoForPdf();
             const t = this.informe.totales || {};
@@ -494,22 +494,33 @@ export default {
                     layout: "lightHorizontalLines",
                     margin: [0, 0, 0, 12],
                 },
-                { text: "Totales del periodo", style: "subheader" },
-                {
-                    table: {
-                        widths: ["*", 80],
-                        body: [
-                            ["Indicador", "Valor"],
-                            ["Pacientes cerrados", String(t.pacientesCerrados || 0)],
-                            ["CUPS cerrados", String(t.cupsRegistrados || 0)],
-                        ],
-                    },
-                    layout: "lightHorizontalLines",
-                    margin: [0, 0, 0, 12],
-                },
-                ...this.buildResumenPdfTable("Resumen por convenio", "Convenio", this.informe.porConvenio),
-                ...this.buildResumenPdfTable("Resumen por EPS", "EPS", this.informe.porEps),
             ];
+
+            if (this.informeSinDatos) {
+                content.push({
+                    text: MENSAJE_RANGO_SIN_DATOS,
+                    style: "emptyMessage",
+                    margin: [0, 12, 0, 0],
+                });
+            } else {
+                content.push(
+                    { text: "Totales del periodo", style: "subheader" },
+                    {
+                        table: {
+                            widths: ["*", 80],
+                            body: [
+                                ["Indicador", "Valor"],
+                                ["Pacientes cerrados", String(t.pacientesCerrados || 0)],
+                                ["CUPS cerrados", String(t.cupsRegistrados || 0)],
+                            ],
+                        },
+                        layout: "lightHorizontalLines",
+                        margin: [0, 0, 0, 12],
+                    },
+                    ...this.buildResumenPdfTable("Resumen por convenio", "Convenio", this.informe.porConvenio),
+                    ...this.buildResumenPdfTable("Resumen por EPS", "EPS", this.informe.porEps),
+                );
+            }
 
             const usuarioArchivo = String(this.userData?.nombre || "facturador")
                 .normalize("NFD")
@@ -529,6 +540,7 @@ export default {
                     header: { fontSize: 16, bold: true, margin: [0, 0, 0, 10] },
                     subheader: { fontSize: 12, bold: true, margin: [0, 6, 0, 6] },
                     ipsHeaderName: { fontSize: 13, bold: true },
+                    emptyMessage: { fontSize: 12, italics: true, color: "#b45309", alignment: "center" },
                 },
                 defaultStyle: { fontSize: 9 },
             };
