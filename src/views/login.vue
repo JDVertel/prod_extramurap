@@ -230,7 +230,9 @@ export default {
                     }
                 } else if (status === 403) {
                     const apiMessage = String(error?.response?.data?.message || "").trim();
-                    if (detail?.contractExpired || /contrato/i.test(apiMessage)) {
+                    if (detail?.grupoReservado || detail?.disabled || /deshabilitado/i.test(apiMessage)) {
+                        this.errorMessage = apiMessage || "Usuario deshabilitado. Comuníquese con el administrador.";
+                    } else if (detail?.contractExpired || /contrato/i.test(apiMessage)) {
                         this.errorMessage = apiMessage || "No puede ingresar: su contrato ya finalizó. Contacte al administrador.";
                     } else {
                         this.errorMessage = apiMessage || "Tu usuario está inactivo. Contacta al administrador.";

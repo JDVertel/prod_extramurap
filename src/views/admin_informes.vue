@@ -55,13 +55,68 @@
                     </select>
                 </div>
                 <div class="col-12 col-md-3" v-if="tipoinforme == '4'">
-                    <label for="profesionalInforme" class="form-label">Profesional</label>
-                    <select id="profesionalInforme" class="form-select" v-model="profesionalInforme">
-                        <option value="">Seleccione</option>
-                        <option v-for="prof in profesionalesDisponiblesFiltrados" :key="prof.documento" :value="prof.documento">
-                            {{ prof.nombre }} - {{ prof.cargo }}
+                    <label for="rolProfesionalInforme" class="form-label">Rol</label>
+                    <select
+                        id="rolProfesionalInforme"
+                        class="form-select"
+                        v-model="rolProfesionalInforme"
+                        @change="onCambioRolProfesionalInforme">
+                        <option value="">Seleccione rol</option>
+                        <option v-for="rol in rolesProfesionalesDisponibles" :key="`rol-${rol}`" :value="rol">
+                            {{ etiquetaRolProfesionalInforme(rol) }}
                         </option>
                     </select>
+                </div>
+                <div class="col-12 col-md-3" v-if="tipoinforme == '4'">
+                    <label for="profesionalInformeBusqueda" class="form-label">Profesional</label>
+                    <div class="profesional-combobox position-relative">
+                        <div class="input-group">
+                            <input
+                                id="profesionalInformeBusqueda"
+                                type="text"
+                                class="form-control"
+                                v-model="profesionalBusquedaTexto"
+                                :disabled="!rolProfesionalInforme"
+                                :placeholder="rolProfesionalInforme ? 'Escriba al menos 3 letras o abra el listado' : 'Seleccione primero un rol'"
+                                autocomplete="off"
+                                @focus="abrirDropdownProfesional"
+                                @input="onInputBusquedaProfesional"
+                                @keydown.down.prevent="moverSeleccionProfesional(1)"
+                                @keydown.up.prevent="moverSeleccionProfesional(-1)"
+                                @keydown.enter.prevent="confirmarProfesionalResaltado"
+                                @keydown.esc.prevent="cerrarDropdownProfesional"
+                            />
+                            <button
+                                type="button"
+                                class="btn btn-outline-secondary"
+                                :disabled="!rolProfesionalInforme"
+                                title="Desplegar listado filtrado"
+                                @click="toggleDropdownProfesional">
+                                <i class="bi" :class="mostrarDropdownProfesional ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                            </button>
+                        </div>
+                        <ul
+                            v-if="mostrarDropdownProfesional && rolProfesionalInforme"
+                            class="list-group profesional-combobox-menu shadow-sm">
+                            <li
+                                v-if="profesionalesDisponiblesFiltrados.length === 0"
+                                class="list-group-item text-muted small">
+                                {{ mensajeSinProfesionalesFiltrados }}
+                            </li>
+                            <li
+                                v-for="(prof, idx) in profesionalesDisponiblesFiltrados"
+                                :key="prof.documento"
+                                class="list-group-item list-group-item-action"
+                                :class="{ active: idx === indiceProfesionalResaltado }"
+                                @mousedown.prevent="seleccionarProfesionalInforme(prof)">
+                                <div class="fw-semibold">{{ prof.nombre }}</div>
+                                <div class="small opacity-75">{{ prof.cargo }} · {{ prof.documento }}</div>
+                            </li>
+                        </ul>
+                        <div v-if="profesionalInforme" class="form-text">
+                            Seleccionado: {{ obtenerNombreProfesional(profesionalInforme)?.nombre || profesionalInforme }}
+                        </div>
+                    </div>
                 </div>
                 <div class="col-12 col-md-3" v-if="tipoinforme == '3'">
                     <label for="facturadorInforme" class="form-label">Facturador</label>
@@ -83,7 +138,7 @@
                 fechas seleccionadas</p>
             <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '2'">*Todas las encuestas registradas entre las fechas seleccionadas, con sus actividades y datos del paciente</p>
             <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '3'">*Cierres de facturación por paciente y actividades (CUPS) en el rango de fechas, filtrables por convenio y facturador</p>
-            <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '4'">*Informe individual por profesional con pacientes cerrados, pacientes abiertos, CUPS diligenciados por actividad y cierres diarios en el rango.</p>
+            <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '4'">*Informe individual por profesional: seleccione rol, luego el profesional (escriba 3 letras o despliegue el listado). Incluye pacientes cerrados/abiertos, CUPS por actividad y cierres diarios. El PDF descarga el resumen general; Excel mantiene la tabla detallada.</p>
 
         <div class="informe-panel mt-3">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -94,6 +149,12 @@
                 </span>
             </div>
 
+            <div v-if="mostrarResumenProfesionales" class="d-flex flex-wrap align-items-center gap-3 mb-3 admin-informe-export-bar">
+                <button type="button" class="btn btn-outline-danger admin-informe-action" @click="exportarPdfResumenProfesional">
+                    <i class="bi bi-file-earmark-pdf"></i> Descargar PDF (resumen)
+                </button>
+                <span class="text-muted small">PDF del informe general del profesional (no incluye la tabla Excel).</span>
+            </div>
             <div v-if="tieneDatosTabla" class="d-flex flex-wrap align-items-center gap-3 mb-3 admin-informe-export-bar">
                 <button type="button" class="btn btn-outline-success admin-informe-action" @click="exportarExcelFiltrado">
                     <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
@@ -315,6 +376,22 @@
     padding: 18px;
 }
 
+.profesional-combobox-menu {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    max-height: 260px;
+    overflow-y: auto;
+    margin-bottom: 0;
+}
+
+.profesional-combobox-menu .list-group-item.active {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
 .resumen-head {
     display: flex;
     justify-content: space-between;
@@ -477,6 +554,9 @@
 import realtime_api from "@/api/realtimeApi.js";
 import { getAllUsers } from "@/api/usersApi";
 import * as XLSX from "xlsx";
+import pdfMake from "pdfmake/build/pdfmake";
+import pdfFonts from "pdfmake/build/vfs_fonts";
+import appLogoUrl from "@/assets/images/logo_extramurapp.png";
 import {
     buildExcelRowsFromColumnas,
     createWorksheetFromRows,
@@ -487,6 +567,19 @@ import {
 } from "vuex";
 import { CONVENIOS_PROGRAMA } from "@/constants/convenios";
 import { informesApi } from "@/api/informesApi";
+import { usuarioPerteneceAGrupoReservado } from "@/utils/grupoUtils";
+
+pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
+
+const ETIQUETAS_ROL_PROFESIONAL_INFORME = {
+    "Auxiliar de enfermeria": "Auxiliar de enfermería",
+    Medico: "Médico",
+    Enfermero: "Enfermero",
+    Psicologo: "Psicólogo",
+    Tsocial: "Trabajo social",
+    Nutricionista: "Nutricionista",
+    "Higienista oral": "Higienista oral",
+};
 
 /** Caché corta de dumps de catálogo compartidos entre tipos de informe. */
 const informesCatalogCache = {
@@ -768,7 +861,11 @@ export default {
             fechaFin: "",
             tipoinforme: "",
             convenioInforme: "",
+            rolProfesionalInforme: "",
             profesionalInforme: "",
+            profesionalBusquedaTexto: "",
+            mostrarDropdownProfesional: false,
+            indiceProfesionalResaltado: -1,
             facturadorInforme: "",
             conveniosDisponibles: [...CONVENIOS_PROGRAMA],
             facturadoresDisponibles: [],
@@ -777,6 +874,7 @@ export default {
             profesionalesDisponibles: [],
             profesionalesMap: {},
             profesionalesConveniosMap: {},
+            usuariosNombresMap: {},
             progresoInforme: 0,
             mensajeProgreso: "Preparando consulta...",
             detallesVisibles: [], // Para controlar la visibilidad de detalles por fila
@@ -861,6 +959,57 @@ export default {
             this.conveniosDisponibles = [...CONVENIOS_PROGRAMA];
         },
 
+        registrarNombreUsuarioEnMapa(documento, nombre) {
+            const doc = String(documento || "").trim();
+            const nombreLimpio = String(nombre || "").trim();
+            if (!doc || !nombreLimpio) return;
+
+            if (!this.usuariosNombresMap || typeof this.usuariosNombresMap !== "object") {
+                this.usuariosNombresMap = {};
+            }
+
+            this.usuariosNombresMap[doc] = nombreLimpio;
+            this.usuariosNombresMap[this.normalizarIdFacturador(doc)] = nombreLimpio;
+        },
+
+        construirNombreUsuarioInforme(u = {}) {
+            const nombreDirecto = String(u?.nombre || u?.nombres || u?.nombre_completo || u?.name || "").trim();
+            if (nombreDirecto) return nombreDirecto;
+
+            const nombreCompleto = [u?.nombre1, u?.nombre2, u?.apellido1, u?.apellido2]
+                .map((parte) => String(parte || "").trim())
+                .filter(Boolean)
+                .join(" ")
+                .trim();
+
+            return nombreCompleto || String(u?.email || u?.numDocumento || u?.num_documento || u?.documento || "").trim();
+        },
+
+        async asegurarMapaNombresUsuarios({ forzar = false } = {}) {
+            if (!forzar && this.usuariosNombresMap && Object.keys(this.usuariosNombresMap).length) {
+                return;
+            }
+
+            try {
+                const usuarios = await getAllUsers();
+                const mapa = {};
+
+                (usuarios || []).forEach((u) => {
+                    const documento = String(u?.numDocumento || u?.num_documento || u?.documento || "").trim();
+                    if (!documento) return;
+                    const nombre = this.construirNombreUsuarioInforme(u);
+                    if (!nombre) return;
+                    mapa[documento] = nombre;
+                    mapa[this.normalizarIdFacturador(documento)] = nombre;
+                });
+
+                this.usuariosNombresMap = mapa;
+            } catch (error) {
+                console.error("Error cargando mapa de nombres de usuarios:", error);
+                if (!this.usuariosNombresMap) this.usuariosNombresMap = {};
+            }
+        },
+
         async cargarFacturadoresDisponibles() {
             try {
                 const usuarios = await getAllUsers();
@@ -868,46 +1017,38 @@ export default {
                     const valor = String(cargo || "").trim().toLowerCase();
                     return valor === "fact" || valor === "facturador";
                 };
-                const construirNombreUsuario = (u = {}) => {
-                    const nombreDirecto = String(u?.nombre || u?.nombres || u?.nombre_completo || u?.name || "").trim();
-                    if (nombreDirecto) return nombreDirecto;
-
-                    const nombreCompleto = [u?.nombre1, u?.nombre2, u?.apellido1, u?.apellido2]
-                        .map((parte) => String(parte || "").trim())
-                        .filter(Boolean)
-                        .join(" ")
-                        .trim();
-
-                    return nombreCompleto || String(u?.email || u?.numDocumento || u?.num_documento || u?.documento || "").trim();
-                };
-                const separarConvenios = (valor) =>
-                    this.extraerConveniosUsuario(valor);
 
                 const mapa = new Map();
+                const nombresUsuarios = {};
 
                 usuarios.forEach((u) => {
+                    const documento = String(u?.numDocumento || u?.num_documento || u?.documento || "").trim();
+                    const nombre = String(this.construirNombreUsuarioInforme(u) || "").trim();
+                    if (documento && nombre) {
+                        nombresUsuarios[documento] = nombre;
+                        nombresUsuarios[this.normalizarIdFacturador(documento)] = nombre;
+                    }
+
                     const cargo = String(u?.cargo || "").trim();
                     if (!esFacturador(cargo)) return;
-
-                    const documento = String(u?.numDocumento || u?.num_documento || u?.documento || "").trim();
                     if (!documento) return;
 
                     const documentoNorm = this.normalizarIdFacturador(documento);
-                    const nombre = String(construirNombreUsuario(u) || "").trim() || "Sin nombre en BD";
-                    const convenios = separarConvenios(u?.convenio || u?.convenios);
+                    const nombreFact = nombre || "Sin nombre en BD";
+                    const convenios = this.extraerConveniosUsuario(u?.convenio || u?.convenios);
 
                     if (!mapa.has(documentoNorm)) {
                         mapa.set(documentoNorm, {
                             documento,
-                            nombre,
+                            nombre: nombreFact,
                             convenios: new Set(convenios),
                         });
                         return;
                     }
 
                     const actual = mapa.get(documentoNorm);
-                    if ((!actual.nombre || actual.nombre === "Sin nombre en BD") && nombre) {
-                        actual.nombre = nombre;
+                    if ((!actual.nombre || actual.nombre === "Sin nombre en BD") && nombreFact) {
+                        actual.nombre = nombreFact;
                     }
                     convenios.forEach((conv) => actual.convenios.add(conv));
                 });
@@ -929,6 +1070,10 @@ export default {
                     acc[doc] = Array.from(item.convenios || []);
                     return acc;
                 }, {});
+                this.usuariosNombresMap = {
+                    ...(this.usuariosNombresMap || {}),
+                    ...nombresUsuarios,
+                };
             } catch (error) {
                 console.error("Error cargando facturadores:", error);
                 this.facturadoresDisponibles = [];
@@ -943,6 +1088,8 @@ export default {
                 const mapa = new Map();
 
                 usuarios.forEach((usuario) => {
+                    if (usuarioPerteneceAGrupoReservado(usuario)) return;
+
                     const cargoCanonico = obtenerCargoCanonicoReporte(usuario?.cargo);
                     if (!cargoCanonico || !esCargoProfesionalReporte(usuario?.cargo)) return;
 
@@ -1047,7 +1194,38 @@ export default {
             const doc = String(documento || "").trim();
             if (!doc) return "";
             const docNorm = this.normalizarIdFacturador(doc);
-            return this.facturadoresMap[doc] || this.facturadoresMap[docNorm] || "Sin nombre";
+
+            const desdeFacturadores =
+                this.facturadoresMap?.[doc] ||
+                this.facturadoresMap?.[docNorm] ||
+                "";
+            if (desdeFacturadores) return desdeFacturadores;
+
+            const desdeUsuarios =
+                this.usuariosNombresMap?.[doc] ||
+                this.usuariosNombresMap?.[docNorm] ||
+                "";
+            if (desdeUsuarios) return desdeUsuarios;
+
+            const desdeProfesionales =
+                this.profesionalesMap?.[docNorm]?.nombre ||
+                this.profesionalesMap?.[doc]?.nombre ||
+                "";
+            if (desdeProfesionales) return desdeProfesionales;
+
+            return doc;
+        },
+
+        obtenerDocumentoFacturadorCup(cup = {}, fallback = "") {
+            return String(
+                cup?.FactProf ||
+                cup?.factProf ||
+                cup?.fact_prof ||
+                cup?.idFacturador ||
+                cup?.id_facturador ||
+                fallback ||
+                ""
+            ).trim();
         },
 
         actualizarProgreso(valor, mensaje) {
@@ -1408,9 +1586,7 @@ export default {
                         const asig = asignaciones[i];
                         const idActividad = String(asig?.actividadId ?? asig?.idActividad ?? actividad?.key ?? "");
                         const cupId = asig?.cupsId || asig?.id || "";
-                        const facturadorDoc = String(
-                            asig?.FactProf || asig?.factProf || asig?.fact_prof || facturadorPacienteDoc
-                        ).trim();
+                        const facturadorDoc = this.obtenerDocumentoFacturadorCup(asig, facturadorPacienteDoc);
                         const nombreCup = this.obtenerNombreCupDesdeId(cupId, asig?.cupsNombre || asig?.DescripcionCUP || asig?.codigo || "");
                         filas.push({
                             ...base,
@@ -1423,7 +1599,7 @@ export default {
                             cantidad: asig?.cantidad ?? "",
                             detalle: asig?.detalle || "",
                             grupoCUP: asig?.Grupo || "",
-                            factura: asig?.FactNum || "",
+                            factura: asig?.FactNum || asig?.factNum || asig?.fact_num || "",
                             facturador: this.obtenerNombreFacturador(facturadorDoc),
                             homolog: asig?.Homolog || "",
                             profesional: asig?.nombreProf || "",
@@ -1503,9 +1679,7 @@ export default {
                     for (let i = 0; i < asignaciones.length; i++) {
                         const asig = asignaciones[i];
                         const cupId = asig?.cupsId || asig?.id || "";
-                        const facturadorDoc = String(
-                            asig?.FactProf || asig?.factProf || asig?.fact_prof || facturadorPacienteDoc
-                        ).trim();
+                        const facturadorDoc = this.obtenerDocumentoFacturadorCup(asig, facturadorPacienteDoc);
                         const nombreCup = this.obtenerNombreCupDesdeId(cupId, asig?.cupsNombre || asig?.DescripcionCUP || asig?.codigo || "");
 
                         filas.push({
@@ -1574,12 +1748,7 @@ export default {
 
                 for (let i = 0; i < cups.length; i++) {
                     const cup = cups[i];
-                    const facturadorActividadDoc = String(
-                        cup?.FactProf ||
-                        cup?.factProf ||
-                        cup?.fact_prof ||
-                        ""
-                    ).trim();
+                    const facturadorActividadDoc = this.obtenerDocumentoFacturadorCup(cup);
                     const cupId = String(cup?.id || cup?.cupsId || i);
                     const profesionalDoc = String(cup?.idProf || cup?.idProfesional || "").trim();
                     const profesionalAsignado = String(cup?.nombreProf || cup?.nombreProfesional || "").trim()
@@ -1796,6 +1965,281 @@ export default {
             const nombreHoja = String(this.consultaActual?.tipo || "Informe").slice(0, 31) || "Informe";
             XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
             XLSX.writeFile(wb, this.construirNombreArchivoExcel());
+        },
+
+        etiquetaRolProfesionalInforme(rol = "") {
+            return ETIQUETAS_ROL_PROFESIONAL_INFORME[rol] || rol || "Sin rol";
+        },
+
+        onCambioRolProfesionalInforme() {
+            this.profesionalInforme = "";
+            this.profesionalBusquedaTexto = "";
+            this.indiceProfesionalResaltado = -1;
+            this.mostrarDropdownProfesional = Boolean(this.rolProfesionalInforme);
+        },
+
+        abrirDropdownProfesional() {
+            if (!this.rolProfesionalInforme) return;
+            this.mostrarDropdownProfesional = true;
+            this.indiceProfesionalResaltado = this.profesionalesDisponiblesFiltrados.length ? 0 : -1;
+        },
+
+        cerrarDropdownProfesional() {
+            this.mostrarDropdownProfesional = false;
+            this.indiceProfesionalResaltado = -1;
+        },
+
+        toggleDropdownProfesional() {
+            if (!this.rolProfesionalInforme) return;
+            if (this.mostrarDropdownProfesional) {
+                this.cerrarDropdownProfesional();
+                return;
+            }
+            this.abrirDropdownProfesional();
+        },
+
+        onInputBusquedaProfesional() {
+            this.profesionalInforme = "";
+            this.abrirDropdownProfesional();
+        },
+
+        seleccionarProfesionalInforme(prof) {
+            if (!prof) return;
+            this.profesionalInforme = String(prof.documento || "").trim();
+            this.profesionalBusquedaTexto = String(prof.nombre || "").trim();
+            this.rolProfesionalInforme = String(prof.cargo || this.rolProfesionalInforme || "").trim();
+            this.cerrarDropdownProfesional();
+        },
+
+        moverSeleccionProfesional(delta = 1) {
+            const lista = this.profesionalesDisponiblesFiltrados || [];
+            if (!lista.length) {
+                this.indiceProfesionalResaltado = -1;
+                return;
+            }
+            this.mostrarDropdownProfesional = true;
+            const actual = Number(this.indiceProfesionalResaltado);
+            const base = Number.isFinite(actual) && actual >= 0 ? actual : (delta > 0 ? -1 : 0);
+            const next = (base + delta + lista.length) % lista.length;
+            this.indiceProfesionalResaltado = next;
+        },
+
+        confirmarProfesionalResaltado() {
+            const lista = this.profesionalesDisponiblesFiltrados || [];
+            const idx = Number(this.indiceProfesionalResaltado);
+            if (!lista.length || idx < 0 || idx >= lista.length) return;
+            this.seleccionarProfesionalInforme(lista[idx]);
+        },
+
+        manejarClickFueraProfesional(event) {
+            const root = this.$el?.querySelector?.(".profesional-combobox");
+            if (!root) return;
+            if (!root.contains(event.target)) {
+                this.cerrarDropdownProfesional();
+            }
+        },
+
+        async loadPdfLogoFromSource(source) {
+            if (!source) return null;
+            if (/^data:image\//i.test(source)) {
+                return { image: source };
+            }
+            try {
+                const response = await fetch(source);
+                if (!response.ok) return null;
+                const blob = await response.blob();
+                const image = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result || ""));
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+                return image ? { image } : null;
+            } catch (_error) {
+                return null;
+            }
+        },
+
+        async getLogoForPdfProfesional() {
+            return this.loadPdfLogoFromSource(appLogoUrl);
+        },
+
+        buildPdfLogoNode(logo, fit, extra = {}) {
+            if (!logo) return { text: "" };
+            return {
+                ...(logo.svg ? { svg: logo.svg } : { image: logo.image }),
+                fit,
+                ...extra,
+            };
+        },
+
+        buildPdfWatermark(logoData) {
+            if (!logoData) return null;
+            return (_currentPage, pageSize) => {
+                const tiles = [];
+                const tileWidth = 160;
+                const gapX = 135;
+                const gapY = 115;
+                let rowIndex = 0;
+                for (let y = -90; y < pageSize.height + gapY; y += gapY) {
+                    const rowOffset = rowIndex % 2 === 0 ? 0 : tileWidth / 2;
+                    for (let x = -85 + rowOffset; x < pageSize.width + gapX; x += gapX) {
+                        tiles.push({
+                            ...this.buildPdfLogoNode(logoData, [tileWidth, tileWidth], { opacity: 0.07, angle: 45 }),
+                            absolutePosition: { x, y },
+                        });
+                    }
+                    rowIndex += 1;
+                }
+                return { stack: tiles };
+            };
+        },
+
+        async exportarPdfResumenProfesional() {
+            if (!this.mostrarResumenProfesionales) {
+                alert("No hay resumen de profesional para exportar.");
+                return;
+            }
+
+            const data = this.datasetInformeProfesionales;
+            const logoData = await this.getLogoForPdfProfesional();
+            const rango = [this.fechaInicio, this.fechaFin].filter(Boolean).join(" a ") || "Sin rango";
+            const convenio = this.consultaActual?.convenio || this.convenioInforme || "Todos";
+            const generado = new Date().toLocaleString("es-CO");
+
+            const metricas = [
+                ["Pacientes cerrados", String(data.totalPacientesCerrados || 0)],
+                ["Pacientes abiertos", String(data.totalPacientesAbiertos || 0)],
+                ["Actividades con CUPS diligenciados", String(data.totalActividadesConCups || 0)],
+                ["CUPS diligenciados", String(data.totalCupsDiligenciados || 0)],
+                ["CUPS ya facturados", String(data.totalCupsFacturados || 0)],
+            ];
+
+            const rankingRows = (data.rankingActividades || []).map((item) => [
+                String(item.label || ""),
+                String(item.value || 0),
+                String(item.extra || ""),
+            ]);
+
+            const cierresRows = (data.cierresPorDia || []).map((item) => [
+                String(item.label || ""),
+                String(item.value || 0),
+            ]);
+
+            const content = [
+                { text: "Informes Administrativos — Profesional", style: "header" },
+                { text: `Generado: ${generado}`, style: "meta", margin: [0, 0, 0, 8] },
+                {
+                    columns: [
+                        {
+                            width: "*",
+                            stack: [
+                                { text: "Profesional analizado", style: "label" },
+                                { text: data.profesionalNombre || "Sin profesional", style: "title" },
+                                { text: `${data.cargo || "Sin cargo"}${data.documento ? ` | ${data.documento}` : ""}`, style: "meta" },
+                            ],
+                        },
+                        {
+                            width: "*",
+                            stack: [
+                                { text: `Rango: ${rango}`, style: "meta" },
+                                { text: `Convenio: ${convenio}`, style: "meta" },
+                                data.actividadTopLabel
+                                    ? { text: `Actividad líder: ${data.actividadTopLabel} (${data.actividadTopCantidad} CUPS)`, style: "chip", margin: [0, 6, 0, 0] }
+                                    : { text: "" },
+                            ],
+                        },
+                    ],
+                    margin: [0, 0, 0, 12],
+                },
+                { text: "Resumen general", style: "subheader" },
+                {
+                    table: {
+                        widths: ["*", 80],
+                        body: [
+                            [
+                                { text: "Indicador", bold: true, fillColor: "#e8f1fb" },
+                                { text: "Valor", bold: true, fillColor: "#e8f1fb", alignment: "right" },
+                            ],
+                            ...metricas.map(([label, value]) => [
+                                { text: label },
+                                { text: value, alignment: "right" },
+                            ]),
+                        ],
+                    },
+                    layout: "lightHorizontalLines",
+                    margin: [0, 0, 0, 14],
+                },
+                { text: "Actividades con más CUPS diligenciados", style: "subheader" },
+                rankingRows.length
+                    ? {
+                        table: {
+                            widths: ["*", 70, "*"],
+                            body: [
+                                [
+                                    { text: "Actividad", bold: true, fillColor: "#e8f1fb" },
+                                    { text: "CUPS", bold: true, fillColor: "#e8f1fb", alignment: "right" },
+                                    { text: "Detalle", bold: true, fillColor: "#e8f1fb" },
+                                ],
+                                ...rankingRows.map(([a, b, c]) => [
+                                    { text: a },
+                                    { text: b, alignment: "right" },
+                                    { text: c },
+                                ]),
+                            ],
+                        },
+                        layout: "lightHorizontalLines",
+                        margin: [0, 0, 0, 14],
+                    }
+                    : { text: "No hay actividades para graficar.", style: "meta", margin: [0, 0, 0, 14] },
+                { text: "Cierres diarios del profesional", style: "subheader" },
+                cierresRows.length
+                    ? {
+                        table: {
+                            widths: ["*", 90],
+                            body: [
+                                [
+                                    { text: "Fecha", bold: true, fillColor: "#e8f1fb" },
+                                    { text: "Pacientes", bold: true, fillColor: "#e8f1fb", alignment: "right" },
+                                ],
+                                ...cierresRows.map(([a, b]) => [
+                                    { text: a },
+                                    { text: b, alignment: "right" },
+                                ]),
+                            ],
+                        },
+                        layout: "lightHorizontalLines",
+                    }
+                    : { text: "No hay cierres diarios en el rango.", style: "meta" },
+                {
+                    text: "Nota: este PDF contiene el informe general del profesional. El detalle tabular permanece disponible en Exportar a Excel.",
+                    style: "note",
+                    margin: [0, 16, 0, 0],
+                },
+            ];
+
+            const profesionalSlug = this.limpiarNombreArchivo(data.profesionalNombre || "profesional");
+            const rangoSlug = [this.fechaInicio, this.fechaFin].filter(Boolean).join("_a_") || "sin_rango";
+
+            const docDefinition = {
+                pageSize: "A4",
+                pageOrientation: "portrait",
+                pageMargins: [36, 36, 36, 36],
+                ...(logoData ? { background: this.buildPdfWatermark(logoData) } : {}),
+                content,
+                styles: {
+                    header: { fontSize: 16, bold: true, color: "#0f172a", margin: [0, 0, 0, 4] },
+                    title: { fontSize: 14, bold: true, color: "#0f172a" },
+                    subheader: { fontSize: 12, bold: true, margin: [0, 4, 0, 8], color: "#1e3a8a" },
+                    label: { fontSize: 9, color: "#64748b", margin: [0, 0, 0, 2] },
+                    meta: { fontSize: 9, color: "#475569" },
+                    chip: { fontSize: 9, color: "#075985", bold: true },
+                    note: { fontSize: 8, color: "#64748b", italics: true },
+                },
+                defaultStyle: { fontSize: 10 },
+            };
+
+            pdfMake.createPdf(docDefinition).download(`informe_profesional_${profesionalSlug}_${rangoSlug}.pdf`);
         },
 
         copiarHtmlTabla() {
@@ -2128,6 +2572,11 @@ export default {
                 this.actualizarProgreso(15, "Consultando registros...");
 
                 if (this.fechaInicio && this.fechaFin && this.tipoinforme == "1") {
+                    if (!this.facturadoresDisponibles.length) {
+                        await this.cargarFacturadoresDisponibles();
+                    } else {
+                        await this.asegurarMapaNombresUsuarios();
+                    }
                     let parametros = {
                         finicial: this.fechaInicio,
                         ffinal: this.fechaFin
@@ -2142,6 +2591,11 @@ export default {
                         facturador: "",
                     };
                 } else if (this.fechaInicio && this.fechaFin && this.tipoinforme == "2") {
+                    if (!this.facturadoresDisponibles.length) {
+                        await this.cargarFacturadoresDisponibles();
+                    } else {
+                        await this.asegurarMapaNombresUsuarios();
+                    }
                     let parametros = {
                         finicial: this.fechaInicio,
                         ffinal: this.fechaFin
@@ -2171,6 +2625,12 @@ export default {
                             : "Todos",
                     };
                 } else if (this.fechaInicio && this.fechaFin && this.tipoinforme == "4") {
+                    if (!String(this.rolProfesionalInforme || "").trim()) {
+                        this.$toast.error("Debe seleccionar un rol para este informe");
+                        this.actualizarProgreso(0, "Preparando consulta...");
+                        this.cargandoInforme = false;
+                        return;
+                    }
                     if (!String(this.profesionalInforme || "").trim()) {
                         this.$toast.error("Debe seleccionar un profesional para este informe");
                         this.actualizarProgreso(0, "Preparando consulta...");
@@ -2187,6 +2647,7 @@ export default {
                             : "Todos",
                         convenio: this.convenioInforme || "Todos",
                         facturador: "",
+                        rol: this.etiquetaRolProfesionalInforme(this.rolProfesionalInforme),
                     };
                 } else {
                     this.$toast.error("Debe seleccionar tipo de informe y rango de fechas");
@@ -2235,7 +2696,11 @@ export default {
             this.fechaInicio = "";
             this.fechaFin = "";
             this.convenioInforme = "";
+            this.rolProfesionalInforme = "";
             this.profesionalInforme = "";
+            this.profesionalBusquedaTexto = "";
+            this.mostrarDropdownProfesional = false;
+            this.indiceProfesionalResaltado = -1;
             this.facturadorInforme = "";
             this.progresoInforme = 0;
             this.mensajeProgreso = "Preparando consulta...";
@@ -2252,6 +2717,7 @@ export default {
                 profesional: "",
                 convenio: "",
                 facturador: "",
+                rol: "",
             };
         },
 
@@ -2274,12 +2740,54 @@ export default {
         },
         profesionalesDisponiblesFiltrados() {
             const convenioSel = this.normalizarTextoComparable(this.convenioInforme);
-            if (!convenioSel) return this.profesionalesDisponibles;
+            const rolSel = String(this.rolProfesionalInforme || "").trim();
+            const texto = this.normalizarTextoComparable(this.profesionalBusquedaTexto);
+            const textoMinimo = texto.length >= 3;
 
             return (this.profesionalesDisponibles || []).filter((prof) => {
-                const convenios = this.profesionalesConveniosMap?.[this.normalizarIdFacturador(prof.documento)] || [];
-                return convenios.some((conv) => this.normalizarTextoComparable(conv) === convenioSel);
+                if (rolSel && String(prof?.cargo || "").trim() !== rolSel) {
+                    return false;
+                }
+
+                if (convenioSel) {
+                    const convenios = this.profesionalesConveniosMap?.[this.normalizarIdFacturador(prof.documento)] || [];
+                    if (!convenios.some((conv) => this.normalizarTextoComparable(conv) === convenioSel)) {
+                        return false;
+                    }
+                }
+
+                if (!textoMinimo) {
+                    // Sin 3 letras: el listado desplegable muestra todos del rol/convenio.
+                    return true;
+                }
+
+                const nombre = this.normalizarTextoComparable(prof?.nombre);
+                const documento = this.normalizarTextoComparable(prof?.documento);
+                return nombre.includes(texto) || documento.includes(texto);
             });
+        },
+        rolesProfesionalesDisponibles() {
+            const roles = new Set(
+                (this.profesionalesDisponibles || [])
+                    .map((prof) => String(prof?.cargo || "").trim())
+                    .filter(Boolean)
+            );
+            const orden = CONFIG_REPORTE_PROFESIONALES.map((item) => item.cargo);
+            return Array.from(roles).sort((a, b) => {
+                const ia = orden.indexOf(a);
+                const ib = orden.indexOf(b);
+                if (ia === -1 && ib === -1) return a.localeCompare(b, "es", { sensitivity: "base" });
+                if (ia === -1) return 1;
+                if (ib === -1) return -1;
+                return ia - ib;
+            });
+        },
+        mensajeSinProfesionalesFiltrados() {
+            const texto = String(this.profesionalBusquedaTexto || "").trim();
+            if (texto.length > 0 && texto.length < 3) {
+                return "Escriba al menos 3 letras para filtrar por nombre, o despliegue el listado completo del rol.";
+            }
+            return "No hay profesionales para el rol/convenio/búsqueda seleccionados.";
         },
         tablaInformeProfesionalesRows() {
             if (this.tipoinforme !== "4") return [];
@@ -2830,6 +3338,7 @@ export default {
                 etiquetas.push(`Rango: ${this.formatearFechaCorta(this.consultaActual.finicial)} a ${this.formatearFechaCorta(this.consultaActual.ffinal)}`);
             }
             if (this.consultaActual.convenio) etiquetas.push(`Convenio: ${this.consultaActual.convenio}`);
+            if (this.consultaActual.rol) etiquetas.push(`Rol: ${this.consultaActual.rol}`);
             if (this.consultaActual.profesional) etiquetas.push(`Profesional: ${this.consultaActual.profesional}`);
             if (this.consultaActual.facturador) etiquetas.push(`Facturador: ${this.consultaActual.facturador}`);
             return etiquetas;
@@ -2838,7 +3347,7 @@ export default {
     },
     watch: {
         tipoinforme(nuevoTipo) {
-            if (nuevoTipo === "3" && (!this.facturadoresDisponibles || this.facturadoresDisponibles.length === 0)) {
+            if ((nuevoTipo === "1" || nuevoTipo === "2" || nuevoTipo === "3") && (!this.facturadoresDisponibles || this.facturadoresDisponibles.length === 0)) {
                 this.cargarFacturadoresDisponibles();
             }
             if (nuevoTipo === "3" && (!this.profesionalesDisponibles || this.profesionalesDisponibles.length === 0)) {
@@ -2863,6 +3372,24 @@ export default {
                 );
                 if (!existeProfesional) {
                     this.profesionalInforme = "";
+                    this.profesionalBusquedaTexto = "";
+                }
+            }
+        },
+        rolProfesionalInforme(nuevoRol) {
+            if (!nuevoRol) {
+                this.profesionalInforme = "";
+                this.profesionalBusquedaTexto = "";
+                this.cerrarDropdownProfesional();
+                return;
+            }
+            if (this.profesionalInforme) {
+                const existe = this.profesionalesDisponiblesFiltrados.some(
+                    (prof) => prof.documento === this.profesionalInforme
+                );
+                if (!existe) {
+                    this.profesionalInforme = "";
+                    this.profesionalBusquedaTexto = "";
                 }
             }
         },
@@ -2880,6 +3407,7 @@ export default {
 
     mounted() {
         window.addEventListener('resize', this.actualizarAnchoTabla);
+        document.addEventListener('mousedown', this.manejarClickFueraProfesional);
         this.cargarConveniosDisponibles();
         // Inicializar detallesVisibles según la cantidad de pacientes
         this.$watch(
@@ -2895,6 +3423,7 @@ export default {
     },
     beforeUnmount() {
         window.removeEventListener('resize', this.actualizarAnchoTabla);
+        document.removeEventListener('mousedown', this.manejarClickFueraProfesional);
     },
 };
 </script>

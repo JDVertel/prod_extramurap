@@ -118,7 +118,7 @@
 import { getDelegatedProfessionals } from "@/api/usersApi";
 import { ipsApi } from "@/api/modulesApi";
 import { getCargoBadgeClass } from "@/utils/cargoBadges";
-import { formatearGruposFacturador } from "@/utils/grupoUtils";
+import { formatearGruposFacturador, usuarioPerteneceAGrupoReservado } from "@/utils/grupoUtils";
 import { mapState } from "vuex";
 
 const CARGO_CANONICO_POR_NORMALIZADO = {
@@ -280,7 +280,7 @@ export default {
         this.profesionales = (usuarios || [])
           .filter((user) => {
             const cargo = String(user?.cargo || "").trim();
-            return esCargoProfesional(cargo);
+            return esCargoProfesional(cargo) && !usuarioPerteneceAGrupoReservado(user);
           })
           .sort((a, b) => String(a?.nombre || "").localeCompare(String(b?.nombre || "")));
       } catch (err) {

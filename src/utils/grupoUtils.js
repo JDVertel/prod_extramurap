@@ -1,4 +1,5 @@
 export const GRUPO_FACTURADOR_TODOS = "F";
+export const GRUPO_RESERVADO_SISTEMA = "0000";
 
 export function esFacturadorCargo(cargo) {
   const value = String(cargo || "").trim().toLowerCase();
@@ -10,11 +11,20 @@ export function esGrupoFacturadorTodos(valor) {
   return lower === "f" || lower === "todos";
 }
 
+export function esGrupoReservadoSistema(valor) {
+  return String(valor || "").trim() === GRUPO_RESERVADO_SISTEMA;
+}
+
 export function parseGruposUsuario(valor) {
   return String(valor || "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+/** Usuarios del grupo 0000 no deben aparecer en filtros de informes ni profesionales delegados. */
+export function usuarioPerteneceAGrupoReservado(usuario = {}) {
+  return parseGruposUsuario(usuario?.grupo).some((grupo) => esGrupoReservadoSistema(grupo));
 }
 
 export function facturadorSeleccionoTodosExplicito(valor) {
@@ -136,7 +146,7 @@ export function obtenerGruposOperativosDesdeUsuarios(usuarios = [], convenioFilt
     }
 
     parseGruposUsuario(usuario?.grupo).forEach((grupo) => {
-      if (esGrupoFacturadorTodos(grupo) || grupo === "0") {
+      if (esGrupoFacturadorTodos(grupo) || grupo === "0" || esGrupoReservadoSistema(grupo)) {
         return;
       }
       grupos.add(grupo);

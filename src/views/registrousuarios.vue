@@ -1094,6 +1094,7 @@ import {
     facturadorSeleccionoTodosExplicito,
     facturadorVeTodosLosGrupos,
     validarGruposFacturador,
+    usuarioPerteneceAGrupoReservado,
     esFacturadorCargo as esCargoFacturador,
 } from "@/utils/grupoUtils";
 import {
@@ -1453,6 +1454,7 @@ export default {
                     const documento = String(u?.numDocumento || '').trim();
 
                     if (!cargos.has(cargo) || !documento) return;
+                    if (usuarioPerteneceAGrupoReservado(u)) return;
                     if (idEditando && u.uid === idEditando) return;
 
                     if (!mapaPorDocumento.has(documento)) {
