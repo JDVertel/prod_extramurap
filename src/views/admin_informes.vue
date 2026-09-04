@@ -150,16 +150,27 @@
             </div>
 
             <div v-if="mostrarPanelInformeProfesional" class="d-flex flex-wrap align-items-center gap-3 mb-3 admin-informe-export-bar">
+                <button
+                    type="button"
+                    class="btn btn-outline-success admin-informe-action"
+                    :disabled="!tieneDatosTabla"
+                    @click="exportarExcelFiltrado"
+                >
+                    <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+                </button>
                 <button type="button" class="btn btn-outline-danger admin-informe-action" @click="exportarPdfResumenProfesional">
                     <i class="bi bi-file-earmark-pdf"></i> Descargar PDF (resumen)
                 </button>
-                <span class="text-muted small">PDF del informe general del profesional (no incluye la tabla Excel).</span>
+                <span class="badge bg-primary fs-6 py-2 px-3" v-if="tieneDatosTabla">
+                    Registros: {{ totalRegistrosInformeAdmin }}
+                </span>
+                <span class="text-muted small">Excel descarga el detalle completo; PDF solo el resumen.</span>
             </div>
             <div v-if="mostrarPanelInformeProfesional && !datasetInformeProfesionales.hasData" class="alert alert-warning border py-4 text-center mb-4">
                 <i class="bi bi-inbox fs-3 d-block mb-2"></i>
                 <strong>{{ mensajeRangoSinDatos }}</strong>
             </div>
-            <div v-if="tieneDatosTabla" class="d-flex flex-wrap align-items-center gap-3 mb-3 admin-informe-export-bar">
+            <div v-if="tieneDatosTabla && tipoinforme !== '4'" class="d-flex flex-wrap align-items-center gap-3 mb-3 admin-informe-export-bar">
                 <button type="button" class="btn btn-outline-success admin-informe-action" @click="exportarExcelFiltrado">
                     <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
                 </button>

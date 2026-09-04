@@ -26,13 +26,23 @@
             <div :class="activacion ? 'col-12' : 'col-12 col-lg-9 col-xl-10'">
                 <!-- Barra de acciones -->
                 <div v-if="activacion" class="informe-toolbar d-flex flex-wrap gap-2 mb-3">
+                    <button
+                        class="btn btn-outline-success"
+                        :disabled="informeSinDatos"
+                        @click="exportarExcelInforme"
+                    >
+                        <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+                    </button>
                     <button class="btn btn-danger" @click="exportarPdfInforme">
                         <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
                     </button>
                     <button class="btn btn-secondary" @click="resetInforme">
                         Nuevo informe
                     </button>
-                    <span class="text-muted align-self-center small">Total registros: {{ totalRegistros }}</span>
+                    <span class="text-muted align-self-center small">
+                        Total registros: {{ totalRegistros }}
+                        · Excel descarga la tabla completa
+                    </span>
                 </div>
 
                 <div v-if="activacion && informeSinDatos" class="alert alert-warning border py-4 text-center">
@@ -303,6 +313,7 @@ import {
     MENSAJE_RANGO_SIN_DATOS,
     buildPdfContentResumenProfesional,
 } from "@/utils/informeProfesionalPdf";
+import { exportarInformeProfesionalExcel } from "@/utils/informeProfesionalExcel";
 
 pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 export default {
@@ -468,6 +479,32 @@ export default {
                 }
                 return { stack: tiles };
             };
+        },
+        exportarExcelInforme() {
+            if (this.informeSinDatos) {
+                if (this.$toast?.error) this.$toast.error("No hay datos para exportar.");
+                else alert("No hay datos para exportar.");
+                return;
+            }
+
+            const ok = exportarInformeProfesionalExcel({
+                tipoInforme: this.tipoInforme,
+                filas: this.encuestasFiltradas || [],
+                dataips: this.dataips || {},
+                userData: this.userData || {},
+                columnasTipoActividad: this.columnasTipoActividad,
+                columnasPoblacionRiesgo: this.columnasPoblacionRiesgo,
+                actividadRealizada: (encuesta, col) => this.actividadRealizada(encuesta, col),
+                cupsPorEncuesta: this.cupsPorEncuesta || {},
+                obtenerNombreActividad: (idActividad) => this.obtenerNombreActividadExtra(idActividad),
+                fechaInicio: this.fechaInicio,
+                fechaFin: this.fechaFin,
+            });
+
+            if (!ok) {
+                if (this.$toast?.error) this.$toast.error("No hay datos para exportar.");
+                else alert("No hay datos para exportar.");
+            }
         },
         async exportarPdfInforme() {
             const logoData = await this.getLogoForPdf();
