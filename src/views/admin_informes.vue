@@ -573,6 +573,7 @@ import appLogoUrl from "@/assets/images/logo_extramurapp.png";
 import {
     buildExcelRowsFromColumnas,
     createWorksheetFromRows,
+    aplicarTiposNumericosEnHoja,
 } from "@/utils/excelExport";
 import {
     mapState,
@@ -1468,13 +1469,16 @@ export default {
 
             const [respEncuestas, catalog] = await Promise.all([
                 realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
-                loadInformesCatalogSnapshot({ includeActividades: true }),
+                loadInformesCatalogSnapshot({
+                    includeAsignaciones: false,
+                    includeActividades: false,
+                    includeCups: true,
+                }),
             ]);
 
             const encuestasObj = respEncuestas?.data || {};
-            const actividadesGlobal = catalog.actividades || {};
-            const asignacionesGlobal = catalog.asignaciones || {};
             const actividadesExtraGlobal = catalog.actividadesExtra || {};
+            const cupsGlobal = catalog.cups || {};
 
             this.actividadesExtraMap = Object.entries(actividadesExtraGlobal).reduce((acc, [id, item]) => {
                 if (item && item.key !== undefined && item.key !== null) {
@@ -1485,33 +1489,33 @@ export default {
                 return acc;
             }, {});
 
+            this.cupsMap = Object.entries(cupsGlobal || {}).reduce((acc, [id, item]) => {
+                if (item && typeof item === "object") {
+                    acc[String(id)] = item.DescripcionCUP || item.nombre || item.codigo || String(id);
+                }
+                return acc;
+            }, {});
+
             const encuestasLista = Object.entries(encuestasObj).map(([id, data]) => ({
                 id,
                 ...(data || {}),
             }));
 
+            const encuestaIds = encuestasLista
+                .map((paciente) => String(paciente.id || paciente.idEncuesta || "").trim())
+                .filter(Boolean);
+
+            const bulkAsignaciones = await informesApi.getAsignacionesCupsBulk(encuestaIds);
+            const asignacionesGlobal = bulkAsignaciones?.asignaciones || {};
+
             this.encuestasInforme = encuestasLista.map((paciente) => {
-                const idEncuesta = String(paciente.id || paciente.idEncuesta || "");
+                const idEncuesta = String(paciente.id || paciente.idEncuesta || "").trim();
                 const cupsAsignados = this.normalizarCupsAsignaciones(asignacionesGlobal[idEncuesta]);
-                const actividades = this.normalizarActividadesEncuesta(actividadesGlobal[idEncuesta], cupsAsignados);
-
-                const seguimientoActividades = actividades.map((actividad) => {
-                    const idsActividad = new Set(
-                        [actividad.key, actividad.id, actividad.sourceId]
-                            .map((valor) => this.normalizarIdRelacion(valor))
-                            .filter(Boolean)
-                    );
-
-                    const asignaciones = cupsAsignados.filter((cup) => {
-                        const cupActividadId = this.normalizarIdRelacion(cup?.actividadId ?? cup?.idActividad ?? "");
-                        return cupActividadId && idsActividad.has(cupActividadId);
-                    });
-
-                    return {
-                        ...actividad,
-                        asignaciones,
-                    };
-                });
+                const seguimientoActividades = this.construirSeguimientoActividadesPaciente(
+                    paciente,
+                    cupsAsignados,
+                    null
+                );
 
                 return {
                     ...paciente,
@@ -1528,38 +1532,45 @@ export default {
             for (const paciente of encuestas) {
                 const facturadorPacienteDoc = String(paciente?.asigfact || paciente?.asig_fact || "").trim();
                 const nombreFacturadorPaciente = this.obtenerNombreFacturador(facturadorPacienteDoc);
+                const barrioComuna = this.obtenerBarrioComunaPaciente(paciente);
                 const base = {
-                    fecha: this.formatearFechaYYYYMMDD(paciente.fecha),
-                    estadoFacturacion: (
-                        paciente.status_facturacion === true
-                        || paciente.status_facturacion === 1
-                        || paciente.status_facturacion === "1"
-                    ) ? "Cerrada" : "Abierta",
+                    fecha: this.formatearFechaYYYYMMDD(paciente.fecha || paciente.fechavisita || paciente.fecha_visita),
+                    estadoFacturacion: this.esEstadoCerradoGestion(paciente.status_facturacion) ? "Cerrada" : "Abierta",
                     grupo: paciente.grupo || "",
-                    paciente: `${paciente.nombre1 || ""} ${paciente.apellido1 || ""} ${paciente.apellido2 || ""}`.trim(),
+                    paciente: this.construirNombrePacienteSeguimiento(paciente),
                     sexo: paciente.sexo || "",
-                    documento: `${paciente.tipodoc || ""}-${paciente.numdoc || ""}`,
-                    fechaNac: this.formatearFechaYYYYMMDD(paciente.fechaNac),
+                    documento: [paciente.tipodoc, paciente.numdoc].filter(Boolean).join("-"),
+                    fechaNac: this.formatearFechaYYYYMMDD(paciente.fechaNac || paciente.fecha_nac),
                     eps: paciente.eps || "",
                     regimen: paciente.regimen || "",
                     direccion: paciente.direccion || "",
-                    barrio: paciente.barrioVeredacomuna?.barrio || "",
-                    comuna: paciente.barrioVeredacomuna?.comuna || "",
-                    labVisit: `${paciente.Agenda_tomademuestras?.cita_tomamuestras ? 'Sí' : 'No'}/${paciente.Agenda_Visitamedica?.cita_visitamedica ? 'Sí' : 'No'}`,
-                    gestAux: paciente.status_gest_aux ? this.formatearFechaYYYYMMDD(paciente.fechagestAuxiliar) : "No",
-                    gestEnfermera: paciente.status_gest_enfermera ? this.formatearFechaYYYYMMDD(paciente.fechagestEnfermera) : "No",
-                    gestMedica: paciente.status_gest_medica ? this.formatearFechaYYYYMMDD(paciente.fechagestMedica) : "No",
+                    barrio: barrioComuna.barrio,
+                    comuna: barrioComuna.comuna,
+                    labVisit: `${paciente.Agenda_tomademuestras?.cita_tomamuestras ? "Sí" : "No"}/${paciente.Agenda_Visitamedica?.cita_visitamedica ? "Sí" : "No"}`,
+                    gestAux: this.obtenerFechaGestionCerrada(paciente, "status_gest_aux", [
+                        "fechagestAuxiliar",
+                        "fecha_gest_auxiliar",
+                    ]),
+                    gestEnfermera: this.obtenerFechaGestionCerrada(paciente, "status_gest_enfermera", [
+                        "fechagestEnfermera",
+                        "fecha_gest_enfermera",
+                    ]),
+                    gestMedica: this.obtenerFechaGestionCerrada(paciente, "status_gest_medica", [
+                        "fechagestMedica",
+                        "fecha_gest_medica",
+                    ]),
                     fechaFacturacion: this.formatearFechaYYYYMMDD(
                         paciente.FechaFacturacion || paciente.fechaFacturacion || paciente.fecha_facturacion
                     ) || "No",
                     nombreFacturador: nombreFacturadorPaciente,
-                    remision: paciente.requiereRemision || "",
+                    remision: paciente.requiereRemision || paciente.requiere_remision || "",
                     convenio: paciente.convenio || "",
                 };
 
                 const actividades = Array.isArray(paciente.seguimientoActividades) ? paciente.seguimientoActividades : [];
+                const cupsSueltos = Array.isArray(paciente.cupsAsignadosRaw) ? paciente.cupsAsignadosRaw : [];
 
-                if (!actividades.length) {
+                if (!actividades.length && !cupsSueltos.length) {
                     filas.push({
                         ...base,
                         rowKey: `${paciente.id}-sin-actividad`,
@@ -1568,7 +1579,7 @@ export default {
                         cupsNombre: "",
                         codigo: "",
                         descripcionCUP: "",
-                        cantidad: "",
+                        cantidad: null,
                         detalle: "",
                         grupoCUP: "",
                         factura: "",
@@ -1583,18 +1594,26 @@ export default {
                     continue;
                 }
 
-                for (const actividad of actividades) {
+                const actividadesParaFilas = actividades.length
+                    ? actividades
+                    : [{
+                        key: "cups-directos",
+                        nombre: "CUPS asignados",
+                        asignaciones: cupsSueltos,
+                    }];
+
+                for (const actividad of actividadesParaFilas) {
                     const asignaciones = Array.isArray(actividad.asignaciones) ? actividad.asignaciones : [];
                     if (!asignaciones.length) {
                         filas.push({
                             ...base,
-                            rowKey: `${paciente.id}-${actividad.key}-sin-asignacion`,
+                            rowKey: `${paciente.id}-${actividad.key || actividad.id || "act"}-sin-asignacion`,
                             actividad: actividad.nombre || "Actividad",
                             procedimiento: "Sin asignaciones",
                             cupsNombre: "",
                             codigo: "",
                             descripcionCUP: "",
-                            cantidad: "",
+                            cantidad: null,
                             detalle: "",
                             grupoCUP: "",
                             factura: "",
@@ -1613,16 +1632,19 @@ export default {
                         const asig = asignaciones[i];
                         const cupId = asig?.cupsId || asig?.id || "";
                         const facturadorDoc = this.obtenerDocumentoFacturadorCup(asig, facturadorPacienteDoc);
-                        const nombreCup = this.obtenerNombreCupDesdeId(cupId, asig?.cupsNombre || asig?.DescripcionCUP || asig?.codigo || "");
+                        const nombreCup = this.obtenerNombreCupDesdeId(
+                            cupId,
+                            asig?.cupsNombre || asig?.DescripcionCUP || asig?.codigo || ""
+                        );
                         filas.push({
                             ...base,
-                            rowKey: `${paciente.id}-${actividad.key}-${i}`,
+                            rowKey: `${paciente.id}-${actividad.key || actividad.id || "act"}-${i}`,
                             actividad: actividad.nombre || "Actividad",
                             procedimiento: nombreCup,
                             cupsNombre: nombreCup,
                             codigo: asig?.codigo || "",
-                            descripcionCUP: asig?.DescripcionCUP || "",
-                            cantidad: asig?.cantidad ?? "",
+                            descripcionCUP: asig?.DescripcionCUP || asig?.cupsNombre || "",
+                            cantidad: this.obtenerCantidadNumerica(asig?.cantidad),
                             detalle: asig?.detalle || "",
                             grupoCUP: asig?.Grupo || "",
                             factura: asig?.FactNum || asig?.factNum || asig?.fact_num || "",
@@ -1631,8 +1653,12 @@ export default {
                             profesional: asig?.nombreProf || "",
                             rol: asig?.key || "",
                             convenio: base.convenio,
-                            fechaFactCUP: this.formatearFechaYYYYMMDD(asig?.fechaFacturacion) || "",
-                            facturado: asig?.facturado === true ? "Sí" : (asig?.facturado === false ? "No" : ""),
+                            fechaFactCUP: this.formatearFechaYYYYMMDD(
+                                asig?.fechaFacturacion || asig?.fecha_facturacion
+                            ) || "",
+                            facturado: asig?.facturado === true || asig?.facturado === 1
+                                ? "Sí"
+                                : (asig?.facturado === false || asig?.facturado === 0 ? "No" : ""),
                         });
                     }
                 }
@@ -1647,27 +1673,31 @@ export default {
 
             for (const paciente of encuestas) {
                 const facturadorPacienteDoc = String(paciente?.asigfact || paciente?.asig_fact || "").trim();
+                const barrioComuna = this.obtenerBarrioComunaPaciente(paciente);
                 const base = {
                     convenio: paciente.convenio || "",
                     grupo: paciente.grupo || "",
                     fecha: this.formatearFechaYYYYMMDD(
                         paciente.fechagestEnfermera || paciente.fecha_gest_enfermera || paciente.fecha
                     ),
-                    paciente: `${paciente.nombre1 || ""} ${paciente.apellido1 || ""} ${paciente.apellido2 || ""}`.trim(),
+                    paciente: this.construirNombrePacienteSeguimiento(paciente),
                     sexo: paciente.sexo || "",
-                    documento: `${paciente.tipodoc || ""}-${paciente.numdoc || ""}`,
+                    documento: [paciente.tipodoc, paciente.numdoc].filter(Boolean).join("-"),
                     eps: paciente.eps || "",
                     regimen: paciente.regimen || "",
                     direccion: paciente.direccion || "",
-                    barrio: paciente.barrioVeredacomuna?.barrio || "",
-                    comuna: paciente.barrioVeredacomuna?.comuna || "",
-                    riesgo: paciente.poblacionRiesgo || "",
-                    remision: paciente.requiereRemision || "",
+                    barrio: barrioComuna.barrio,
+                    comuna: barrioComuna.comuna,
+                    riesgo: Array.isArray(paciente.poblacionRiesgo)
+                        ? paciente.poblacionRiesgo.join(", ")
+                        : (paciente.poblacionRiesgo || paciente.poblacion_riesgo || ""),
+                    remision: paciente.requiereRemision || paciente.requiere_remision || "",
                 };
 
                 const actividades = Array.isArray(paciente.seguimientoActividades) ? paciente.seguimientoActividades : [];
+                const cupsSueltos = Array.isArray(paciente.cupsAsignadosRaw) ? paciente.cupsAsignadosRaw : [];
 
-                if (!actividades.length) {
+                if (!actividades.length && !cupsSueltos.length) {
                     filas.push({
                         ...base,
                         rowKey: `${paciente.id}-sin-actividad`,
@@ -1678,19 +1708,27 @@ export default {
                         cupsNombre: "",
                         codigo: "",
                         descripcionCUP: "",
-                        cantidad: "",
+                        cantidad: null,
                         detalle: "",
                     });
                     continue;
                 }
 
-                for (const actividad of actividades) {
+                const actividadesParaFilas = actividades.length
+                    ? actividades
+                    : [{
+                        key: "cups-directos",
+                        nombre: "CUPS asignados",
+                        asignaciones: cupsSueltos,
+                    }];
+
+                for (const actividad of actividadesParaFilas) {
                     const asignaciones = Array.isArray(actividad.asignaciones) ? actividad.asignaciones : [];
 
                     if (!asignaciones.length) {
                         filas.push({
                             ...base,
-                            rowKey: `${paciente.id}-${actividad.key}-sin-asignacion`,
+                            rowKey: `${paciente.id}-${actividad.key || actividad.id || "act"}-sin-asignacion`,
                             actividad: actividad.nombre || "Actividad",
                             facturador: this.obtenerNombreFacturador(facturadorPacienteDoc),
                             profesional: "",
@@ -1698,7 +1736,7 @@ export default {
                             cupsNombre: "",
                             codigo: "",
                             descripcionCUP: "",
-                            cantidad: "",
+                            cantidad: null,
                             detalle: "",
                         });
                         continue;
@@ -1708,19 +1746,22 @@ export default {
                         const asig = asignaciones[i];
                         const cupId = asig?.cupsId || asig?.id || "";
                         const facturadorDoc = this.obtenerDocumentoFacturadorCup(asig, facturadorPacienteDoc);
-                        const nombreCup = this.obtenerNombreCupDesdeId(cupId, asig?.cupsNombre || asig?.DescripcionCUP || asig?.codigo || "");
+                        const nombreCup = this.obtenerNombreCupDesdeId(
+                            cupId,
+                            asig?.cupsNombre || asig?.DescripcionCUP || asig?.codigo || ""
+                        );
 
                         filas.push({
                             ...base,
-                            rowKey: `${paciente.id}-${actividad.key}-${i}`,
+                            rowKey: `${paciente.id}-${actividad.key || actividad.id || "act"}-${i}`,
                             actividad: actividad.nombre || "Actividad",
-                            facturador: this.obtenerNombreFacturador(facturadorDoc),
+                            facturador: this.obtenerNombreFacturador(facturadorDoc) || this.obtenerNombreFacturador(facturadorPacienteDoc),
                             profesional: asig?.nombreProf || "",
                             rol: asig?.key || "",
                             cupsNombre: nombreCup,
                             codigo: asig?.codigo || "",
-                            descripcionCUP: asig?.DescripcionCUP || "",
-                            cantidad: asig?.cantidad ?? "",
+                            descripcionCUP: asig?.DescripcionCUP || asig?.cupsNombre || "",
+                            cantidad: this.obtenerCantidadNumerica(asig?.cantidad),
                             detalle: asig?.detalle || "",
                         });
                     }
@@ -1760,7 +1801,7 @@ export default {
                     filas.push({
                         ...base,
                         rowKey: `${paciente.id}-sin-cups` ,
-                        cantidad: "",
+                        cantidad: null,
                         fechaFacturacionCup: "",
                         fechaCierreFactura: base.fechaCierreFactura,
                         numeroFactura: "",
@@ -1785,7 +1826,7 @@ export default {
                     filas.push({
                         ...base,
                         rowKey: `${paciente.id}-${cupId}-${i}`,
-                        cantidad: cup?.cantidad ?? "",
+                        cantidad: this.obtenerCantidadNumerica(cup?.cantidad),
                         fechaFacturacionCup: this.formatearFechaCorta(
                             cup?.fechaFacturacion ||
                             cup?.fecha_facturacion ||
@@ -1798,7 +1839,7 @@ export default {
                         codigo: cup?.codigo || "",
                         profesional: profesionalAsignado,
                         facturadorActividad: this.obtenerNombreFacturador(facturadorActividadDoc),
-                        facturado: cup?.facturado === true ? "Sí" : "No",
+                        facturado: cup?.facturado === true || cup?.facturado === 1 ? "Sí" : "No",
                     });
                 }
             }
@@ -1815,12 +1856,16 @@ export default {
 
             const [respEncuestas, catalog] = await Promise.all([
                 realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
-                loadInformesCatalogSnapshot({}),
+                loadInformesCatalogSnapshot({
+                    includeAsignaciones: false,
+                    includeActividades: false,
+                    includeCups: true,
+                }),
             ]);
 
             const encuestasObj = respEncuestas?.data || {};
-            const asignacionesObj = catalog.asignaciones || {};
             const actividadesExtraGlobal = catalog.actividadesExtra || {};
+            const cupsGlobal = catalog.cups || {};
 
             this.actividadesExtraMap = Object.entries(actividadesExtraGlobal).reduce((acc, [id, item]) => {
                 if (item && item.key !== undefined && item.key !== null) {
@@ -1831,28 +1876,59 @@ export default {
                 return acc;
             }, {});
 
+            this.cupsMap = Object.entries(cupsGlobal || {}).reduce((acc, [id, item]) => {
+                if (item && typeof item === "object") {
+                    acc[String(id)] = item.DescripcionCUP || item.nombre || item.codigo || String(id);
+                }
+                return acc;
+            }, {});
+
             const convenioSeleccionado = this.normalizarConvenio(this.convenioInforme);
             const facturadorSeleccionado = this.normalizarIdFacturador(this.facturadorInforme);
 
-            const encuestasLista = Object.entries(encuestasObj).map(([id, data]) => ({
-                id,
-                ...(data || {}),
-            }));
-
-            this.encuestasInforme = encuestasLista
+            const encuestasCandidatas = Object.entries(encuestasObj)
+                .map(([id, data]) => ({
+                    id,
+                    ...(data || {}),
+                }))
                 .filter((encuesta) => {
                     if (!convenioSeleccionado) return true;
                     return this.normalizarConvenio(encuesta?.convenio) === convenioSeleccionado;
                 })
-                .map((encuesta) => {
-                    const cupsObj = asignacionesObj?.[encuesta.id]?.cups;
-                    const cupsLista = cupsObj && typeof cupsObj === "object"
-                        ? Object.entries(cupsObj).map(([cupId, cup]) => ({ id: cupId, ...(cup || {}) }))
-                        : [];
+                .filter((encuesta) => {
+                    const fechaPacienteEnRango = this.fechaDentroDeRango(
+                        encuesta?.FechaFacturacion || encuesta?.fechaFacturacion || encuesta?.fecha_facturacion,
+                        this.fechaInicio,
+                        this.fechaFin
+                    );
+                    const fechaAprovisionamientoEnRango = this.fechaDentroDeRango(
+                        encuesta?.fechagestEnfermera || encuesta?.fecha_gest_enfermera,
+                        this.fechaInicio,
+                        this.fechaFin
+                    );
+                    const fechaGeneracionEnRango = this.fechaDentroDeRango(
+                        encuesta?.fecha,
+                        this.fechaInicio,
+                        this.fechaFin
+                    );
+                    return fechaPacienteEnRango || fechaAprovisionamientoEnRango || fechaGeneracionEnRango;
+                });
 
-                    const cupsRelacionados = cupsLista.filter((cup) => {
+            const encuestaIds = encuestasCandidatas
+                .map((encuesta) => String(encuesta.id || encuesta.idEncuesta || "").trim())
+                .filter(Boolean);
+
+            const bulkAsignaciones = await informesApi.getAsignacionesCupsBulk(encuestaIds);
+            const asignacionesGlobal = bulkAsignaciones?.asignaciones || {};
+
+            this.encuestasInforme = encuestasCandidatas
+                .map((encuesta) => {
+                    const idEncuesta = String(encuesta.id || encuesta.idEncuesta || "").trim();
+                    const cupsAsignados = this.normalizarCupsAsignaciones(asignacionesGlobal[idEncuesta]);
+
+                    const cupsRelacionados = cupsAsignados.filter((cup) => {
                         const tieneFactura = String(cup?.FactNum || cup?.factNum || cup?.fact_num || "").trim().length > 0;
-                        const fueFacturado = cup?.facturado === true;
+                        const fueFacturado = cup?.facturado === true || cup?.facturado === 1;
                         const tieneFacturador = String(
                             cup?.FactProf || cup?.factProf || cup?.fact_prof || ""
                         ).trim().length > 0;
@@ -1862,11 +1938,12 @@ export default {
                     const pacienteAprovisionado = String(
                         encuesta?.asigfact || encuesta?.asig_fact || ""
                     ).trim().length > 0;
-                    const pacienteCerrado = encuesta?.status_facturacion === true;
+                    const pacienteCerrado = this.esEstadoCerradoGestion(encuesta?.status_facturacion);
 
                     return {
                         ...encuesta,
                         cupsFacturacion: cupsRelacionados,
+                        cupsAsignadosRaw: cupsAsignados,
                         includeInFacturacion: pacienteCerrado || pacienteAprovisionado || cupsRelacionados.length > 0,
                     };
                 })
@@ -1981,11 +2058,13 @@ export default {
             }
 
             const filasExcel = buildExcelRowsFromColumnas(filas, this.columnasTabla);
-
             const ws = createWorksheetFromRows(filasExcel, { columnas: this.columnasTabla });
             if (ws["!ref"]) {
                 ws["!autofilter"] = { ref: ws["!ref"] };
             }
+
+            // Segunda pasada: fuerza tipo número en columnas marcadas.
+            aplicarTiposNumericosEnHoja(ws, { columnas: this.columnasTabla });
 
             ws["!cols"] = this.columnasTabla.map(() => ({ wch: 22 }));
 
@@ -2321,6 +2400,127 @@ export default {
             });
         },
 
+        obtenerCantidadNumerica(valor) {
+            if (valor === null || valor === undefined || valor === "") return null;
+            const numero = Number(String(valor).trim().replace(",", "."));
+            return Number.isFinite(numero) ? numero : null;
+        },
+
+        obtenerBarrioComunaPaciente(paciente = {}) {
+            const raw = paciente?.barrioVeredacomuna ?? paciente?.barrio_vereda_comuna ?? "";
+            if (raw && typeof raw === "object") {
+                return {
+                    barrio: String(raw.barrio || raw.Barrio || "").trim(),
+                    comuna: String(raw.comuna || raw.Comuna || "").trim(),
+                };
+            }
+
+            const texto = String(raw || "").trim();
+            if (!texto) {
+                return { barrio: "", comuna: "" };
+            }
+
+            const match = texto.match(/^(.*?)(?:\s*\/\s*|\s*\|\s*)(.*)$/);
+            if (match) {
+                return {
+                    barrio: String(match[1] || "").trim(),
+                    comuna: String(match[2] || "").trim(),
+                };
+            }
+
+            return { barrio: texto, comuna: "" };
+        },
+
+        construirNombrePacienteSeguimiento(paciente = {}) {
+            return [
+                paciente?.nombre1,
+                paciente?.nombre2,
+                paciente?.apellido1,
+                paciente?.apellido2,
+            ]
+                .map((parte) => String(parte || "").trim())
+                .filter(Boolean)
+                .join(" ");
+        },
+
+        obtenerFechaGestionCerrada(paciente = {}, statusKey = "", fechaKeys = []) {
+            if (!this.esEstadoCerradoGestion(paciente?.[statusKey])) return "No";
+            for (const key of fechaKeys) {
+                const valor = this.formatearFechaYYYYMMDD(paciente?.[key]);
+                if (valor) return valor;
+            }
+            return "Sí";
+        },
+
+        /**
+         * Arma actividades/CUPS del seguimiento usando el bulk de CUPS como fuente
+         * principal (evita el dump global /Actividades.json truncado a 5000).
+         */
+        construirSeguimientoActividadesPaciente(paciente = {}, cupsAsignados = [], actividadesDump = null) {
+            const cups = Array.isArray(cupsAsignados) ? cupsAsignados.filter(Boolean) : [];
+            const actividadesPorId = new Map();
+
+            const registrarActividad = (actividadId, extras = {}) => {
+                const id = this.normalizarIdRelacion(actividadId) || "sin-actividad";
+                if (actividadesPorId.has(id)) {
+                    return actividadesPorId.get(id);
+                }
+
+                const actividad = {
+                    id,
+                    sourceId: id,
+                    key: id === "sin-actividad" ? "sin-actividad" : id,
+                    nombre:
+                        extras.nombre ||
+                        this.obtenerNombreActividadDesdeKey(id) ||
+                        (id === "sin-actividad" ? "Sin actividad vinculada" : id),
+                    asignaciones: [],
+                };
+                actividadesPorId.set(id, actividad);
+                return actividad;
+            };
+
+            // 1) Actividades declaradas en dump (si existen para esta encuesta)
+            const tipoActividad = actividadesDump?.tipoActividad || (
+                actividadesDump && typeof actividadesDump === "object" && !Array.isArray(actividadesDump)
+                    ? actividadesDump
+                    : null
+            );
+
+            if (tipoActividad && typeof tipoActividad === "object") {
+                Object.entries(tipoActividad).forEach(([actividadId, actividad]) => {
+                    if (!actividad || typeof actividad !== "object") return;
+                    const key = this.normalizarIdRelacion(
+                        actividad.key ?? actividad.clave ?? actividad.actividadId ?? actividadId
+                    );
+                    const sourceId = this.normalizarIdRelacion(actividadId);
+                    const id = key || sourceId;
+                    if (!id) return;
+
+                    registrarActividad(id, {
+                        nombre:
+                            this.obtenerNombreActividadDesdeKey(id) ||
+                            actividad.nombre ||
+                            actividad.descripcion ||
+                            id,
+                    });
+                });
+            }
+
+            // 2) Adjuntar TODOS los CUPS (incluye huérfanos sin actividadId)
+            cups.forEach((cup) => {
+                const actividadId =
+                    this.normalizarIdRelacion(cup?.actividadId ?? cup?.idActividad ?? "") || "sin-actividad";
+                const actividad = registrarActividad(actividadId);
+                actividad.asignaciones.push(cup);
+            });
+
+            // 3) Si no hay CUPS ni actividades, lista vacía (la fila base se arma aparte)
+            return Array.from(actividadesPorId.values()).filter(
+                (actividad) => actividad.asignaciones.length > 0 || actividad.key !== "sin-actividad"
+            );
+        },
+
         formatearFechaYYYYMMDD(valorFecha) {
             if (!valorFecha) return "";
             const texto = String(valorFecha).trim();
@@ -2532,16 +2732,18 @@ export default {
                     .map((paciente) => String(paciente.id || paciente.idEncuesta || "").trim())
                     .filter(Boolean);
 
+                // Catálogo liviano (nombres) + CUPS exactos por encuesta.
+                // Ya no dependemos del dump global /Actividades.json (limit 5000),
+                // que dejaba muchas encuestas sin actividades/CUPS.
                 const [catalog, bulkAsignaciones] = await Promise.all([
                     loadInformesCatalogSnapshot({
                         includeAsignaciones: false,
-                        includeActividades: true,
+                        includeActividades: false,
                         includeCups: true,
                     }),
                     informesApi.getAsignacionesCupsBulk(encuestaIds),
                 ]);
 
-                const actividadesGlobal = catalog.actividades || {};
                 const asignacionesGlobal = bulkAsignaciones?.asignaciones || {};
                 const actividadesExtraGlobal = catalog.actividadesExtra || {};
                 const cupsGlobal = catalog.cups || {};
@@ -2563,31 +2765,18 @@ export default {
                 }, {});
 
                 this.encuestasInforme = encuestas.map((paciente) => {
-                    const idEncuesta = String(paciente.id || paciente.idEncuesta || "");
+                    const idEncuesta = String(paciente.id || paciente.idEncuesta || "").trim();
                     const cupsAsignados = this.normalizarCupsAsignaciones(asignacionesGlobal[idEncuesta]);
-                    const actividades = this.normalizarActividadesEncuesta(actividadesGlobal[idEncuesta], cupsAsignados);
-
-                    const seguimientoActividades = actividades.map((actividad) => {
-                        const idsActividad = new Set(
-                            [actividad.key, actividad.id, actividad.sourceId]
-                                .map((valor) => this.normalizarIdRelacion(valor))
-                                .filter(Boolean)
-                        );
-
-                        const asignaciones = cupsAsignados.filter((cup) => {
-                            const cupActividadId = this.normalizarIdRelacion(cup?.actividadId ?? cup?.idActividad ?? "");
-                            return cupActividadId && idsActividad.has(cupActividadId);
-                        });
-
-                        return {
-                            ...actividad,
-                            asignaciones,
-                        };
-                    });
+                    const seguimientoActividades = this.construirSeguimientoActividadesPaciente(
+                        paciente,
+                        cupsAsignados,
+                        null
+                    );
 
                     return {
                         ...paciente,
                         seguimientoActividades,
+                        cupsAsignadosRaw: cupsAsignados,
                     };
                 });
             } catch (error) {
@@ -2595,6 +2784,7 @@ export default {
                 this.encuestasInforme = encuestas.map((paciente) => ({
                     ...paciente,
                     seguimientoActividades: [],
+                    cupsAsignadosRaw: [],
                 }));
             }
         },
@@ -2926,7 +3116,7 @@ export default {
                         actividad: "Sin CUPS diligenciados",
                         codigo: "",
                         cupsNombre: "",
-                        cantidad: "",
+                        cantidad: null,
                         detalle: "",
                         profesional: profesionalMeta?.nombre || "",
                         profesionalDocumento: this.normalizarIdFacturador(profesionalMeta?.documento || this.profesionalInforme || ""),

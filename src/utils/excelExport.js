@@ -38,7 +38,17 @@ export function normalizarValorNumericoExcel(valor) {
     const texto = String(valor).trim();
     if (!texto) return null;
 
-    const numero = Number(texto.replace(",", "."));
+    // Soporta "1.234,56" / "1,234.56" / "12,5" / "12.5"
+    let normalizado = texto.replace(/\s/g, "");
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(normalizado)) {
+        normalizado = normalizado.replace(/\./g, "").replace(",", ".");
+    } else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(normalizado)) {
+        normalizado = normalizado.replace(/,/g, "");
+    } else if (normalizado.includes(",") && !normalizado.includes(".")) {
+        normalizado = normalizado.replace(",", ".");
+    }
+
+    const numero = Number(normalizado);
     return Number.isFinite(numero) ? numero : null;
 }
 
@@ -123,15 +133,14 @@ export function aplicarTiposNumericosEnHoja(ws, options = {}) {
         for (let r = range.s.r + 1; r <= range.e.r; r += 1) {
             const addr = XLSX.utils.encode_cell({ r, c: colIndex });
             const cell = ws[addr];
-            if (!cell) continue;
-
-            const numero = normalizarValorNumericoExcel(cell.v);
+            const bruto = cell ? cell.v : undefined;
+            const numero = normalizarValorNumericoExcel(bruto);
             if (numero === null) {
-                delete ws[addr];
+                if (cell) delete ws[addr];
                 continue;
             }
 
-            ws[addr] = { t: "n", v: numero };
+            ws[addr] = { t: "n", v: numero, z: "0" };
         }
     });
 }
@@ -151,7 +160,16 @@ export function applyWorksheetColumnWidths(ws, colWidths = [], fallbackWidth = 2
 }
 
 export function createWorksheetFromRows(rows = [], options = {}) {
-    const ws = XLSX.utils.json_to_sheet(rows, { skipHeader: false });
+    // Evita que null se serialice como texto vacío ambiguo.
+    const rowsLimpios = (rows || []).map((row) => {
+        const next = {};
+        Object.entries(row || {}).forEach(([key, value]) => {
+            next[key] = value === null || value === undefined ? "" : value;
+        });
+        return next;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rowsLimpios, { skipHeader: false });
     aplicarTiposNumericosEnHoja(ws, options);
     return ws;
 }
