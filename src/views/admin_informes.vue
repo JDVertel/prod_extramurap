@@ -133,10 +133,8 @@
                     </button>
                 </div>
             </div>
-            <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '1'">*Todas las encuestas cerradas por la
-                enfermera entre las
-                fechas seleccionadas</p>
-            <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '2'">*Todas las encuestas registradas entre las fechas seleccionadas, con sus actividades y datos del paciente</p>
+            <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '1'">*Todas las encuestas generadas entre las fechas seleccionadas (abiertas, cerradas o en cualquier estado), con actividades, CUPS y nombre del facturador</p>
+            <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '2'">*Todas las encuestas cerradas por la enfermera entre las fechas seleccionadas, con sus actividades y datos del paciente</p>
             <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '3'">*Cierres de facturación por paciente y actividades (CUPS) en el rango de fechas, filtrables por convenio y facturador</p>
             <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '4'">*Informe individual por profesional: seleccione rol, luego el profesional (escriba 3 letras o despliegue el listado). Incluye pacientes cerrados/abiertos, CUPS por actividad y cierres diarios. El PDF descarga el resumen general; Excel mantiene la tabla detallada.</p>
 
@@ -684,6 +682,8 @@ async function loadInformesCatalogSnapshot({ includeAsignaciones = true, include
 }
 
 const COLUMNAS_INFORME = [
+    { key: "fecha", label: "Fecha" },
+    { key: "estadoFacturacion", label: "Estado facturación" },
     { key: "convenio", label: "Convenio" },
     { key: "grupo", label: "Grupo" },
     { key: "paciente", label: "Paciente" },
@@ -700,6 +700,7 @@ const COLUMNAS_INFORME = [
     { key: "gestEnfermera", label: "Gest. Enfermera" },
     { key: "gestMedica", label: "Gest. Médica" },
     { key: "fechaFacturacion", label: "Fecha Facturación" },
+    { key: "nombreFacturador", label: "Nombre Facturador" },
     { key: "remision", label: "Remisión" },
     { key: "actividad", label: "Actividad" },
     { key: "procedimiento", label: "Procedimiento" },
@@ -710,7 +711,7 @@ const COLUMNAS_INFORME = [
     { key: "detalle", label: "Detalle" },
     { key: "grupoCUP", label: "Grupo CUP" },
     { key: "factura", label: "Factura" },
-    { key: "facturador", label: "Facturador" },
+    { key: "facturador", label: "Facturador actividad" },
     { key: "homolog", label: "Homolog" },
     { key: "profesional", label: "Profesional" },
     { key: "rol", label: "Rol" },
@@ -1526,7 +1527,14 @@ export default {
 
             for (const paciente of encuestas) {
                 const facturadorPacienteDoc = String(paciente?.asigfact || paciente?.asig_fact || "").trim();
+                const nombreFacturadorPaciente = this.obtenerNombreFacturador(facturadorPacienteDoc);
                 const base = {
+                    fecha: this.formatearFechaYYYYMMDD(paciente.fecha),
+                    estadoFacturacion: (
+                        paciente.status_facturacion === true
+                        || paciente.status_facturacion === 1
+                        || paciente.status_facturacion === "1"
+                    ) ? "Cerrada" : "Abierta",
                     grupo: paciente.grupo || "",
                     paciente: `${paciente.nombre1 || ""} ${paciente.apellido1 || ""} ${paciente.apellido2 || ""}`.trim(),
                     sexo: paciente.sexo || "",
@@ -1541,7 +1549,10 @@ export default {
                     gestAux: paciente.status_gest_aux ? this.formatearFechaYYYYMMDD(paciente.fechagestAuxiliar) : "No",
                     gestEnfermera: paciente.status_gest_enfermera ? this.formatearFechaYYYYMMDD(paciente.fechagestEnfermera) : "No",
                     gestMedica: paciente.status_gest_medica ? this.formatearFechaYYYYMMDD(paciente.fechagestMedica) : "No",
-                    fechaFacturacion: this.formatearFechaYYYYMMDD(paciente.FechaFacturacion) || "No",
+                    fechaFacturacion: this.formatearFechaYYYYMMDD(
+                        paciente.FechaFacturacion || paciente.fechaFacturacion || paciente.fecha_facturacion
+                    ) || "No",
+                    nombreFacturador: nombreFacturadorPaciente,
                     remision: paciente.requiereRemision || "",
                     convenio: paciente.convenio || "",
                 };
@@ -1561,7 +1572,7 @@ export default {
                         detalle: "",
                         grupoCUP: "",
                         factura: "",
-                        facturador: this.obtenerNombreFacturador(facturadorPacienteDoc),
+                        facturador: nombreFacturadorPaciente,
                         homolog: "",
                         profesional: "",
                         rol: "",
@@ -1587,7 +1598,7 @@ export default {
                             detalle: "",
                             grupoCUP: "",
                             factura: "",
-                            facturador: this.obtenerNombreFacturador(facturadorPacienteDoc),
+                            facturador: nombreFacturadorPaciente,
                             homolog: "",
                             profesional: "",
                             rol: "",
@@ -1600,7 +1611,6 @@ export default {
 
                     for (let i = 0; i < asignaciones.length; i++) {
                         const asig = asignaciones[i];
-                        const idActividad = String(asig?.actividadId ?? asig?.idActividad ?? actividad?.key ?? "");
                         const cupId = asig?.cupsId || asig?.id || "";
                         const facturadorDoc = this.obtenerDocumentoFacturadorCup(asig, facturadorPacienteDoc);
                         const nombreCup = this.obtenerNombreCupDesdeId(cupId, asig?.cupsNombre || asig?.DescripcionCUP || asig?.codigo || "");
@@ -1616,7 +1626,7 @@ export default {
                             detalle: asig?.detalle || "",
                             grupoCUP: asig?.Grupo || "",
                             factura: asig?.FactNum || asig?.factNum || asig?.fact_num || "",
-                            facturador: this.obtenerNombreFacturador(facturadorDoc),
+                            facturador: this.obtenerNombreFacturador(facturadorDoc) || nombreFacturadorPaciente,
                             homolog: asig?.Homolog || "",
                             profesional: asig?.nombreProf || "",
                             rol: asig?.key || "",
@@ -1640,7 +1650,9 @@ export default {
                 const base = {
                     convenio: paciente.convenio || "",
                     grupo: paciente.grupo || "",
-                    fecha: this.formatearFechaYYYYMMDD(paciente.fecha),
+                    fecha: this.formatearFechaYYYYMMDD(
+                        paciente.fechagestEnfermera || paciente.fecha_gest_enfermera || paciente.fecha
+                    ),
                     paciente: `${paciente.nombre1 || ""} ${paciente.apellido1 || ""} ${paciente.apellido2 || ""}`.trim(),
                     sexo: paciente.sexo || "",
                     documento: `${paciente.tipodoc || ""}-${paciente.numdoc || ""}`,
@@ -2609,7 +2621,8 @@ export default {
                         finicial: this.fechaInicio,
                         ffinal: this.fechaFin
                     };
-                    await this.GetRegistersbyRangeCerrados(parametros);
+                    // Todas las encuestas generadas en el rango, sin filtrar por estado.
+                    await this.GetRegistersbyRangeGeneral(parametros);
                     consultaUsada = {
                         tipo: "Seguimiento",
                         finicial: parametros.finicial,
@@ -2628,7 +2641,8 @@ export default {
                         finicial: this.fechaInicio,
                         ffinal: this.fechaFin
                     };
-                    await this.GetRegistersbyRangeGeneral(parametros);
+                    // Solo encuestas cerradas por enfermera en el rango (fechagestEnfermera).
+                    await this.GetRegistersbyRangeCerrados(parametros);
                     consultaUsada = {
                         tipo: "Actividades",
                         finicial: parametros.finicial,
@@ -3245,7 +3259,7 @@ export default {
             if (this.tipoinforme === "2") return "Listado de actividades";
             if (this.tipoinforme === "3") return "Listado de facturación";
             if (this.tipoinforme === "4") return "Informe individual de profesional";
-            return "Listado de Pacientes finalizados";
+            return "Listado de seguimiento";
         },
         filasFiltradasOrdenadas() {
             let filas = [...this.filasInformeTabla];
