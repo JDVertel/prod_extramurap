@@ -1,7 +1,7 @@
 <template>
     <div class="informes-page informe-cuentas w-100 px-2 px-md-4 py-3">
         <h1><i class="bi bi-pie-chart-fill"></i> Informe de actividades - Facturación</h1>
-        <p class="text-muted mb-0">Pacientes y CUPS cerrados en el rango seleccionado, desglosados por convenio y EPS.</p>
+        <p class="text-muted mb-0">Pacientes y CUPS cerrados en el rango seleccionado, con conteo detallado por convenio, grupo y EPS.</p>
         <hr>
 
         <div class="row g-3">
@@ -21,10 +21,10 @@
             <div :class="activacion ? 'col-12' : 'col-12 col-lg-9 col-xl-10'">
                 <div v-if="activacion" class="informe-toolbar d-flex flex-wrap gap-2 mb-3">
                     <button type="button" class="btn btn-outline-success" :disabled="informeSinDatos" @click="exportarExcel">
-                        <i class="bi bi-file-earmark-spreadsheet"></i> Exportar Excel
+                        <i class="bi bi-file-earmark-spreadsheet"></i> Exportar Excel (detalle)
                     </button>
                     <button type="button" class="btn btn-danger" @click="exportarPdfInforme">
-                        <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                        <i class="bi bi-file-earmark-pdf"></i> Exportar PDF (resumen)
                     </button>
                     <button type="button" class="btn btn-secondary" @click="resetInforme">
                         Nuevo informe
@@ -146,7 +146,6 @@ import * as XLSX from "xlsx";
 import {
     appendSheetToWorkbook,
     buildExcelRowsFromObjects,
-    formatearValorExcel,
 } from "@/utils/excelExport";
 import pdfMake from "pdfmake/build/pdfmake";
 import pdfFonts from "pdfmake/build/vfs_fonts";
@@ -174,7 +173,11 @@ export default {
                     pacientesCerrados: 0,
                     cupsRegistrados: 0,
                 },
+                detalle: [],
                 porConvenio: [],
+                porGrupo: [],
+                porConvenioGrupo: [],
+                porProfesional: [],
                 porEps: [],
             },
         };
@@ -214,17 +217,24 @@ export default {
             return [
                 { key: "pacientes", label: "Pacientes cerrados", valor: t.pacientesCerrados || 0 },
                 { key: "cups", label: "CUPS cerrados", valor: t.cupsRegistrados || 0 },
+                { key: "convenios", label: "Convenios con cierre", valor: (this.informe.porConvenio || []).length },
+                { key: "grupos", label: "Grupos con cierre", valor: (this.informe.porGrupo || []).length },
+                { key: "profesionales", label: "Profesionales con CUPS", valor: (this.informe.porProfesional || []).length },
             ];
         },
         graficas() {
             return [
                 this.crearGrafica("Pacientes y CUPS por convenio", this.informe.porConvenio),
+                this.crearGrafica("Pacientes y CUPS por grupo", this.informe.porGrupo),
+                this.crearGrafica("Pacientes y CUPS por profesional", this.informe.porProfesional),
                 this.crearGrafica("Pacientes y CUPS por EPS", this.informe.porEps),
             ];
         },
         tablasResumen() {
             return [
                 this.crearTabla("Resumen por convenio", "Convenio", this.informe.porConvenio),
+                this.crearTabla("Resumen por grupo", "Grupo", this.informe.porGrupo),
+                this.crearTabla("Resumen por profesional", "Profesional", this.informe.porProfesional),
                 this.crearTabla("Resumen por EPS", "EPS", this.informe.porEps),
             ];
         },
@@ -289,7 +299,11 @@ export default {
 
                 this.informe = {
                     totales: resultado.totales || {},
+                    detalle: resultado.detalle || [],
                     porConvenio: resultado.porConvenio || [],
+                    porGrupo: resultado.porGrupo || [],
+                    porConvenioGrupo: resultado.porConvenioGrupo || [],
+                    porProfesional: resultado.porProfesional || [],
                     porEps: resultado.porEps || [],
                 };
                 this.activacion = true;
@@ -311,7 +325,11 @@ export default {
                     pacientesCerrados: 0,
                     cupsRegistrados: 0,
                 },
+                detalle: [],
                 porConvenio: [],
+                porGrupo: [],
+                porConvenioGrupo: [],
+                porProfesional: [],
                 porEps: [],
             };
         },
@@ -324,6 +342,33 @@ export default {
                 })),
                 {
                     numericLabels: ["Pacientes cerrados", "CUPS cerrados"],
+                }
+            );
+        },
+        filasDetalleExcel(filas = []) {
+            return buildExcelRowsFromObjects(
+                (filas || []).map((fila) => ({
+                    Convenio: fila.convenio || "",
+                    Grupo: fila.grupo || "",
+                    Profesional: fila.profesional || "",
+                    Rol: fila.rol || "",
+                    Paciente: fila.paciente || "",
+                    Documento: fila.documento || "",
+                    EPS: fila.eps || "",
+                    Regimen: fila.regimen || "",
+                    "Fecha cierre": fila.fechaCierre || "",
+                    Actividad: fila.actividad || "",
+                    "Codigo CUPS": fila.codigoCups || "",
+                    "Nombre CUPS": fila.cupsNombre || "",
+                    "Grupo CUPS": fila.cupsGrupo || "",
+                    Cantidad: fila.cantidad,
+                    "Numero factura": fila.numeroFactura || "",
+                    Facturado: fila.facturado || "",
+                    "Fecha facturacion CUPS": fila.fechaFacturacionCup || "",
+                })),
+                {
+                    numericLabels: ["Cantidad"],
+                    textLabels: ["Documento", "Codigo CUPS", "Numero factura", "Grupo"],
                 }
             );
         },
@@ -518,6 +563,8 @@ export default {
                         margin: [0, 0, 0, 12],
                     },
                     ...this.buildResumenPdfTable("Resumen por convenio", "Convenio", this.informe.porConvenio),
+                    ...this.buildResumenPdfTable("Resumen por grupo", "Grupo", this.informe.porGrupo),
+                    ...this.buildResumenPdfTable("Resumen por profesional", "Profesional", this.informe.porProfesional),
                     ...this.buildResumenPdfTable("Resumen por EPS", "EPS", this.informe.porEps),
                 );
             }
@@ -553,42 +600,31 @@ export default {
                 return;
             }
 
-            const t = this.informe.totales || {};
-            const libro = XLSX.utils.book_new();
-            const resumenRows = [
-                ...this.informacionUsuario.map((item) => ({
-                    Campo: item.label,
-                    Valor: formatearValorExcel(item.valor, { key: "texto", label: "Valor", excelType: "text" }),
-                })),
-                {
-                    Campo: "Pacientes cerrados",
-                    Valor: formatearValorExcel(t.pacientesCerrados || 0, {
-                        key: "pacientesCerrados",
-                        label: "Valor",
-                        excelType: "number",
-                    }),
-                },
-                {
-                    Campo: "CUPS cerrados",
-                    Valor: formatearValorExcel(t.cupsRegistrados || 0, {
-                        key: "cupsRegistrados",
-                        label: "Valor",
-                        excelType: "number",
-                    }),
-                },
-            ];
+            const detalle = Array.isArray(this.informe.detalle) ? this.informe.detalle : [];
+            if (!detalle.length) {
+                this.$toast?.error?.("No hay detalle de facturación para exportar");
+                return;
+            }
 
+            const libro = XLSX.utils.book_new();
+
+            // Hoja principal: detalle completo por convenio / grupo / profesional.
             appendSheetToWorkbook(libro, {
-                rows: resumenRows,
-                sheetName: "Resumen",
+                rows: this.filasDetalleExcel(detalle),
+                numericLabels: ["Cantidad"],
+                textLabels: ["Documento", "Codigo CUPS", "Numero factura", "Grupo"],
+                sheetName: "Detalle facturacion",
             });
 
-            const hojas = [
+            const hojasResumen = [
                 ["Por convenio", this.informe.porConvenio],
-                ["Por EPS", this.informe.porEps],
+                ["Por grupo", this.informe.porGrupo],
+                ["Por profesional", this.informe.porProfesional],
+                ["Por convenio-grupo", this.informe.porConvenioGrupo],
             ];
 
-            hojas.forEach(([nombre, filas]) => {
+            hojasResumen.forEach(([nombre, filas]) => {
+                if (!Array.isArray(filas) || !filas.length) return;
                 appendSheetToWorkbook(libro, {
                     rows: this.filasExportables(filas),
                     numericLabels: ["Pacientes cerrados", "CUPS cerrados"],
@@ -596,7 +632,10 @@ export default {
                 });
             });
 
-            XLSX.writeFile(libro, `informe_actividades_facturacion_${this.fechaInicio}_${this.fechaFin}.xlsx`);
+            XLSX.writeFile(
+                libro,
+                `detalle_facturacion_${this.fechaInicio}_${this.fechaFin}.xlsx`
+            );
         },
     },
 };

@@ -690,6 +690,7 @@ const COLUMNAS_INFORME = [
     { key: "paciente", label: "Paciente" },
     { key: "sexo", label: "Sexo" },
     { key: "documento", label: "Documento" },
+    { key: "telefono", label: "Teléfono paciente", excelType: "text" },
     { key: "fechaNac", label: "Fecha Nac." },
     { key: "eps", label: "EPS" },
     { key: "regimen", label: "Régimen" },
@@ -715,6 +716,7 @@ const COLUMNAS_INFORME = [
     { key: "facturador", label: "Facturador actividad" },
     { key: "homolog", label: "Homolog" },
     { key: "profesional", label: "Profesional" },
+    { key: "documentoProfesional", label: "Documento profesional", excelType: "text" },
     { key: "rol", label: "Rol" },
     { key: "fechaFactCUP", label: "Fecha Fact. CUP" },
     { key: "facturado", label: "Facturado" },
@@ -872,6 +874,32 @@ const obtenerCargoCanonicoReporte = (valor) => CARGO_CANONICO_POR_NORMALIZADO[no
 
 const esCargoProfesionalReporte = (valor) => Boolean(obtenerCargoCanonicoReporte(valor));
 
+const normalizarTextoInforme = (valor) => String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+/** Índice rol normalizado -> docKeys de encuesta (lookup O(1) en filas del informe). */
+const DOC_KEYS_POR_ROL_NORM = (() => {
+    const mapa = Object.create(null);
+    CONFIG_REPORTE_PROFESIONALES.forEach((item) => {
+        const aliases = [
+            ROL_REPORTE_POR_CARGO[item.cargo] || item.cargo,
+            item.cargo,
+            ...(ALIASES_ROL_POR_CARGO[item.cargo] || []),
+        ];
+        aliases.forEach((alias) => {
+            const key = normalizarTextoInforme(alias);
+            if (key && !mapa[key]) {
+                mapa[key] = item.docKeys || [];
+            }
+        });
+    });
+    return mapa;
+})();
+
 export default {
     data() {
         return {
@@ -891,7 +919,16 @@ export default {
             facturadoresConveniosMap: {},
             profesionalesDisponibles: [],
             profesionalesMap: {},
+            profesionalesPorNombreMap: {},
             profesionalesConveniosMap: {},
+            cacheProfesionalesConsulta: {
+                listo: false,
+                timestamp: 0,
+                porDocumento: {},
+                porNombre: {},
+            },
+            filasInformePrecomputadas: [],
+            opcionesFiltroPrecomputadas: {},
             usuariosNombresMap: {},
             progresoInforme: 0,
             mensajeProgreso: "Preparando consulta...",
@@ -1175,12 +1212,60 @@ export default {
                     acc[doc] = Array.from(item.convenios || []);
                     return acc;
                 }, {});
+                this.profesionalesPorNombreMap = Array.from(mapa.values()).reduce((acc, item) => {
+                    const aliases = [item.nombre, ...Array.from(item.aliases || [])];
+                    aliases.forEach((alias) => {
+                        const key = this.normalizarTextoComparable(alias);
+                        if (key && !acc[key]) {
+                            acc[key] = item.documento;
+                        }
+                    });
+                    return acc;
+                }, {});
             } catch (error) {
                 console.error("Error cargando profesionales:", error);
                 this.profesionalesDisponibles = [];
                 this.profesionalesMap = {};
+                this.profesionalesPorNombreMap = {};
                 this.profesionalesConveniosMap = {};
             }
+        },
+
+        crearCacheProfesionalesConsultaVacia() {
+            return {
+                listo: false,
+                timestamp: 0,
+                porDocumento: {},
+                porNombre: {},
+            };
+        },
+
+        congelarCacheProfesionalesConsulta() {
+            this.cacheProfesionalesConsulta = {
+                listo: true,
+                timestamp: Date.now(),
+                porDocumento: { ...(this.profesionalesMap || {}) },
+                porNombre: { ...(this.profesionalesPorNombreMap || {}) },
+            };
+            return this.cacheProfesionalesConsulta;
+        },
+
+        async prepararCacheProfesionalesConsulta() {
+            // Snapshot fresco al momento de la consulta (HTTP de usuarios va por caché corta).
+            await this.cargarProfesionalesDisponibles();
+            return this.congelarCacheProfesionalesConsulta();
+        },
+
+        obtenerCacheProfesionalesConsulta() {
+            if (this.cacheProfesionalesConsulta?.listo) {
+                return this.cacheProfesionalesConsulta;
+            }
+            return {
+                listo: false,
+                timestamp: 0,
+                porDocumento: this.profesionalesMap || {},
+                porNombre: this.profesionalesPorNombreMap || {},
+            };
         },
 
         normalizarFechaSoloDia(valorFecha) {
@@ -1374,6 +1459,66 @@ export default {
             return ROL_REPORTE_POR_CARGO[cargo] || cargo;
         },
 
+        obtenerDocumentoProfesionalAsignacion(asig = {}, paciente = {}) {
+            const directo = String(
+                asig?.idProf ??
+                asig?.idProfesional ??
+                asig?.documentoProf ??
+                asig?.numDocumento ??
+                ""
+            ).trim();
+            if (directo) return directo;
+
+            const nombreCup = this.normalizarTextoComparable(
+                asig?.nombreProf || asig?.nombreProfesional || ""
+            );
+            if (nombreCup) {
+                const cache = this.obtenerCacheProfesionalesConsulta();
+                const porNombre = cache?.porNombre?.[nombreCup];
+                if (porNombre) return String(porNombre).trim();
+            }
+
+            const rolCup = this.normalizarTextoComparable(asig?.key || "");
+            const docKeys = rolCup ? DOC_KEYS_POR_ROL_NORM[rolCup] : null;
+            if (docKeys && paciente && typeof paciente === "object") {
+                for (const docKey of docKeys) {
+                    const documento = String(paciente?.[docKey] || "").trim();
+                    if (documento) return documento;
+                }
+            }
+
+            return "";
+        },
+
+        refrescarFilasInformePrecomputadas() {
+            if (this.tipoinforme === "2") {
+                this.filasInformePrecomputadas = this.construirFilasActividades();
+            } else if (this.tipoinforme === "1") {
+                this.filasInformePrecomputadas = this.construirFilasExportacion();
+            } else {
+                this.filasInformePrecomputadas = [];
+            }
+            this.opcionesFiltroPrecomputadas = this.construirOpcionesFiltroDesdeFilas(
+                this.filasInformePrecomputadas
+            );
+        },
+
+        construirOpcionesFiltroDesdeFilas(filas = []) {
+            const opciones = {};
+            const lista = Array.isArray(filas) ? filas : [];
+            for (const col of this.columnasTabla) {
+                const unicos = new Set();
+                for (let i = 0; i < lista.length; i++) {
+                    const valor = String(lista[i]?.[col.key] ?? "").trim();
+                    if (valor) unicos.add(valor);
+                }
+                opciones[col.key] = Array.from(unicos).sort((a, b) =>
+                    a.localeCompare(b, "es", { sensitivity: "base" })
+                );
+            }
+            return opciones;
+        },
+
         coincideRolCupConCargo(cup = {}, cargo = "", nombreProfesional = "", documentoProfesional = "") {
             const rolEsperado = this.normalizarTextoComparable(this.obtenerRolReportePorCargo(cargo));
             if (!rolEsperado) return true;
@@ -1540,6 +1685,7 @@ export default {
                     paciente: this.construirNombrePacienteSeguimiento(paciente),
                     sexo: paciente.sexo || "",
                     documento: [paciente.tipodoc, paciente.numdoc].filter(Boolean).join("-"),
+                    telefono: String(paciente.telefono || paciente.tel || "").trim(),
                     fechaNac: this.formatearFechaYYYYMMDD(paciente.fechaNac || paciente.fecha_nac),
                     eps: paciente.eps || "",
                     regimen: paciente.regimen || "",
@@ -1586,6 +1732,7 @@ export default {
                         facturador: nombreFacturadorPaciente,
                         homolog: "",
                         profesional: "",
+                        documentoProfesional: "",
                         rol: "",
                         convenio: base.convenio,
                         fechaFactCUP: "",
@@ -1620,6 +1767,7 @@ export default {
                             facturador: nombreFacturadorPaciente,
                             homolog: "",
                             profesional: "",
+                            documentoProfesional: "",
                             rol: "",
                             convenio: base.convenio,
                             fechaFactCUP: "",
@@ -1632,6 +1780,7 @@ export default {
                         const asig = asignaciones[i];
                         const cupId = asig?.cupsId || asig?.id || "";
                         const facturadorDoc = this.obtenerDocumentoFacturadorCup(asig, facturadorPacienteDoc);
+                        const documentoProfesional = this.obtenerDocumentoProfesionalAsignacion(asig, paciente);
                         const nombreCup = this.obtenerNombreCupDesdeId(
                             cupId,
                             asig?.cupsNombre || asig?.DescripcionCUP || asig?.codigo || ""
@@ -1651,6 +1800,7 @@ export default {
                             facturador: this.obtenerNombreFacturador(facturadorDoc) || nombreFacturadorPaciente,
                             homolog: asig?.Homolog || "",
                             profesional: asig?.nombreProf || "",
+                            documentoProfesional,
                             rol: asig?.key || "",
                             convenio: base.convenio,
                             fechaFactCUP: this.formatearFechaYYYYMMDD(
@@ -2795,6 +2945,9 @@ export default {
             this.cargandoInforme = true;
             this.actualizarProgreso(5, "Preparando parámetros del informe...");
             this.$store.commit('setEncuestasAdmin', []);
+            this.filasInformePrecomputadas = [];
+            this.opcionesFiltroPrecomputadas = {};
+            this.cacheProfesionalesConsulta = this.crearCacheProfesionalesConsultaVacia();
             let consultaUsada = null;
             try {
                 this.columnasTabla = this.obtenerColumnasPorTipo(this.tipoinforme);
@@ -2802,17 +2955,22 @@ export default {
                 this.actualizarProgreso(15, "Consultando registros...");
 
                 if (this.fechaInicio && this.fechaFin && this.tipoinforme == "1") {
-                    if (!this.facturadoresDisponibles.length) {
-                        await this.cargarFacturadoresDisponibles();
-                    } else {
-                        await this.asegurarMapaNombresUsuarios();
-                    }
+                    const preparacionUsuarios = Promise.all([
+                        this.facturadoresDisponibles.length
+                            ? this.asegurarMapaNombresUsuarios()
+                            : this.cargarFacturadoresDisponibles(),
+                        // Copia en caché de profesionales al momento de la consulta.
+                        this.prepararCacheProfesionalesConsulta(),
+                    ]);
                     let parametros = {
                         finicial: this.fechaInicio,
                         ffinal: this.fechaFin
                     };
-                    // Todas las encuestas generadas en el rango, sin filtrar por estado.
-                    await this.GetRegistersbyRangeGeneral(parametros);
+                    // Consulta de rango en paralelo con catálogo de usuarios/profesionales.
+                    await Promise.all([
+                        preparacionUsuarios,
+                        this.GetRegistersbyRangeGeneral(parametros),
+                    ]);
                     consultaUsada = {
                         tipo: "Seguimiento",
                         finicial: parametros.finicial,
@@ -2895,6 +3053,7 @@ export default {
                 } else {
                     this.actualizarProgreso(55, "Procesando actividades y asignaciones...");
                     await this.actualizarDatosSeguimientoInforme();
+                    this.refrescarFilasInformePrecomputadas();
                 }
                 if (consultaUsada) {
                     this.consultaActual = consultaUsada;
@@ -2937,6 +3096,9 @@ export default {
             this.progresoInforme = 0;
             this.mensajeProgreso = "Preparando consulta...";
             this.encuestasInforme = [];
+            this.filasInformePrecomputadas = [];
+            this.opcionesFiltroPrecomputadas = {};
+            this.cacheProfesionalesConsulta = this.crearCacheProfesionalesConsultaVacia();
             this.columnasTabla = this.obtenerColumnasPorTipo(this.tipoinforme);
             this.filtros = { ...crearFiltrosIniciales(this.columnasTabla) };
             this.sortKey = "";
@@ -3535,6 +3697,10 @@ export default {
             return this.filasFiltradasOrdenadas.length;
         },
         opcionesFiltroPorColumna() {
+            if (this.tipoinforme === "1" || this.tipoinforme === "2") {
+                return this.opcionesFiltroPrecomputadas;
+            }
+
             const opciones = {};
             for (const col of this.columnasTabla) {
                 const unicos = new Set(
@@ -3547,10 +3713,12 @@ export default {
             return opciones;
         },
         filasInformeTabla() {
-            if (this.tipoinforme === "2") return this.construirFilasActividades();
+            if (this.tipoinforme === "1" || this.tipoinforme === "2") {
+                return this.filasInformePrecomputadas;
+            }
             if (this.tipoinforme === "3") return this.construirFilasFacturacion();
             if (this.tipoinforme === "4") return this.tablaInformeProfesionalesRows;
-            return this.construirFilasExportacion();
+            return this.filasInformePrecomputadas;
         },
         tieneDatosTabla() {
             return this.filasInformeTabla.length > 0;
@@ -3592,7 +3760,7 @@ export default {
             if ((nuevoTipo === "1" || nuevoTipo === "2" || nuevoTipo === "3") && (!this.facturadoresDisponibles || this.facturadoresDisponibles.length === 0)) {
                 this.cargarFacturadoresDisponibles();
             }
-            if (nuevoTipo === "3" && (!this.profesionalesDisponibles || this.profesionalesDisponibles.length === 0)) {
+            if ((nuevoTipo === "1" || nuevoTipo === "3") && (!this.profesionalesDisponibles || this.profesionalesDisponibles.length === 0)) {
                 this.cargarProfesionalesDisponibles();
             }
             if (nuevoTipo === "4" && (!this.profesionalesDisponibles || this.profesionalesDisponibles.length === 0)) {
