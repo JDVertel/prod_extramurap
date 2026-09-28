@@ -28,6 +28,9 @@
         <button class="nav-link" :class="{ active: tab === 'bandejas' }" @click="tab = 'bandejas'" type="button">
           <i class="bi bi-collection me-1"></i> Bandejas profesionales
         </button>
+        <button class="nav-link" :class="{ active: tab === 'superinformes' }" @click="tab = 'superinformes'" type="button">
+          <i class="bi bi-graph-up-arrow me-1"></i> Superinformes
+        </button>
         <button class="nav-link" :class="{ active: tab === 'version' }" @click="tab = 'version'" type="button">
           <i class="bi bi-code-slash me-1"></i> Version App
         </button>
@@ -276,6 +279,20 @@
       <AdminEstadoProfesional />
     </div>
 
+    <div v-show="tab === 'superinformes'">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <strong><i class="bi bi-heart-pulse me-1"></i> Indicadores de salud</strong>
+          <button class="btn btn-sm btn-outline-secondary" @click="recargarIps" title="Recargar IPS">
+            <i class="bi bi-arrow-clockwise"></i> Recargar IPS
+          </button>
+        </div>
+        <div class="card-body">
+          <InformeIndicadoresSalud :ips-list="ipsList" @error="(texto) => notificar('error', texto)" />
+        </div>
+      </div>
+    </div>
+
     <div v-show="tab === 'version'" class="row g-3">
       <div class="col-12 col-lg-8">
         <div class="card shadow-sm">
@@ -334,12 +351,14 @@
 import { ipsApi } from "@/api/modulesApi";
 import { createUser, deleteUserById, getAllUsers } from "@/api/usersApi";
 import AdminEstadoProfesional from "@/views/admin_estado_profesional.vue";
+import InformeIndicadoresSalud from "@/components/InformeIndicadoresSalud.vue";
 import { getAppVersionText, getDefaultAppVersionText, setAppVersionText } from "@/utils/appVersion";
 
 export default {
   name: "SuperusuarioView",
   components: {
     AdminEstadoProfesional,
+    InformeIndicadoresSalud,
   },
   data() {
     return {

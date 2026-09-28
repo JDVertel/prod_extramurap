@@ -69,7 +69,6 @@ La API queda en:
 
 ## 3) Endpoints principales creados
 
-- `POST /api/auth/register-admin`
 - `POST /api/auth/login`
 - `POST /api/auth/request-password-reset`
 - `POST /api/auth/reset-password`
