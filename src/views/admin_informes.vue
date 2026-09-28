@@ -34,20 +34,21 @@
                         <option value="2">Actividades</option>
                         <option value="3">Facturación</option>
                         <option value="4">Profesionales</option>
+                        <option value="5">Indicadores de salud</option>
                     </select>
                     <br>
 
                 </div>
 
-                <div class="col-6 col-md-2" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3' || tipoinforme == '4'">
+                <div class="col-6 col-md-2" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3' || tipoinforme == '4' || tipoinforme == '5'">
                     <label for="fechaInicio" class="form-label">Fecha de Inicio</label>
                     <input type="date" id="fechaInicio" class="form-control" v-model="fechaInicio" required />
                 </div>
-                <div class="col-6 col-md-2" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3' || tipoinforme == '4'">
+                <div class="col-6 col-md-2" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3' || tipoinforme == '4' || tipoinforme == '5'">
                     <label for="fechaFin" class="form-label">Fecha de Fin</label>
                     <input type="date" id="fechaFin" class="form-control" v-model="fechaFin" required />
                 </div>
-                <div class="col-12 col-md-3" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3' || tipoinforme == '4'">
+                <div class="col-12 col-md-3" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3' || tipoinforme == '4' || tipoinforme == '5'">
                     <label for="convenioInforme" class="form-label">Convenio</label>
                     <select id="convenioInforme" class="form-select" v-model="convenioInforme">
                         <option value="">Todos</option>
@@ -127,7 +128,7 @@
                         </option>
                     </select>
                 </div>
-                <div class="col-12 col-md-2 mt-3" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3' || tipoinforme == '4'">
+                <div class="col-12 col-md-2 mt-3" v-if="tipoinforme == '1' || tipoinforme == '2' || tipoinforme == '3' || tipoinforme == '4' || tipoinforme == '5'">
                     <button type="button" class="btn btn-warning mt-3 admin-informe-action" @click="generarInforme()">
                         <i class="bi bi-clipboard2-data h6"></i> Generar Informe
                     </button>
@@ -137,6 +138,7 @@
             <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '2'">*Todas las encuestas cerradas por la enfermera entre las fechas seleccionadas, con sus actividades y datos del paciente</p>
             <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '3'">*Cierres de facturación por paciente y actividades (CUPS) en el rango de fechas, filtrables por convenio y facturador</p>
             <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '4'">*Informe individual por profesional: seleccione rol, luego el profesional (escriba 3 letras o despliegue el listado). Incluye pacientes cerrados/abiertos, CUPS por actividad y cierres diarios. El PDF descarga el resumen general; Excel mantiene la tabla detallada.</p>
+            <p v-if="mostrarFormulario && !tieneContenidoInforme && tipoinforme == '5'">*Indicadores de salud (gestantes, cursos de vida, tamizajes de cáncer y vacunación) calculados con los pacientes atendidos entre las fechas: el denominador sale de la edad, el sexo y la condición de gestante; el numerador, de los CUPS registrados. El Excel incluye el detalle por paciente.</p>
 
         <div class="informe-panel mt-3">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -172,12 +174,61 @@
                 <button type="button" class="btn btn-outline-success admin-informe-action" @click="exportarExcelFiltrado">
                     <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
                 </button>
-                <span class="badge bg-primary fs-6 py-2 px-3">
+                <span v-if="tipoinforme === '5'" class="badge bg-primary fs-6 py-2 px-3">
+                    Pacientes atendidos: {{ indicadoresInforme.totalPacientes }}
+                </span>
+                <span v-if="tipoinforme === '5'" class="badge bg-info text-dark fs-6 py-2 px-3">
+                    Con caracterización: {{ indicadoresInforme.totalCaracterizados }}
+                </span>
+                <span v-else class="badge bg-primary fs-6 py-2 px-3">
                     Registros: {{ totalRegistrosInformeAdmin }}
                 </span>
                 <span v-if="tipoinforme === '3'" class="badge bg-info text-dark fs-6 py-2 px-3">
                     CUPS: {{ totalCupsFacturacionReporte }}
                 </span>
+            </div>
+            <div v-if="tipoinforme === '5' && tieneDatosTabla" class="table-responsive mb-4">
+                <table class="table table-sm table-striped table-bordered align-middle tabla-indicadores">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Código</th>
+                            <th>Nombre del indicador</th>
+                            <th>Población (denominador)</th>
+                            <th>Criterio (numerador)</th>
+                            <th class="text-end">Numerador</th>
+                            <th class="text-end">Por CUPS</th>
+                            <th class="text-end">Por caracterización</th>
+                            <th class="text-end">Denominador</th>
+                            <th class="text-end">Resultado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="ind in indicadoresInforme.indicadores" :key="ind.codigo">
+                            <td>{{ ind.codigo }}</td>
+                            <td class="indicador-nombre">{{ ind.nombre }}</td>
+                            <td>{{ ind.poblacion }}</td>
+                            <td class="text-muted small">{{ ind.criterio }}</td>
+                            <td class="text-end">{{ ind.numerador }}</td>
+                            <td class="text-end text-muted">{{ ind.numeradorCups || 0 }}</td>
+                            <td class="text-end text-muted">{{ ind.numeradorCaracterizacion || 0 }}</td>
+                            <td class="text-end">{{ ind.denominador }}</td>
+                            <td class="text-end fw-semibold">
+                                {{ ind.denominador ? `${ind.porcentaje}%` : "Sin población" }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="alert alert-info nota-indicadores mt-3 mb-0">
+                    <div class="fw-semibold mb-2"><i class="bi bi-info-circle"></i> ¿Cómo leer este informe?</div>
+                    <ul class="mb-2">
+                        <li v-for="punto in notaIndicadores.puntos" :key="punto.titulo">
+                            <strong>{{ punto.titulo }}:</strong> {{ punto.texto }}
+                        </li>
+                    </ul>
+                    <div v-if="notaIndicadores.ejemplo" class="small">
+                        <strong>Ejemplo con este informe:</strong> {{ notaIndicadores.ejemplo }}
+                    </div>
+                </div>
             </div>
             <div v-if="mostrarResumenProfesionales" class="container-fluid px-0 resumen-profesionales mb-4">
                 <div class="resumen-head mb-3">
@@ -376,6 +427,15 @@
 .informe-panel {
     width: 100%;
     max-width: 100%;
+}
+
+.tabla-indicadores .indicador-nombre {
+    min-width: 320px;
+    white-space: normal;
+}
+
+.nota-indicadores ul {
+    padding-left: 1.2rem;
 }
 
 .informe-form-row {
@@ -780,6 +840,59 @@ const COLUMNAS_PROFESIONALES = [
     { key: "convenio", label: "Convenio" },
 ];
 
+const COLUMNAS_INDICADORES = [
+    { key: "codigo", label: "Código", excelType: "text" },
+    { key: "nombre", label: "Nombre del indicador" },
+    { key: "poblacion", label: "Población (denominador)" },
+    { key: "criterio", label: "Criterio (numerador)" },
+    { key: "numerador", label: "Numerador", excelType: "number" },
+    { key: "numeradorCups", label: "Numerador por CUPS", excelType: "number" },
+    { key: "numeradorCaracterizacion", label: "Numerador por caracterización", excelType: "number" },
+    { key: "denominador", label: "Denominador", excelType: "number" },
+    { key: "porcentaje", label: "Resultado (%)", excelType: "number" },
+];
+
+const COLUMNAS_INDICADORES_DETALLE = [
+    { key: "codigo", label: "Código", excelType: "text" },
+    { key: "indicador", label: "Indicador" },
+    { key: "paciente", label: "Paciente" },
+    { key: "documento", label: "Documento", excelType: "text" },
+    { key: "sexo", label: "Sexo" },
+    { key: "edad", label: "Edad" },
+    { key: "convenio", label: "Convenio" },
+    { key: "eps", label: "EPS" },
+    { key: "fechaAtencion", label: "Fecha atención" },
+    { key: "cumple", label: "Cumple" },
+    { key: "fuente", label: "Fuente" },
+    { key: "esquemaVacunal", label: "Esquema vacunal (caracterización)" },
+    { key: "evidencia", label: "Evidencia (CUPS / caracterización)" },
+];
+
+const NOTA_INDICADORES_PUNTOS = [
+    { titulo: "Denominador", texto: "Total de personas que deberían recibir la atención o el procedimiento (población objetivo del indicador), según edad, sexo o condición de gestante, entre los pacientes atendidos en el rango de fechas." },
+    { titulo: "Numerador", texto: "De las personas del denominador, cuántas sí lo recibieron (tienen registrado el CUPS o la condición del criterio)." },
+    { titulo: "Fuentes", texto: "Primero se buscan los CUPS registrados; si no hay CUPS de la vacuna, se toma el esquema vacunal \"Completo\" registrado en la caracterización (para pentavalente, solo desde los 6 meses). La FUM de la caracterización se usa para la captación temprana de gestantes. Las columnas \"por CUPS\" y \"por caracterización\" muestran cuánto aporta cada fuente." },
+    { titulo: "Resultado", texto: "Numerador ÷ Denominador × 100." },
+    { titulo: "Sin población", texto: "El denominador fue 0: en el rango consultado no hubo personas del grupo objetivo, por lo que no se puede calcular el porcentaje." },
+    { titulo: "Detalle por paciente", texto: "En el Excel, cada fila es una persona del denominador; las marcadas con \"Sí\" son las que suman al numerador, con los CUPS que lo evidencian." },
+];
+
+const construirEjemploNotaIndicadores = (indicadores = []) => {
+    const ind = indicadores.find((item) => item.denominador > 0 && item.numerador > 0)
+        || indicadores.find((item) => item.denominador > 0);
+    if (!ind) return "";
+    return `${ind.codigo} (${ind.poblacion}): ${ind.numerador} / ${ind.denominador} = ${ind.porcentaje}%. `
+        + `De ${ind.denominador} personas de la población objetivo, ${ind.numerador} cumplen el criterio (${ind.criterio}).`;
+};
+
+const crearIndicadoresInformeVacio = () => ({
+    totalPacientes: 0,
+    totalEncuestas: 0,
+    totalCaracterizados: 0,
+    indicadores: [],
+    detalle: [],
+});
+
 const CARGO_CANONICO_POR_NORMALIZADO = {
     auxiliardeenfermeria: "Auxiliar de enfermeria",
     auxiliar: "Auxiliar de enfermeria",
@@ -929,6 +1042,7 @@ export default {
             },
             filasInformePrecomputadas: [],
             opcionesFiltroPrecomputadas: {},
+            indicadoresInforme: crearIndicadoresInformeVacio(),
             usuariosNombresMap: {},
             progresoInforme: 0,
             mensajeProgreso: "Preparando consulta...",
@@ -1403,6 +1517,7 @@ export default {
             if (tipo === "2") return COLUMNAS_ACTIVIDADES;
             if (tipo === "3") return COLUMNAS_FACTURACION;
             if (tipo === "4") return COLUMNAS_PROFESIONALES;
+            if (tipo === "5") return COLUMNAS_INDICADORES;
             return COLUMNAS_INFORME;
         },
 
@@ -2198,7 +2313,51 @@ export default {
             return `informe_${tipoSlug}_${convenioSlug}_${rango}.xlsx`;
         },
 
+        exportarExcelIndicadores() {
+            const { indicadores, detalle } = this.indicadoresInforme || {};
+            if (!Array.isArray(indicadores) || !indicadores.length) {
+                this.$toast?.error?.("No hay indicadores para exportar.");
+                return;
+            }
+
+            const wb = XLSX.utils.book_new();
+            const hojas = [
+                ["Indicadores", indicadores, COLUMNAS_INDICADORES, [10, 70, 32, 45, 12, 16, 20, 12, 14]],
+                ["Detalle por paciente", detalle || [], COLUMNAS_INDICADORES_DETALLE, [10, 60, 32, 18, 8, 16, 18, 22, 14, 9, 16, 18, 60]],
+            ];
+
+            hojas.forEach(([nombre, filas, columnas, anchos]) => {
+                const ws = createWorksheetFromRows(buildExcelRowsFromColumnas(filas, columnas), { columnas });
+                if (ws["!ref"]) {
+                    ws["!autofilter"] = { ref: ws["!ref"] };
+                }
+                aplicarTiposNumericosEnHoja(ws, { columnas });
+                ws["!cols"] = anchos.map((wch) => ({ wch }));
+                XLSX.utils.book_append_sheet(wb, ws, nombre);
+            });
+
+            const { puntos, ejemplo } = this.notaIndicadores;
+            const filasNota = [
+                ["¿Cómo leer este informe?", ""],
+                ["", ""],
+                ["Concepto", "Explicación"],
+                ...puntos.map((punto) => [punto.titulo, punto.texto]),
+            ];
+            if (ejemplo) {
+                filasNota.push(["", ""], ["Ejemplo con este informe", ejemplo]);
+            }
+            const wsNota = XLSX.utils.aoa_to_sheet(filasNota);
+            wsNota["!cols"] = [{ wch: 26 }, { wch: 120 }];
+            XLSX.utils.book_append_sheet(wb, wsNota, "Nota explicativa");
+
+            XLSX.writeFile(wb, this.construirNombreArchivoExcel());
+        },
+
         exportarExcelFiltrado() {
+            if (this.tipoinforme === "5") {
+                this.exportarExcelIndicadores();
+                return;
+            }
             const filas = this.filasFiltradasOrdenadas;
             if (!filas.length) {
                 this.$toast?.error
@@ -2947,6 +3106,7 @@ export default {
             this.$store.commit('setEncuestasAdmin', []);
             this.filasInformePrecomputadas = [];
             this.opcionesFiltroPrecomputadas = {};
+            this.indicadoresInforme = crearIndicadoresInformeVacio();
             this.cacheProfesionalesConsulta = this.crearCacheProfesionalesConsultaVacia();
             let consultaUsada = null;
             try {
@@ -3039,6 +3199,23 @@ export default {
                         facturador: "",
                         rol: this.etiquetaRolProfesionalInforme(this.rolProfesionalInforme),
                     };
+                } else if (this.fechaInicio && this.fechaFin && this.tipoinforme == "5") {
+                    this.indicadoresInforme = await informesApi.getIndicadoresSalud({
+                        fechaInicio: this.fechaInicio,
+                        fechaFin: this.fechaFin,
+                        convenio: this.convenioInforme || "",
+                    });
+                    if (!this.indicadoresInforme.totalPacientes) {
+                        this.$toast?.info?.("No hay pacientes atendidos en el rango seleccionado");
+                    }
+                    consultaUsada = {
+                        tipo: "Indicadores",
+                        finicial: this.fechaInicio,
+                        ffinal: this.fechaFin,
+                        profesional: "",
+                        convenio: this.convenioInforme || "Todos",
+                        facturador: "",
+                    };
                 } else {
                     this.$toast.error("Debe seleccionar tipo de informe y rango de fechas");
                     this.actualizarProgreso(0, "Preparando consulta...");
@@ -3050,6 +3227,8 @@ export default {
                     this.actualizarProgreso(55, "Procesando cierres de facturación...");
                 } else if (this.tipoinforme === "4") {
                     this.actualizarProgreso(55, "Construyendo resumen de profesionales...");
+                } else if (this.tipoinforme === "5") {
+                    this.actualizarProgreso(55, "Calculando indicadores...");
                 } else {
                     this.actualizarProgreso(55, "Procesando actividades y asignaciones...");
                     await this.actualizarDatosSeguimientoInforme();
@@ -3070,6 +3249,7 @@ export default {
                 await new Promise((resolve) => setTimeout(resolve, 250));
             } catch (error) {
                 console.error("Error al generar el informe:", error);
+                this.$toast?.error?.(error?.response?.data?.message || "No se pudo generar el informe");
             } finally {
                 this.cargandoInforme = false;
             }
@@ -3098,6 +3278,7 @@ export default {
             this.encuestasInforme = [];
             this.filasInformePrecomputadas = [];
             this.opcionesFiltroPrecomputadas = {};
+            this.indicadoresInforme = crearIndicadoresInformeVacio();
             this.cacheProfesionalesConsulta = this.crearCacheProfesionalesConsultaVacia();
             this.columnasTabla = this.obtenerColumnasPorTipo(this.tipoinforme);
             this.filtros = { ...crearFiltrosIniciales(this.columnasTabla) };
@@ -3607,10 +3788,17 @@ export default {
                 percent: Math.max(8, Math.round((item.value / maximo) * 100)),
             }));
         },
+        notaIndicadores() {
+            return {
+                puntos: NOTA_INDICADORES_PUNTOS,
+                ejemplo: construirEjemploNotaIndicadores(this.indicadoresInforme?.indicadores || []),
+            };
+        },
         tituloListado() {
             if (this.tipoinforme === "2") return "Listado de actividades";
             if (this.tipoinforme === "3") return "Listado de facturación";
             if (this.tipoinforme === "4") return "Informe individual de profesional";
+            if (this.tipoinforme === "5") return "Indicadores de salud";
             return "Listado de seguimiento";
         },
         filasFiltradasOrdenadas() {
@@ -3718,6 +3906,9 @@ export default {
             }
             if (this.tipoinforme === "3") return this.construirFilasFacturacion();
             if (this.tipoinforme === "4") return this.tablaInformeProfesionalesRows;
+            if (this.tipoinforme === "5") {
+                return this.indicadoresInforme.totalPacientes ? this.indicadoresInforme.indicadores : [];
+            }
             return this.filasInformePrecomputadas;
         },
         tieneDatosTabla() {

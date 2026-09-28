@@ -11,6 +11,17 @@ export const informesApi = {
     };
   },
 
+  getIndicadoresSalud: async (params = {}) => {
+    const { data } = await http.get("/informes/indicadores", { params });
+    return {
+      totalPacientes: Number(data?.totalPacientes || 0),
+      totalEncuestas: Number(data?.totalEncuestas || 0),
+      totalCaracterizados: Number(data?.totalCaracterizados || 0),
+      indicadores: Array.isArray(data?.indicadores) ? data.indicadores : [],
+      detalle: Array.isArray(data?.detalle) ? data.detalle : [],
+    };
+  },
+
   getAsignacionesCupsBulk: async (encuestaIds = []) => {
     const ids = Array.from(
       new Set((encuestaIds || []).map((id) => String(id || "").trim()).filter(Boolean))
