@@ -646,7 +646,7 @@ export default {
                     const cupsDelMedico = filtrarCupsDelProfesional(
                         cupsPorId[encuesta.id] || [],
                         this.userData,
-                        { matchCargoExact: true, allowCargoOnlyFallback: true }
+                        { allowCargoOnlyFallback: true }
                     );
                     cupsMap[encuesta.id] = cupsDelMedico;
                     mapa[encuesta.id] = mapearActividadesDesdeCups(

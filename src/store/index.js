@@ -6,6 +6,7 @@
 // IMPORTS
 // ============================================================================
 import realtime_api from "@/api/realtimeApi.js";
+import { obtenerEncuestasPaginadas } from "@/api/encuestasPaginadas.js";
 import { informesApi } from "@/api/informesApi";
 import {
   getDisponiblesFacturacionPorDocumento,
@@ -458,7 +459,6 @@ function filterCierresMedicoPorRango(encuestas = [], { fechaInicio, fechaFin, id
     }
 
     if (cargo && !gestionCerrada) return false;
-    if (cargo && !isEstadoGestionCerrado(encuesta.status_gest_aux)) return false;
 
     if (encuesta.tipoActividad && typeof encuesta.tipoActividad === "object") {
       encuesta.actividadesRealizadas = Object.values(encuesta.tipoActividad).filter(
@@ -1602,7 +1602,22 @@ export default createStore({
           throw new Error("Debes proporcionar ambas fechas para el filtro.");
         }
 
-        const cargoNormalizado = String(cargo || "").trim().toLowerCase();
+        const cargoCompacto = String(cargo || "")
+          .trim()
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z]/g, "");
+        const cargoNormalizado = {
+          auxiliar: "auxiliar de enfermeria",
+          auxiliardeenfermeria: "auxiliar de enfermeria",
+          psicologo: "psicologo",
+          tsocial: "tsocial",
+          trabajadorsocial: "tsocial",
+          trabajadorasocial: "tsocial",
+          nutricionista: "nutricionista",
+          higienistaoral: "higienistaoral",
+        }[cargoCompacto] || String(cargo || "").trim().toLowerCase();
         const documentoEmpleado = String(idempleado || "").trim();
         const params = {
           fechaInicio,
@@ -1621,7 +1636,10 @@ export default createStore({
           params.fechaCampo = "fechagestAuxiliar";
         }
 
-        if (documentoEmpleado && cargoNormalizado === "auxiliar de enfermeria") {
+        // Cualquier cargo no reconocido usa la vista del auxiliar: limitarla a sus propios pacientes.
+        const esVistaAuxiliar = !["psicologo", "tsocial", "nutricionista", "higienistaoral"].includes(cargoNormalizado);
+
+        if (documentoEmpleado && esVistaAuxiliar) {
           params.idEncuestador = documentoEmpleado;
         }
 
@@ -1673,7 +1691,7 @@ export default createStore({
 
           if (
             documentoEmpleado &&
-            cargoNormalizado === "auxiliar de enfermeria" &&
+            esVistaAuxiliar &&
             String(encuesta.idEncuestador || "").trim() !== documentoEmpleado
           ) {
             return false;
@@ -1880,10 +1898,8 @@ export default createStore({
           if (!fechaNormalizada) return false;
           if (!(fechaNormalizada >= fechaInicio && fechaNormalizada <= fechaFin)) return false;
 
-          if (idempleado && encuesta.idEnfermeroAtiende !== idempleado) return false;
+          if (idempleado && String(encuesta.idEnfermeroAtiende || "").trim() !== String(idempleado).trim()) return false;
 
-          if (cargo && !isEstadoGestionCerrado(encuesta.status_gest_medica)) return false;
-          if (cargo && !isEstadoGestionCerrado(encuesta.status_gest_aux)) return false;
           if (cargo && !isEstadoGestionCerrado(encuesta.status_gest_enfermera)) return false;
 
           return true;
@@ -4137,12 +4153,11 @@ export default createStore({
      */
     GetRegistersbyRangeGeneral: async ({ commit }, parametros) => {
       try {
-        const params = {
+        const data = await obtenerEncuestasPaginadas({
           fechaInicio: parametros.finicial,
           fechaFin: parametros.ffinal,
           fechaCampo: "fecha",
-        };
-        const { data } = await realtime_api.get("/Encuesta.json", buildReadRequestConfig(params));
+        });
         const encuestas = Object.entries(data || {}).map(([key, value]) => ({
           id: key,
           ...value,
@@ -4165,12 +4180,12 @@ export default createStore({
      */
     GetRegistersbyRangeCerrados: async ({ commit }, parametros) => {
       try {
-        const params = {
+        const data = await obtenerEncuestasPaginadas({
           fechaInicio: parametros.finicial,
           fechaFin: parametros.ffinal,
           fechaCampo: "fechagestEnfermera",
-        };
-        const { data } = await realtime_api.get("/Encuesta.json", buildReadRequestConfig(params));
+          status_gest_enfermera: true,
+        });
         const encuestas = Object.entries(data || {}).map(([key, value]) => ({
           id: key,
           ...value,

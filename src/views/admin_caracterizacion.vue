@@ -84,7 +84,8 @@
 </template>
 
 <script>
-import realtime_api from "@/api/realtimeApi";
+import { obtenerCaracterizacionesPaginadas, obtenerEncuestasPaginadas } from "@/api/encuestasPaginadas.js";
+import { CONVENIOS_PROGRAMA } from "@/constants/convenios";
 import { exportRowsToExcel, buildExcelRowsFromColumnas } from "@/utils/excelExport";
 import { conteoVistaPreviaInforme, sliceVistaPreviaInforme } from "@/utils/informesPreview";
 
@@ -294,23 +295,8 @@ export default {
             }
         },
 
-        async cargarConveniosDisponibles() {
-            try {
-                const [caracterizacionResp, encuestaResp] = await Promise.all([
-                    realtime_api.get("/caracterizacion.json"),
-                    realtime_api.get("/Encuesta.json"),
-                ]);
-
-                const conveniosCaracterizacion = Object.values(caracterizacionResp?.data || {})
-                    .map((item) => item?.convenio);
-                const conveniosEncuesta = Object.values(encuestaResp?.data || {})
-                    .map((item) => item?.convenio);
-
-                this.actualizarConveniosDisponibles(conveniosCaracterizacion, conveniosEncuesta);
-            } catch (error) {
-                console.error("Error cargando convenios de caracterización:", error);
-                this.actualizarConveniosDisponibles();
-            }
+        cargarConveniosDisponibles() {
+            this.actualizarConveniosDisponibles(CONVENIOS_PROGRAMA);
         },
 
         async generarInforme() {
@@ -329,22 +315,19 @@ export default {
 
             try {
                 const paramsEncuesta = {};
-                const paramsCaracterizacion = {};
 
                 if (String(this.convenioInforme || "").trim()) {
                     paramsEncuesta.convenio = String(this.convenioInforme || "").trim();
-                    paramsCaracterizacion.convenio = String(this.convenioInforme || "").trim();
                 }
 
-                const [caracterizacionResp, encuestaResp] = await Promise.all([
-                    realtime_api.get("/caracterizacion.json", { params: paramsCaracterizacion }),
-                    realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
+                // Sin filtro de convenio en caracterización: si viene vacío se usa el de la encuesta.
+                const [caracterizaciones, encuestas] = await Promise.all([
+                    obtenerCaracterizacionesPaginadas(),
+                    obtenerEncuestasPaginadas(paramsEncuesta),
                 ]);
 
-                const caracterizaciones = caracterizacionResp.data || {};
-                const encuestas = encuestaResp.data || {};
-
                 this.actualizarConveniosDisponibles(
+                    CONVENIOS_PROGRAMA,
                     Object.values(caracterizaciones).map((item) => item?.convenio),
                     Object.values(encuestas).map((item) => item?.convenio)
                 );

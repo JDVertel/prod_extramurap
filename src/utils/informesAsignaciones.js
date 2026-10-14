@@ -8,6 +8,25 @@ function normalizarTexto(value) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+const ROL_CANONICO = {
+  auxiliar: "auxiliar",
+  auxiliardeenfermeria: "auxiliar",
+  medico: "medico",
+  enfermero: "enfermero",
+  psicologo: "psicologo",
+  tsocial: "tsocial",
+  trabajadorsocial: "tsocial",
+  trabajadorasocial: "tsocial",
+  nutricionista: "nutricionista",
+  higienistaoral: "higienistaoral",
+};
+
+/** El cargo del usuario y asignacion_cups.key no siempre usan el mismo texto ("Trabajador social" vs "Tsocial"). */
+function rolCanonico(value) {
+  const compacto = normalizarTexto(value).replace(/[^a-z]/g, "");
+  return ROL_CANONICO[compacto] || compacto;
+}
+
 function cupsDesdeAsignacion(asignacion) {
   const cups = asignacion?.cups;
   if (!cups || typeof cups !== "object") return [];
@@ -39,20 +58,12 @@ export async function cargarCupsPorEncuestaIds(encuestaIds = []) {
  * Filtra CUPS del profesional logueado (cargo + documento/nombre).
  */
 export function filtrarCupsDelProfesional(cups = [], userData = {}, options = {}) {
-  const cargoActual = normalizarTexto(userData?.cargo || "");
+  const cargoActual = rolCanonico(userData?.cargo);
   const nombreActual = normalizarTexto(userData?.nombre || "");
   const documentoActual = String(userData?.numDocumento || "").trim();
-  const matchCargoExact = Boolean(options.matchCargoExact);
-  const cargoExact = String(userData?.cargo || "").trim();
 
   return (cups || []).filter((cup) => {
-    if (matchCargoExact) {
-      const cargoCup = String(cup?.key || "").trim();
-      if (!cargoExact || cargoCup !== cargoExact) return false;
-    } else {
-      const cargoCup = normalizarTexto(cup?.key || "");
-      if (!cargoActual || cargoCup !== cargoActual) return false;
-    }
+    if (!cargoActual || rolCanonico(cup?.key) !== cargoActual) return false;
 
     const documentoCup = String(cup?.idProf ?? cup?.idProfesional ?? "").trim();
     if (documentoActual && documentoCup) {

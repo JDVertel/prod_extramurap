@@ -1,6 +1,7 @@
 import http from "./http";
 
 const MAX_BULK_ENCUESTA_IDS = 2000;
+const MAX_BULK_CONCURRENCIA = 3;
 
 export const informesApi = {
   getProfesionalFacturacion: async (params = {}) => {
@@ -30,14 +31,23 @@ export const informesApi = {
       return { asignaciones: {} };
     }
 
-    const asignaciones = {};
+    const chunks = [];
     for (let i = 0; i < ids.length; i += MAX_BULK_ENCUESTA_IDS) {
-      const chunk = ids.slice(i, i + MAX_BULK_ENCUESTA_IDS);
-      const { data } = await http.post("/informes/asignaciones-cups", { encuestaIds: chunk });
-      const parcial = data?.asignaciones && typeof data.asignaciones === "object"
-        ? data.asignaciones
-        : {};
-      Object.assign(asignaciones, parcial);
+      chunks.push(ids.slice(i, i + MAX_BULK_ENCUESTA_IDS));
+    }
+
+    const asignaciones = {};
+    for (let i = 0; i < chunks.length; i += MAX_BULK_CONCURRENCIA) {
+      const respuestas = await Promise.all(
+        chunks
+          .slice(i, i + MAX_BULK_CONCURRENCIA)
+          .map((chunk) => http.post("/informes/asignaciones-cups", { encuestaIds: chunk }))
+      );
+      respuestas.forEach(({ data }) => {
+        if (data?.asignaciones && typeof data.asignaciones === "object") {
+          Object.assign(asignaciones, data.asignaciones);
+        }
+      });
     }
 
     return { asignaciones };

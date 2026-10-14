@@ -564,6 +564,7 @@
 
 <script>
 import realtime_api from "@/api/realtimeApi.js";
+import { obtenerEncuestasPaginadas, obtenerEncuestasPaginadasUnion } from "@/api/encuestasPaginadas.js";
 import { getAllUsers } from "@/api/usersApi";
 import * as XLSX from "xlsx";
 import pdfMake from "pdfmake/build/pdfmake";
@@ -878,6 +879,14 @@ const normalizarTextoInforme = (valor) => String(valor || "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
+
+const desplazarFechaIso = (fechaIso, dias) => {
+    const texto = String(fechaIso || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
+    const fecha = new Date(`${texto}T00:00:00Z`);
+    fecha.setUTCDate(fecha.getUTCDate() + dias);
+    return fecha.toISOString().slice(0, 10);
+};
 
 /** Índice rol normalizado -> docKeys de encuesta (lookup O(1) en filas del informe). */
 const DOC_KEYS_POR_ROL_NORM = (() => {
@@ -1517,12 +1526,19 @@ export default {
             return opciones;
         },
 
-        coincideRolCupConCargo(cup = {}, cargo = "", nombreProfesional = "", documentoProfesional = "") {
-            const rolEsperado = this.normalizarTextoComparable(this.obtenerRolReportePorCargo(cargo));
-            if (!rolEsperado) return true;
+        coincideRolCupConCargo(
+            cup = {},
+            cargo = "",
+            nombreProfesional = "",
+            documentoProfesional = "",
+            { encuestaDelProfesional = false } = {}
+        ) {
+            const cargoEsperado = obtenerCargoCanonicoReporte(cargo);
+            if (!cargoEsperado) return true;
 
-            const rolCup = this.normalizarTextoComparable(cup?.key || "");
-            if (rolCup && rolCup !== rolEsperado) return false;
+            // asignacion_cups.key guarda el cargo ("Auxiliar de enfermeria", "Tsocial"), no la etiqueta del informe.
+            const rolCupTexto = String(cup?.key || "").trim();
+            if (rolCupTexto && obtenerCargoCanonicoReporte(rolCupTexto) !== cargoEsperado) return false;
 
             const documentoEsperado = this.normalizarIdFacturador(documentoProfesional);
             const documentoCup = this.normalizarIdFacturador(cup?.idProf ?? cup?.idProfesional ?? "");
@@ -1530,13 +1546,17 @@ export default {
                 return documentoEsperado === documentoCup;
             }
 
+            // Los CUPS históricos no tienen id_prof y nombre_prof es texto libre: en la encuesta asignada
+            // al profesional en este rol, el CUPS del rol es suyo.
+            if (encuestaDelProfesional) return true;
+
             const aliasesEsperados = (Array.isArray(nombreProfesional) ? nombreProfesional : [nombreProfesional])
                 .map((alias) => this.normalizarTextoComparable(alias))
                 .filter(Boolean);
-            if (!aliasesEsperados.length) return true;
+            if (!aliasesEsperados.length) return false;
 
             const nombreCup = this.normalizarTextoComparable(cup?.nombreProf || "");
-            if (!nombreCup) return true;
+            if (!nombreCup) return false;
 
             return aliasesEsperados.some((alias) =>
                 nombreCup === alias ||
@@ -1610,16 +1630,22 @@ export default {
                 paramsEncuesta.convenio = String(this.convenioInforme || "").trim();
             }
 
-            const [respEncuestas, catalog] = await Promise.all([
-                realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
+            const profesionalMeta = this.profesionalesMap?.[this.normalizarIdFacturador(this.profesionalInforme)];
+            const configRol = CONFIG_REPORTE_PROFESIONALES.find((config) => config.cargo === profesionalMeta?.cargo);
+            if (!profesionalMeta?.documento || !configRol) {
+                this.encuestasInforme = [];
+                return;
+            }
+            paramsEncuesta[configRol.docKeys[0]] = String(profesionalMeta.documento).trim();
+
+            const [encuestasObj, catalog] = await Promise.all([
+                obtenerEncuestasPaginadas(paramsEncuesta),
                 loadInformesCatalogSnapshot({
                     includeAsignaciones: false,
                     includeActividades: false,
                     includeCups: true,
                 }),
             ]);
-
-            const encuestasObj = respEncuestas?.data || {};
             const actividadesExtraGlobal = catalog.actividadesExtra || {};
             const cupsGlobal = catalog.cups || {};
 
@@ -2002,8 +2028,19 @@ export default {
                 paramsEncuesta.convenio = String(this.convenioInforme || "").trim();
             }
 
-            const [respEncuestas, catalog] = await Promise.all([
-                realtime_api.get("/Encuesta.json", { params: paramsEncuesta }),
+            // El servidor compara con DATE() en su zona horaria; se amplía un día y el filtro exacto se hace abajo.
+            const rangoServidor = {
+                fechaInicio: desplazarFechaIso(this.fechaInicio, -1),
+                fechaFin: desplazarFechaIso(this.fechaFin, 1),
+            };
+            const consultasPorFecha = ["FechaFacturacion", "fechagestEnfermera", "fecha"].map((fechaCampo) => ({
+                ...paramsEncuesta,
+                ...rangoServidor,
+                fechaCampo,
+            }));
+
+            const [encuestasObj, catalog] = await Promise.all([
+                obtenerEncuestasPaginadasUnion(consultasPorFecha),
                 loadInformesCatalogSnapshot({
                     includeAsignaciones: false,
                     includeActividades: false,
@@ -2011,7 +2048,6 @@ export default {
                 }),
             ]);
 
-            const encuestasObj = respEncuestas?.data || {};
             const actividadesExtraGlobal = catalog.actividadesExtra || {};
             const cupsGlobal = catalog.cups || {};
 
@@ -3227,7 +3263,8 @@ export default {
                             cup,
                             profesionalMeta?.cargo,
                             profesionalMeta?.aliases || profesionalMeta?.nombre,
-                            profesionalMeta?.documento
+                            profesionalMeta?.documento,
+                            { encuestaDelProfesional: perteneceAlProfesional }
                         )) return;
 
                         cupsRolPaciente.push({
@@ -3236,23 +3273,6 @@ export default {
                         });
                     });
                 });
-
-                if (!cupsRolPaciente.length) {
-                    const cupsPaciente = Array.isArray(encuesta?.cupsAsignadosRaw) ? encuesta.cupsAsignadosRaw : [];
-                    cupsPaciente.forEach((cup) => {
-                        const tieneDatosCup = Boolean(
-                            cup?.codigo ||
-                            cup?.DescripcionCUP ||
-                            cup?.cupsNombre ||
-                            cup?.detalle ||
-                            cup?.actividadId ||
-                            cup?.idActividad
-                        );
-                        if (!tieneDatosCup || !perteneceAlProfesional) return;
-
-                        cupsRolPaciente.push(cup);
-                    });
-                }
 
                 if (!perteneceAlProfesional && !cupsRolPaciente.length) return;
 
@@ -3404,26 +3424,15 @@ export default {
                     cierresPorDiaMap.set(fechaCierreValida, (cierresPorDiaMap.get(fechaCierreValida) || 0) + 1);
 
                     const cupsPaciente = Array.isArray(encuesta?.cupsAsignadosRaw) ? encuesta.cupsAsignadosRaw : [];
-                    const cupsRolPaciente = cupsPaciente.filter((cup) =>
+                    const cupsRolPacienteFinal = cupsPaciente.filter((cup) =>
                         this.coincideRolCupConCargo(
                             cup,
                             profesionalMeta?.cargo,
                             profesionalMeta?.aliases || profesionalMeta?.nombre,
-                            profesionalMeta?.documento
+                            profesionalMeta?.documento,
+                            { encuestaDelProfesional: true }
                         )
                     );
-                    const cupsRolPacienteFinal = cupsRolPaciente.length
-                        ? cupsRolPaciente
-                        : (perteneceAlProfesional
-                            ? cupsPaciente.filter((cup) =>
-                                cup?.codigo ||
-                                cup?.DescripcionCUP ||
-                                cup?.cupsNombre ||
-                                cup?.detalle ||
-                                cup?.actividadId ||
-                                cup?.idActividad
-                            )
-                            : []);
 
                     const actividadesPaciente = [];
                     let totalCupsPaciente = 0;
