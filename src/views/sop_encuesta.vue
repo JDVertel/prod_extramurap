@@ -369,7 +369,7 @@
                             </select>
                         </div>
 
-                        <div v-if="mostrarPsicoTs" class="col-6 col-md-3 mb-3">
+                        <div v-if="requierePsicologo" class="col-6 col-md-3 mb-3">
                             <label for="psicologo" class="form-label">Psicologo</label>
                             <select id="psicologo" v-model="psicologo" class="form-select">
                                 <option value="">---Seleccione---</option>
@@ -380,7 +380,7 @@
                             </select>
                         </div>
 
-                        <div v-if="mostrarPsicoTs" class="col-6 col-md-3 mb-3">
+                        <div v-if="requiereTrabajadorSocial" class="col-6 col-md-3 mb-3">
                             <label for="trabajadorSocial" class="form-label">T social </label>
                             <select id="trabajadorSocial" v-model="trabajadorSocial" class="form-select">
                                 <option value="">---Seleccione---</option>
@@ -701,7 +701,8 @@ export default {
                 }
             }
 
-            const requierePsicoTs = this.mostrarPsicoTs;
+            const requierePsicologo = this.requierePsicologo;
+            const requiereTrabajadorSocial = this.requiereTrabajadorSocial;
             const requiereNutricionista = this.requiereNutricionista;
             const requiereHigienistaOral = this.requiereHigienistaOral;
 
@@ -715,29 +716,19 @@ export default {
                 return;
             }
 
-            // Validación especial para Psicólogo y Trabajador Social en E Basicos
-            if (requierePsicoTs || requiereNutricionista || requiereHigienistaOral) {
-                let mensajeAdvertencia = "";
-                const faltaPsicologo = !this.psicologo;
-                const faltaTSocial = !this.trabajadorSocial;
-                const faltaNutricionista = !this.nutricionista;
-                const faltaHigienistaOral = !this.higienistaOral;
+            // Advertencia si faltan profesionales opcionales del convenio
+            if (requierePsicologo || requiereTrabajadorSocial || requiereNutricionista || requiereHigienistaOral) {
+                const faltantes = [];
+                if (requierePsicologo && !this.psicologo) faltantes.push("Psicólogo");
+                if (requiereTrabajadorSocial && !this.trabajadorSocial) faltantes.push("Trabajador Social");
+                if (requiereNutricionista && !this.nutricionista) faltantes.push("Nutricionista");
+                if (requiereHigienistaOral && !this.higienistaOral) faltantes.push("Higienista oral");
 
-                if (requierePsicoTs && requiereNutricionista && requiereHigienistaOral && faltaPsicologo && faltaTSocial && faltaNutricionista && faltaHigienistaOral) {
-                    mensajeAdvertencia = "No ha seleccionado Psicólogo, Trabajador Social, Nutricionista ni Higienista oral.";
-                } else if (requierePsicoTs && requiereNutricionista && faltaPsicologo && faltaTSocial && faltaNutricionista) {
-                    mensajeAdvertencia = "No ha seleccionado Psicólogo, Trabajador Social ni Nutricionista.";
-                } else if (requierePsicoTs && faltaPsicologo) {
-                    mensajeAdvertencia = "No ha seleccionado Psicólogo.";
-                } else if (requierePsicoTs && faltaTSocial) {
-                    mensajeAdvertencia = "No ha seleccionado Trabajador Social.";
-                } else if (requiereNutricionista && faltaNutricionista) {
-                    mensajeAdvertencia = "No ha seleccionado Nutricionista.";
-                } else if (requiereHigienistaOral && faltaHigienistaOral) {
-                    mensajeAdvertencia = "No ha seleccionado Higienista oral.";
-                }
-
-                if (mensajeAdvertencia) {
+                if (faltantes.length) {
+                    const mensajeAdvertencia =
+                        faltantes.length === 1
+                            ? `No ha seleccionado ${faltantes[0]}.`
+                            : `No ha seleccionado: ${faltantes.join(", ")}.`;
                     const confirmar = confirm(
                         mensajeAdvertencia + "\n\n¿Desea cancelar para corregir o continuar de todas formas?"
                     );
@@ -753,10 +744,10 @@ export default {
                 fechavisita: "",
                 idMedicoAtiende: this.medico,
                 idEnfermeroAtiende: this.enfermero,
-                ...(requierePsicoTs && this.psicologo
+                ...(requierePsicologo && this.psicologo
                     ? { idPsicologoAtiende: this.psicologo }
                     : {}),
-                ...(requierePsicoTs && this.trabajadorSocial
+                ...(requiereTrabajadorSocial && this.trabajadorSocial
                     ? { idTsocialAtiende: this.trabajadorSocial }
                     : {}),
                 ...(requiereNutricionista && this.nutricionista
@@ -1294,15 +1285,18 @@ export default {
             if (!this.enfermero) {
                 this.enfermero = this.primerDocumentoDisponible(this.enfermerosByGrupo);
             }
-            if (this.mostrarPsicoTs) {
+            if (this.requierePsicologo) {
                 if (!this.psicologo) {
                     this.psicologo = this.primerDocumentoDisponible(this.psicologosByGrupo);
                 }
+            } else {
+                this.psicologo = "";
+            }
+            if (this.requiereTrabajadorSocial) {
                 if (!this.trabajadorSocial) {
                     this.trabajadorSocial = this.primerDocumentoDisponible(this.tsocialesByGrupo);
                 }
             } else {
-                this.psicologo = "";
                 this.trabajadorSocial = "";
             }
             if (this.requiereNutricionista) {
@@ -1340,8 +1334,10 @@ export default {
 
             await this.getAllMedicosbyGrupo({ grupo, convenio });
             await this.getAllEnfermerosbyGrupo({ grupo, convenio });
-            if (this.mostrarPsicoTs) {
+            if (this.requierePsicologo) {
                 await this.getAllPsicologosbyGrupo({ grupo, convenio });
+            }
+            if (this.requiereTrabajadorSocial) {
                 await this.getAllTsocialesbyGrupo({ grupo, convenio });
             }
             if (this.requiereNutricionista) {
@@ -1489,9 +1485,16 @@ export default {
             const c = this.convenioNormalizado;
             return c === "unidesa" || c === "unides";
         },
-        mostrarPsicoTs() {
+        requierePsicologo() {
             // Visibilidad por convenio del auxiliar/sesión, nunca por el del paciente repetido
+            return this.esConvenioEBasicos || this.esConvenioPIC || this.esConvenioUnidesa;
+        },
+        requiereTrabajadorSocial() {
             return this.esConvenioEBasicos || this.esConvenioPIC;
+        },
+        mostrarPsicoTs() {
+            // Compat: psico + TS (E Basicos / PIC). Unidesa solo usa requierePsicologo.
+            return this.requiereTrabajadorSocial;
         },
         requiereNutricionista() {
             return this.esConvenioPIC;
@@ -1556,9 +1559,15 @@ export default {
             this.pacienteEncontrado = null;
             this.nombreEncuestador = "";
         },
-        async mostrarPsicoTs(valor) {
+        async requierePsicologo(valor) {
             if (!valor) {
                 this.psicologo = "";
+                return;
+            }
+            await this.cargarProfesionalesDelGrupo();
+        },
+        async requiereTrabajadorSocial(valor) {
+            if (!valor) {
                 this.trabajadorSocial = "";
                 return;
             }

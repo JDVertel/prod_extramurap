@@ -80,6 +80,7 @@
                                 <div class="col-12 col-md-10 paciente-info-col">
                                     <div class="paciente-nombre">
                                         <strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong>
+                                        <span v-if="encuesta.tipodoc || encuesta.numdoc" class="text-muted"> · {{ [encuesta.tipodoc, encuesta.numdoc].filter(Boolean).join('-') }}</span>
                                     </div>
                                     <small class="paciente-meta">
                                         <span v-if="encuesta.eps">EPS: {{ encuesta.eps }}</span>

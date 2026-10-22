@@ -274,7 +274,7 @@
               {{ bloqueosAsignacion.enfermero?.motivo || "" }}
             </small>
           </div>
-          <div v-if="mostrarPsicoTs" class="col-6 col-md-3">
+          <div v-if="requierePsicologo" class="col-6 col-md-3">
             <label class="form-label">Psicólogo</label>
             <select
               v-model="form.psicologo"
@@ -290,7 +290,7 @@
               {{ bloqueosAsignacion.psicologo?.motivo || "" }}
             </small>
           </div>
-          <div v-if="mostrarPsicoTs" class="col-6 col-md-3">
+          <div v-if="requiereTrabajadorSocial" class="col-6 col-md-3">
             <label class="form-label">Trabajador social</label>
             <select
               v-model="form.trabajadorSocial"
@@ -489,9 +489,16 @@ export default {
     convenioActual() {
       return String(this.convenioEncuesta || this.userData?.convenio || "").trim();
     },
-    mostrarPsicoTs() {
+    requierePsicologo() {
+      const c = this.convenioActual;
+      return c === "E Basicos" || c === "PIC" || esConvenioUnidesa(c);
+    },
+    requiereTrabajadorSocial() {
       const c = this.convenioActual;
       return c === "E Basicos" || c === "PIC";
+    },
+    mostrarPsicoTs() {
+      return this.requiereTrabajadorSocial;
     },
     requiereNutricionista() {
       return this.convenioActual === "PIC";
@@ -814,11 +821,11 @@ export default {
         this.getAllMedicosbyGrupo(params),
         this.getAllEnfermerosbyGrupo(params),
       ]);
-      if (this.mostrarPsicoTs) {
-        await Promise.all([
-          this.getAllPsicologosbyGrupo(params),
-          this.getAllTsocialesbyGrupo(params),
-        ]);
+      if (this.requierePsicologo) {
+        await this.getAllPsicologosbyGrupo(params);
+      }
+      if (this.requiereTrabajadorSocial) {
+        await this.getAllTsocialesbyGrupo(params);
       }
       if (this.requiereNutricionista) {
         await this.getAllNutricionistasbyGrupo(params);
@@ -995,8 +1002,8 @@ export default {
       const rolesVisibles = [
         ["medico", true],
         ["enfermero", true],
-        ["psicologo", this.mostrarPsicoTs],
-        ["trabajadorSocial", this.mostrarPsicoTs],
+        ["psicologo", this.requierePsicologo],
+        ["trabajadorSocial", this.requiereTrabajadorSocial],
         ["nutricionista", this.requiereNutricionista],
         ["higienistaOral", this.requiereHigienistaOral],
       ];
@@ -1062,8 +1069,8 @@ export default {
             poblacionRiesgo: this.form.poblacionRiesgo,
             idMedicoAtiende: medicoFinal,
             idEnfermeroAtiende: enfermeroFinal,
-            idPsicologoAtiende: this.valorAsignacionParaGuardar("psicologo", this.mostrarPsicoTs),
-            idTsocialAtiende: this.valorAsignacionParaGuardar("trabajadorSocial", this.mostrarPsicoTs),
+            idPsicologoAtiende: this.valorAsignacionParaGuardar("psicologo", this.requierePsicologo),
+            idTsocialAtiende: this.valorAsignacionParaGuardar("trabajadorSocial", this.requiereTrabajadorSocial),
             idNutricionistaAtiende: this.valorAsignacionParaGuardar("nutricionista", this.requiereNutricionista),
             idHigienistaOralAtiende: this.valorAsignacionParaGuardar("higienistaOral", this.requiereHigienistaOral),
           },

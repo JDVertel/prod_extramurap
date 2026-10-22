@@ -64,7 +64,11 @@
                                 class="container p-2 mb-2">
                                 <div class="row paciente shadow-sm">
                                     <div class="col-6 col-md-6">
-                                        <small><strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong> | </small>
+                                        <small>
+                                            <strong>{{ encuesta.nombre1 }} {{ encuesta.apellido1 }}</strong>
+                                            <span v-if="encuesta.tipodoc || encuesta.numdoc"> · {{ [encuesta.tipodoc, encuesta.numdoc].filter(Boolean).join('-') }}</span>
+                                            |
+                                        </small>
                                         <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
                                         <small>Nac: {{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaCorta(encuesta.fecha) || 'N/A' }}</small>
                                         <AssignedProfessionalsBadge :encuesta="encuesta" />
@@ -984,9 +988,11 @@ export default {
 
                 if (esUnidesa) {
                     const requiereHigienista = !!encuesta.idHigienistaOralAtiende;
+                    const requierePsi = !!encuesta.idPsicologoAtiende;
                     if (encuesta.status_gest_aux !== true) return false;
                     if (!this.estadoGestionMedica(encuesta)) return false;
                     if (requiereHigienista && !this.estadoGestionHigienistaOral(encuesta)) return false;
+                    if (requierePsi && encuesta.status_gest_psicologo !== true) return false;
                     return true;
                 }
 
@@ -1045,8 +1051,10 @@ export default {
 
                 if (esUnidesa) {
                     const requiereHigienista = !!encuesta.idHigienistaOralAtiende;
+                    const requierePsi = !!encuesta.idPsicologoAtiende;
                     const estados = [encuesta.status_gest_aux, this.estadoGestionMedica(encuesta)];
                     if (requiereHigienista) estados.push(this.estadoGestionHigienistaOral(encuesta));
+                    if (requierePsi) estados.push(encuesta.status_gest_psicologo);
                     return estados.some((valor) => valor === false);
                 }
 

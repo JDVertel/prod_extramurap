@@ -251,6 +251,16 @@
         <div class="container-fluid">
           <h5 class="mb-3">CUPS del sistema</h5>
 
+          <div class="alert alert-info mb-3" role="alert">
+            <strong><i class="bi bi-info-circle me-1"></i> ¿Cuándo aplican los cambios?</strong>
+            <ul class="mb-0 mt-2 small">
+              <li>Crear o editar un CUPS actualiza el <strong>catálogo general</strong> (nombres, código, profesional, grupo, roles).</li>
+              <li>Un CUPS <strong>nuevo no queda disponible</strong> para pacientes solo por crearlo o asociarlo a una actividad: debe <strong>agregarse al contrato</strong> de la EPS.</li>
+              <li>Los cambios del catálogo se reflejan en pantallas operativas al cruzar por el CUPS; la foto guardada en el contrato no se reescribe sola. Para fijar profesional/grupo en el contrato, edite y guarde el contrato.</li>
+              <li>Las asignaciones de CUPS ya hechas a pacientes <strong>no se modifican</strong> al editar el catálogo.</li>
+            </ul>
+          </div>
+
           <div class="row g-3">
             <div class="col-12 col-lg-7">
               <div class="card parametros-panel h-100">
@@ -471,6 +481,16 @@
         <div class="container-fluid">
           <h5 class="mb-3">Actividades extra del sistema</h5>
 
+          <div class="alert alert-info mb-3" role="alert">
+            <strong><i class="bi bi-info-circle me-1"></i> ¿Cuándo aplican los cambios?</strong>
+            <ul class="mb-0 mt-2 small">
+              <li>Crear o editar una actividad actualiza el <strong>catálogo de actividades</strong> (clave, nombre, profesionales).</li>
+              <li>Tener una actividad en un contrato <strong>no habilita automáticamente</strong> todos sus CUPS del catálogo: cada CUPS debe estar listado en el contrato.</li>
+              <li>Si crea un CUPS nuevo y lo asocia a una actividad ya contratada, ese CUPS <strong>solo estará disponible para pacientes</strong> después de agregarlo al contrato de la EPS.</li>
+              <li>Actividades o CUPS ya asignados a encuestas/pacientes <strong>no se reescriben</strong> al editar el catálogo.</li>
+            </ul>
+          </div>
+
           <div class="row g-3">
             <div class="col-12 col-xl-8">
               <div class="card parametros-panel h-100">
@@ -601,6 +621,16 @@
       <!-- ========== TAB: CONTRATOS ========== -->
       <div class="tab-pane fade" id="nav-contratos" role="tabpanel" aria-labelledby="nav-contratos-tab" tabindex="0">
         <h5>Gestion CONTRATOS</h5>
+
+        <div class="alert alert-info mb-3" role="alert">
+          <strong><i class="bi bi-info-circle me-1"></i> ¿Cuándo aplican los cambios?</strong>
+          <ul class="mb-0 mt-2 small">
+            <li>El contrato define <strong>qué CUPS puede usar cada EPS</strong>. Solo los CUPS guardados aquí quedan disponibles para asignar a pacientes de esa EPS.</li>
+            <li>Al crear o editar un contrato (agregar/quitar CUPS) los cambios aplican <strong>desde el momento en que se guardan</strong>, para nuevas asignaciones en SOP / consulta.</li>
+            <li>Editar el contrato <strong>no modifica</strong> actividades ni CUPS ya asignados a pacientes; solo cambia lo disponible a futuro.</li>
+            <li>Si creó un CUPS o actividad en el catálogo, debe <strong>incluirlo explícitamente</strong> en este contrato para que los profesionales lo vean en pacientes.</li>
+          </ul>
+        </div>
 
         <div class="alert alert-warning" role="alert">
           <div class="row">

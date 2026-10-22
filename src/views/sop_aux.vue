@@ -75,7 +75,10 @@
               class="container rounded-lg p-2 mb-2">
               <div :class="['row', 'paciente', 'shadow-sm', pacienteClass(encuesta)]">
                 <div class="col-7 col-md-6">
-                  <small class="d-block"><strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong></small>
+                  <small class="d-block">
+                    <strong>{{ encuesta.nombre1 }} {{ encuesta.nombre2 }} {{ encuesta.apellido1 }} {{ encuesta.apellido2 }}</strong>
+                    <span v-if="encuesta.tipodoc || encuesta.numdoc"> · {{ [encuesta.tipodoc, encuesta.numdoc].filter(Boolean).join('-') }}</span>
+                  </small>
                   <small>EPS: {{ encuesta.eps }} | Riesgo: {{ encuesta.poblacionRiesgo }}</small>
                   <small>Nac: {{ formatearFechaCorta(encuesta.fechaNac) || 'N/A' }} | Enc: {{ formatearFechaCorta(encuesta.fecha) || 'N/A' }}</small>
                   <AssignedProfessionalsBadge :encuesta="encuesta" />

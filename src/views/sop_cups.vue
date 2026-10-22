@@ -1129,6 +1129,24 @@ export default {
             return false;
         },
 
+        /**
+         * Profesionales autorizados para un CUPS del contrato.
+         * Prioriza el catálogo (igual que la vista de Contratos); si no hay, usa el valor congelado.
+         */
+        obtenerProfesionalesAutorizadosCupContrato(cupContrato = {}) {
+            const cupContratoId = String(cupContrato?.cupsId ?? cupContrato?.id ?? "").trim();
+            const cupCatalogo = cupContratoId
+                ? this.cups.find((cup) => String(cup?.id || "").trim() === cupContratoId)
+                : null;
+            const desdeCatalogo = this.normalizarProfesionales(cupCatalogo?.profesional);
+            if (desdeCatalogo.length) {
+                return desdeCatalogo;
+            }
+            return this.normalizarProfesionales(
+                cupContrato?.cupsProfesional ?? cupContrato?.profesional
+            );
+        },
+
         obtenerIdsCupsPermitidosPorActividad(actividadId) {
             const { contratos, epsObjetivoNorm } = this.resolverContextoContratosPaciente();
             if (!contratos.length || !epsObjetivoNorm || !Array.isArray(this.cups)) {
@@ -1145,9 +1163,9 @@ export default {
                 cupsContrato.forEach((cupContrato) => {
                     const epsCupNorm = this.normalizarTextoComparacion(cupContrato?.epsNombre);
                     const coincideEps = !epsCupNorm || epsCupNorm === epsObjetivoNorm;
-                    const profesionalesContrato = this.normalizarProfesionales(cupContrato?.cupsProfesional);
-                    const coincideProfesional = !profesionalesContrato.length
-                        || this.profesionalesIncluyen(profesionalesContrato, cargoUsuario);
+                    const profesionalesAutorizados = this.obtenerProfesionalesAutorizadosCupContrato(cupContrato);
+                    const coincideProfesional = !profesionalesAutorizados.length
+                        || this.profesionalesIncluyen(profesionalesAutorizados, cargoUsuario);
                     const coincideActividad = this.coincideActividadContrato(
                         cupContrato,
                         actividadId,
@@ -1165,11 +1183,7 @@ export default {
                         const coincideId = cupContratoId && String(cup?.id || "").trim() === cupContratoId;
                         const coincideNombre = cupContratoNombre &&
                             this.normalizarTextoComparacion(cup?.DescripcionCUP) === cupContratoNombre;
-                        if (!coincideId && !coincideNombre) {
-                            return false;
-                        }
-
-                        return this.profesionalesCoinciden(cup?.profesional, cupContrato?.cupsProfesional);
+                        return coincideId || coincideNombre;
                     });
 
                     if (cupEnCatalogo?.id) {

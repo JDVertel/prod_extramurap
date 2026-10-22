@@ -441,6 +441,7 @@
                                             <option v-if="editConvenio === 'PIC'" value="Psicologo">Psicologo</option>
                                             <option v-if="editConvenio === 'PIC'" value="Tsocial">Trabajador social</option>
                                             <option v-if="editConvenio === 'PIC'" value="Nutricionista">Nutricionista</option>
+                                            <option v-if="editConvenio === 'Unidesa'" value="Psicologo">Psicologo</option>
                                             <option v-if="editConvenio === 'Unidesa'" value="Higienista oral">Higienista oral</option>
                                             <option value="Fact">Facturador</option>
                                             <option value="admin">--Administrador--</option>
@@ -765,6 +766,7 @@
                                             <option v-if="convenio === 'PIC'" value="Psicologo">Psicologo</option>
                                             <option v-if="convenio === 'PIC'" value="Tsocial">Trabajador social</option>
                                             <option v-if="convenio === 'PIC'" value="Nutricionista">Nutricionista</option>
+                                            <option v-if="convenio === 'Unidesa'" value="Psicologo">Psicologo</option>
                                             <option v-if="convenio === 'Unidesa'" value="Higienista oral">Higienista oral</option>
                                         </select>
                                     </div>
@@ -2609,11 +2611,16 @@ Esta acción eliminará el usuario de la base de datos.`)) {
             }
         },
         onConvenioChange() {
-            const soloEBasicos = ['Psicologo', 'Tsocial'];
+            const conveniosConPsicologo = ['E Basicos', 'PIC', 'Unidesa'];
+            const conveniosConTsocial = ['E Basicos', 'PIC'];
             const soloPIC = ['Nutricionista'];
             const soloUnidesa = ['Higienista oral'];
 
-            if (this.convenio !== 'E Basicos' && soloEBasicos.includes(this.cargo)) {
+            if (this.cargo === 'Psicologo' && !conveniosConPsicologo.includes(this.convenio)) {
+                this.cargo = '';
+            }
+
+            if (this.cargo === 'Tsocial' && !conveniosConTsocial.includes(this.convenio)) {
                 this.cargo = '';
             }
 

@@ -47,7 +47,7 @@
         No hay registros para esa consulta.
       </div>
 
-      <!-- LISTADO DE PACIENTES ENCONTRADOS -->
+      <!-- LISTADO DE PACIENTES ENCONTRADOS (ACORDEÓN) -->
       <div v-if="datosPaciente && datosPaciente.length > 0">
         <div class="card consulta-resultados-card mb-3">
           <div class="card-header consulta-resultados-header">
@@ -55,80 +55,89 @@
               <span class="consulta-eyebrow">Resultados de búsqueda</span>
               <strong>Pacientes encontrados para: {{ numdoc }}</strong>
             </div>
-            <span class="badge rounded-pill bg-primary">{{ datosPaciente.length }} registro(s)</span>
+            <span class="consulta-resultados-count">{{ datosPaciente.length }} registro(s)</span>
           </div>
-          <div class="card-body p-0">
-            <div class="table-responsive mb-0">
-              <table class="table table-sm table-hover mb-0 consulta-resultados-table">
-                <thead class="table-light">
-                  <tr>
-                    <th>Fecha intervención</th>
-                    <th>Convenio</th>
-                    <th>Tipo de documento</th>
-                    <th>Número de documento</th>
-                    <th>Nombres</th>
-                    <th>Apellidos</th>
-                    <th>Fecha de nacimiento</th>
-                    <th>EPS</th>
-                    <th>Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="paciente in datosPacienteOrdenados" :key="`resumen-${paciente.id}`">
-                    <td>
-                      <span class="consulta-fecha-intervencion">
-                        {{ formatearFechaIntervencion(paciente) || 'N/A' }}
-                      </span>
-                    </td>
-                    <td>{{ paciente.convenio || 'N/A' }}</td>
-                    <td><span class="badge bg-secondary-subtle text-dark border">{{ paciente.tipodoc || '-' }}</span></td>
-                    <td><strong>{{ paciente.numdoc || '-' }}</strong></td>
-                    <td>{{ nombresPaciente(paciente) || '-' }}</td>
-                    <td>{{ apellidosPaciente(paciente) || '-' }}</td>
-                    <td>{{ formatearFechaSoloDia(paciente.fechaNac) || 'N/A' }}</td>
-                    <td><span class="consulta-eps">{{ paciente.eps || 'N/A' }}</span></td>
-                    <td>
-                      <button
-                        class="btn btn-sm btn-success"
-                        type="button"
-                        @click="abrirPanelPaciente(paciente.id)"
-                      >
-                        <i class="bi bi-box-arrow-up-right"></i>
-                        {{ pacienteDetalleAbiertoId === paciente.id ? 'Panel abierto' : 'Abrir panel' }}
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
 
-        <!-- VISTA DETALLADA DE PACIENTES -->
-        <template v-for="(paciente, index) in datosPacienteOrdenados" :key="`detalle-${paciente.id}`">
-        <div v-if="pacienteDetalleAbiertoId === paciente.id" class="card consulta-detalle-card mb-4">
-          <div class="card-header consulta-detalle-header">
-            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
-              <div>
-                <span class="consulta-eyebrow text-white-50">Panel del paciente</span>
-                <h5 class="mb-2">{{ paciente.nombre1 }} {{ paciente.nombre2 }} {{ paciente.apellido1 }} {{ paciente.apellido2
-                }}</h5>
-                <span class="badge bg-light text-dark me-2">{{ paciente.tipodoc }}-{{ paciente.numdoc }}</span>
-                <span class="badge bg-warning text-dark me-2">{{ paciente.eps || 'Sin EPS' }}</span>
-                <span v-if="paciente.grupo" class="badge bg-info text-dark">Grupo {{ paciente.grupo }}</span>
-              </div>
-              <div class="consulta-detalle-actions d-flex flex-column flex-sm-row gap-2">
-                <button class="btn btn-sm btn-warning" type="button" @click="iniciarEdicionEncuesta(paciente)">
-                  <i class="bi bi-pencil-square"></i> Editar encuesta
+          <div class="accordion consulta-acordeon" id="acordeonConsultaPacientes">
+            <div
+              v-for="(paciente, index) in datosPacienteOrdenados"
+              :key="`acordeon-${paciente.id}`"
+              class="accordion-item consulta-acordeon-item">
+              <h2 class="accordion-header" :id="`heading-consulta-${index}`">
+                <button
+                  class="accordion-button consulta-acordeon-btn"
+                  type="button"
+                  :class="{ collapsed: pacienteDetalleAbiertoId !== paciente.id }"
+                  :aria-expanded="pacienteDetalleAbiertoId === paciente.id ? 'true' : 'false'"
+                  :aria-controls="`collapse-consulta-${index}`"
+                  @click="togglePanelPaciente(paciente.id)">
+                  <div class="consulta-acordeon-resumen">
+                    <div class="consulta-acordeon-col">
+                      <span class="consulta-acordeon-label">Fecha intervención</span>
+                      <span class="consulta-acordeon-valor">{{ formatearFechaIntervencion(paciente) || 'N/A' }}</span>
+                    </div>
+                    <div class="consulta-acordeon-col">
+                      <span class="consulta-acordeon-label">Convenio</span>
+                      <span class="consulta-acordeon-valor">{{ paciente.convenio || 'N/A' }}</span>
+                    </div>
+                    <div class="consulta-acordeon-col">
+                      <span class="consulta-acordeon-label">Documento</span>
+                      <span class="consulta-acordeon-valor">{{ paciente.tipodoc || '-' }}-{{ paciente.numdoc || '-' }}</span>
+                    </div>
+                    <div class="consulta-acordeon-col">
+                      <span class="consulta-acordeon-label">Nombres</span>
+                      <span class="consulta-acordeon-valor">{{ nombresPaciente(paciente) || '-' }}</span>
+                    </div>
+                    <div class="consulta-acordeon-col">
+                      <span class="consulta-acordeon-label">Apellidos</span>
+                      <span class="consulta-acordeon-valor">{{ apellidosPaciente(paciente) || '-' }}</span>
+                    </div>
+                    <div class="consulta-acordeon-col">
+                      <span class="consulta-acordeon-label">Fecha de nacimiento</span>
+                      <span class="consulta-acordeon-valor">{{ formatearFechaSoloDia(paciente.fechaNac) || 'N/A' }}</span>
+                    </div>
+                    <div class="consulta-acordeon-col">
+                      <span class="consulta-acordeon-label">EPS</span>
+                      <span class="consulta-acordeon-valor">{{ paciente.eps || 'N/A' }}</span>
+                    </div>
+                  </div>
                 </button>
-                <button v-if="puedeEliminarPaciente(paciente)" class="btn btn-sm btn-danger" type="button"
-                  @click="eliminarPaciente(paciente)">
-                  <i class="bi bi-trash"></i> Eliminar
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="card-body">
+              </h2>
+
+              <div
+                :id="`collapse-consulta-${index}`"
+                class="accordion-collapse collapse"
+                :class="{ show: pacienteDetalleAbiertoId === paciente.id }"
+                :aria-labelledby="`heading-consulta-${index}`">
+                <div class="accordion-body consulta-acordeon-body">
+                  <div class="consulta-detalle-toolbar">
+                    <div class="consulta-detalle-titulo">
+                      <strong>Detalle del registro</strong>
+                      <span v-if="paciente.grupo">Grupo {{ paciente.grupo }}</span>
+                    </div>
+                    <div class="consulta-detalle-actions d-flex flex-wrap gap-2">
+                      <button
+                        v-if="!tieneActividadesFacturadas(paciente)"
+                        class="btn btn-sm btn-warning"
+                        type="button"
+                        @click="iniciarEdicionEncuesta(paciente)">
+                        <i class="bi bi-pencil-square"></i> Editar encuesta
+                      </button>
+                      <button
+                        v-if="puedeEliminarPaciente(paciente)"
+                        class="btn btn-sm btn-danger"
+                        type="button"
+                        @click="eliminarPaciente(paciente)">
+                        <i class="bi bi-trash"></i> Eliminar
+                      </button>
+                      <small
+                        v-if="tieneActividadesFacturadas(paciente)"
+                        class="text-danger align-self-center">
+                        No se puede editar ni eliminar: hay actividades facturadas
+                      </small>
+                    </div>
+                  </div>
+
             <div v-if="pacienteEditandoId === paciente.id" class="alert alert-light border mb-3">
               <h6 class="mb-3"><i class="bi bi-pencil"></i> Editar datos de la encuesta</h6>
               <div class="row g-2">
@@ -240,6 +249,18 @@
                   <i class="bi bi-person-badge"></i> Profesionales
                 </button>
               </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" :id="'tab-facturados-' + index" data-bs-toggle="tab"
+                  :data-bs-target="'#content-facturados-' + index" type="button" role="tab"
+                  :aria-controls="'content-facturados-' + index" aria-selected="false">
+                  <i class="bi bi-receipt"></i> Facturados
+                  <span
+                    v-if="obtenerResumenFacturados(paciente).totalActividades > 0"
+                    class="badge bg-success ms-1">
+                    {{ obtenerResumenFacturados(paciente).totalActividades }}
+                  </span>
+                </button>
+              </li>
             </ul>
 
             <!-- CONTENIDO DE PESTAÑAS -->
@@ -261,7 +282,7 @@
                       </tr>
                       <tr>
                         <th>Documento</th>
-                        <td>{{ paciente.tipodoc }} - {{ paciente.numdoc }}</td>
+                        <td>{{ paciente.tipodoc || '-' }}-{{ paciente.numdoc || '-' }}</td>
                       </tr>
                       <tr>
                         <th>Fecha Nacimiento</th>
@@ -425,10 +446,58 @@
                   <i class="bi bi-info-circle"></i> No hay profesionales asignados para esta encuesta.
                 </div>
               </div>
+
+              <!-- TAB: FACTURADOS -->
+              <div :id="'content-facturados-' + index" class="tab-pane fade" role="tabpanel"
+                :aria-labelledby="'tab-facturados-' + index">
+                <div v-if="obtenerResumenFacturados(paciente).profesionales.length > 0">
+                  <div class="alert alert-success py-2 mb-3">
+                    <i class="bi bi-receipt"></i>
+                    Total actividades facturadas:
+                    <strong>{{ obtenerResumenFacturados(paciente).totalActividades }}</strong>
+                    · CUPS facturados:
+                    <strong>{{ obtenerResumenFacturados(paciente).totalCups }}</strong>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="table table-sm table-striped table-bordered">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Profesional</th>
+                          <th>Rol</th>
+                          <th class="text-center">Actividades</th>
+                          <th class="text-center">CUPS</th>
+                          <th>Facturas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr
+                          v-for="(item, idxFact) in obtenerResumenFacturados(paciente).profesionales"
+                          :key="`${paciente.id}-fact-${idxFact}`">
+                          <td>
+                            <strong>{{ item.nombre || 'Sin nombre' }}</strong>
+                            <small v-if="item.documento" class="text-muted d-block">{{ item.documento }}</small>
+                          </td>
+                          <td><span class="badge bg-info">{{ item.rol || 'N/A' }}</span></td>
+                          <td class="text-center">
+                            <span class="badge bg-success rounded-pill">{{ item.cantidadActividades }}</span>
+                          </td>
+                          <td class="text-center">{{ item.cantidadCups }}</td>
+                          <td>{{ item.facturas || '-' }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div v-else class="alert alert-info">
+                  <i class="bi bi-info-circle"></i> No hay actividades facturadas para esta encuesta.
+                </div>
+              </div>
+            </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        </template>
       </div>
     </div>
   </div>
@@ -598,6 +667,11 @@ export default {
       this.pacienteDetalleAbiertoId = pacienteId;
     },
 
+    togglePanelPaciente(pacienteId) {
+      this.pacienteDetalleAbiertoId =
+        this.pacienteDetalleAbiertoId === pacienteId ? null : pacienteId;
+    },
+
     normalizarTexto(valor) {
       return String(valor || "")
         .normalize("NFD")
@@ -616,8 +690,98 @@ export default {
       return Boolean(grupoUsuario && grupoPaciente && grupoUsuario === grupoPaciente);
     },
 
-    puedeEliminarPaciente(paciente = {}) {
+    puedeVerBotonEliminar(paciente = {}) {
       return this.esAdministrador || (this.esJefe && this.pacientePerteneceAlGrupoDelUsuario(paciente));
+    },
+
+    puedeEliminarPaciente(paciente = {}) {
+      return this.puedeVerBotonEliminar(paciente) && !this.tieneActividadesFacturadas(paciente);
+    },
+
+    motivoBloqueoEliminar(paciente = {}) {
+      if (!this.puedeVerBotonEliminar(paciente)) {
+        return "Solo administradores o la jefe del grupo pueden eliminar.";
+      }
+      if (this.tieneActividadesFacturadas(paciente)) {
+        return "No se puede eliminar: el paciente tiene actividades facturadas.";
+      }
+      return "Eliminar paciente";
+    },
+
+    obtenerListaCupsPaciente(paciente = {}) {
+      const cups = paciente?.asignaciones?.cups;
+      if (!cups) return [];
+      return Array.isArray(cups) ? cups.filter(Boolean) : Object.values(cups).filter(Boolean);
+    },
+
+    esCupFacturado(cup = {}) {
+      if (cup?.facturado === true || cup?.facturado === 1 || cup?.facturado === "1") return true;
+      return String(cup?.FactNum || cup?.factNum || cup?.fact_num || "").trim().length > 0;
+    },
+
+    tieneActividadesFacturadas(paciente = {}) {
+      return this.obtenerListaCupsPaciente(paciente).some((cup) => this.esCupFacturado(cup));
+    },
+
+    obtenerResumenFacturados(paciente = {}) {
+      const mapa = new Map();
+      let totalCups = 0;
+      const actividadesGlobales = new Set();
+
+      this.obtenerListaCupsPaciente(paciente).forEach((cup) => {
+        if (!this.esCupFacturado(cup)) return;
+
+        totalCups += 1;
+        const actividadId = String(cup?.actividadId || cup?.idActividad || "").trim() || "sin-actividad";
+        actividadesGlobales.add(actividadId);
+
+        const rol = String(cup?.key || "").trim() || "Sin rol";
+        const documento = String(cup?.idProf ?? cup?.idProfesional ?? "").trim();
+        const nombre = String(cup?.nombreProf || "").trim()
+          || (documento ? this.obtenerNombreProfesional(documento) : "")
+          || rol;
+        const clave = `${this.normalizarTexto(rol)}::${this.normalizarTexto(documento || nombre)}`;
+
+        if (!mapa.has(clave)) {
+          mapa.set(clave, {
+            rol,
+            documento,
+            nombre,
+            actividades: new Set(),
+            cantidadCups: 0,
+            facturas: new Set(),
+          });
+        }
+
+        const item = mapa.get(clave);
+        item.actividades.add(actividadId);
+        item.cantidadCups += 1;
+        const factura = String(cup?.FactNum || cup?.factNum || cup?.fact_num || "").trim();
+        if (factura) item.facturas.add(factura);
+      });
+
+      const profesionales = Array.from(mapa.values())
+        .map((item) => ({
+          rol: item.rol,
+          documento: item.documento,
+          nombre: item.nombre,
+          cantidadActividades: item.actividades.size,
+          cantidadCups: item.cantidadCups,
+          facturas: Array.from(item.facturas).join(", "),
+        }))
+        .sort((a, b) => {
+          const porNombre = String(a.nombre || "").localeCompare(String(b.nombre || ""), "es", {
+            sensitivity: "base",
+          });
+          if (porNombre !== 0) return porNombre;
+          return String(a.rol || "").localeCompare(String(b.rol || ""), "es", { sensitivity: "base" });
+        });
+
+      return {
+        profesionales,
+        totalActividades: actividadesGlobales.size,
+        totalCups,
+      };
     },
 
     getNombreActividad(actividadKey) {
@@ -904,6 +1068,10 @@ export default {
     },
 
     iniciarEdicionEncuesta(paciente) {
+      if (this.tieneActividadesFacturadas(paciente)) {
+        alert("⚠️ No se puede editar: el paciente tiene actividades facturadas.");
+        return;
+      }
       this.pacienteEditandoId = paciente.id;
       this.encuestaEdit = {
         tipodoc: paciente.tipodoc || "",
@@ -949,8 +1117,9 @@ export default {
       const idEncuesta = typeof paciente === "object" ? paciente?.id : paciente;
       if (!idEncuesta) return;
 
-      if (!this.puedeEliminarPaciente(typeof paciente === "object" ? paciente : {})) {
-        alert("⚠️ Solo administradores o la jefe del grupo que registró al paciente pueden eliminarlo.");
+      const pacienteObj = typeof paciente === "object" ? paciente : {};
+      if (!this.puedeEliminarPaciente(pacienteObj)) {
+        alert(`⚠️ ${this.motivoBloqueoEliminar(pacienteObj)}`);
         return;
       }
 
@@ -1032,16 +1201,22 @@ Esta acción NO se puede deshacer.`;
 
 <style scoped>
 .card {
-  border-radius: 0.5rem;
-  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  border-radius: 0;
+  box-shadow: none;
 }
 
-.consulta-resultados-card,
-.consulta-detalle-card {
-  border: 0;
-  border-radius: 18px;
+.consulta-resultados-card {
+  border: 1px solid #c8d6c8;
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+  box-shadow: none;
+}
+
+.consulta-detalle-card {
+  border: 1px solid #ced4da;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: none;
 }
 
 .consulta-resultados-header {
@@ -1049,85 +1224,143 @@ Esta acción NO se puede deshacer.`;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: linear-gradient(135deg, #f8fafc 0%, #e8f1ff 100%);
-  border-bottom: 1px solid #dbe7f8;
-  padding: 16px 18px;
+  background: #198754;
+  color: #fff;
+  border-bottom: 1px solid #146c43;
+  padding: 12px 16px;
+}
+
+.consulta-resultados-header strong {
+  color: #fff;
+  font-weight: 600;
 }
 
 .consulta-eyebrow {
   display: block;
   font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.85);
   margin-bottom: 2px;
 }
 
-.consulta-resultados-table {
-  vertical-align: middle;
-}
-
-.consulta-resultados-table thead th {
-  color: #334155;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  background: #f8fafc;
-  border-bottom: 1px solid #dbe7f8;
-}
-
-.consulta-resultados-table tbody tr {
-  transition: background-color 0.16s ease, transform 0.16s ease;
-}
-
-.consulta-resultados-table tbody tr:hover {
-  background: #fff7df;
-}
-
-.consulta-eps {
+.consulta-resultados-count {
   display: inline-block;
-  max-width: 240px;
-  padding: 0.25rem 0.5rem;
-  border-radius: 999px;
-  background: #e0f2fe;
-  color: #075985;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: transparent;
+  color: #fff;
+  font-size: 0.8rem;
   font-weight: 600;
-}
-
-.consulta-fecha-intervencion {
-  display: inline-block;
-  font-weight: 700;
-  color: #0f5132;
   white-space: nowrap;
 }
 
-.consulta-detalle-card {
-  border: 1px solid rgba(13, 110, 253, 0.15);
+.consulta-acordeon {
+  border: 0;
+  border-radius: 0;
 }
 
-.consulta-detalle-header {
-  color: #fff;
-  background: linear-gradient(135deg, #0d6efd 0%, #174ea6 100%);
-  padding: 18px;
+.consulta-acordeon-item {
+  border: 0;
+  border-top: 1px solid #c8d6c8;
+  border-radius: 0;
 }
 
-.consulta-detalle-header h5 {
-  font-weight: 700;
-  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+.consulta-acordeon-btn {
+  padding: 12px 16px;
+  background: #fff;
+  color: #212529;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.consulta-acordeon-btn:not(.collapsed) {
+  background: #e9f5ee;
+  color: #146c43;
+}
+
+.consulta-acordeon-btn:focus {
+  box-shadow: none;
+  border-color: transparent;
+}
+
+.consulta-acordeon-btn::after {
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+.consulta-acordeon-resumen {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px 12px;
+  width: 100%;
+  text-align: left;
+}
+
+.consulta-acordeon-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.consulta-acordeon-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6c757d;
+}
+
+.consulta-acordeon-valor {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #212529;
+  word-break: break-word;
+}
+
+.consulta-acordeon-body {
+  background: #fbfdff;
+  border-top: 1px solid #c8d6c8;
+  padding: 16px;
+}
+
+.consulta-detalle-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.consulta-detalle-titulo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.consulta-detalle-titulo span {
+  font-size: 0.85rem;
+  color: #6c757d;
 }
 
 .consulta-detalle-actions {
   width: 100%;
 }
 
-.consulta-detalle-card .card-body {
-  background: #fbfdff;
-}
-
 @media (min-width: 992px) {
   .consulta-detalle-actions {
     width: auto;
+  }
+}
+
+@media (max-width: 992px) {
+  .consulta-acordeon-resumen {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1137,17 +1370,17 @@ Esta acción NO se puede deshacer.`;
     flex-direction: column;
   }
 
-  .consulta-resultados-table {
-    min-width: 760px;
+  .consulta-acordeon-resumen {
+    grid-template-columns: 1fr;
   }
 
-  .consulta-detalle-header .btn {
+  .consulta-detalle-actions .btn {
     width: 100%;
   }
 }
 
 .table-responsive {
-  border-radius: 0.25rem;
+  border-radius: 0;
 }
 
 code {
